@@ -1,5 +1,5 @@
 async fn process(pool: PgPool) {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000000));
 
     loop {
         interval.tick().await;
@@ -11,10 +11,10 @@ async fn process(pool: PgPool) {
 
         for concept in unprocessed_concepts {
             if concept.r#type == "video".to_owned() {
-                tokio::task::spawn(process_video(concept.id, pool.clone()));
+                println!("processing concept: {}", concept.id);
+                process_video(concept.id, pool.clone()).await;
             }
         }
-        println!("processing run finished!");
     }
 }
 
@@ -116,10 +116,10 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
         input_file
     );
     for (w, h, label, bitrate, max_bitrate, min_bitrate, audio_bitrate) in outputs {
-        let output_file = format!("output_{}.webm", label);
+        let output_file = format!("{}/output_{}.webm",output_dir, label);
         webm_files.push(output_file.clone());
         cmd.push_str(format!(" -vf 'scale={}:{},fps={},format=nv12,hwupload' -c:v av1_vaapi -b:v {} -maxrate {} -minrate {} -c:a libopus -b:a {}k -f webm {} ",
-        w, h, framerate, bitrate, max_bitrate, min_bitrate, audio_bitrate, format!("upload/{}/{}",output_dir, output_file)).as_str());
+        w, h, framerate, bitrate, max_bitrate, min_bitrate, audio_bitrate, output_file).as_str());
     }
 
     println!("Executing: {}", cmd);
@@ -169,7 +169,7 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
     println!("thumbnail selected time: {:.2} seconds", random_time);
 
     let thumbnail_cmd = format!(
-        "ffmpeg -y -ss {:.2} -i {} -vf 'scale=1920:1080' -frames:v 1 upload/{}/thumbnail.jpg -frames:v 1 upload/{}/thumbnail.avif",
+        "ffmpeg -y -ss {:.2} -i {} -vf 'scale=1920:1080' -frames:v 1 {}/thumbnail.jpg -frames:v 1 {}/thumbnail.avif",
         random_time, input_file, output_dir, output_dir
     );
     println!("Executing: {}", thumbnail_cmd);
