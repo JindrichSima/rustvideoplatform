@@ -1,6 +1,6 @@
-FROM rust:alpine AS builder
+FROM alpine:latest AS builder
 
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig ffmpeg-dev clang19-dev
+RUN apk add --no-cache cargo musl-dev openssl-dev pkgconfig ffmpeg-dev clang19-dev
 
 RUN mkdir /src
 COPY ./ /src/rustvideoplatform

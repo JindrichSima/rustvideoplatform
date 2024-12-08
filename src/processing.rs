@@ -19,11 +19,11 @@ async fn process(pool: PgPool) {
 }
 
 async fn process_video(concept_id: String, pool: PgPool) {
-    fs::create_dir_all(format!("upload/{}", &concept_id))
+    fs::create_dir_all(format!("upload/{}_processing", &concept_id))
         .expect("Failed to create concept processing result directory");
     let transcode_result = transcode_video(
         format!("upload/{}", concept_id).as_str(),
-        format!("upload/{}", concept_id).as_str(),
+        format!("upload/{}_processing", concept_id).as_str(),
     );
     if transcode_result.is_ok() {
         sqlx::query!(
@@ -119,26 +119,15 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
         let output_file = format!("output_{}.webm", label);
         webm_files.push(output_file.clone());
         cmd.push_str(format!(" -vf 'scale={}:{},fps={},format=nv12,hwupload' -c:v av1_vaapi -b:v {} -maxrate {} -minrate {} -c:a libopus -b:a {}k -f webm {} ",
-        w, h, framerate, bitrate, max_bitrate, min_bitrate, audio_bitrate, output_file).as_str());
+        w, h, framerate, bitrate, max_bitrate, min_bitrate, audio_bitrate, format!("upload/{}/{}",output_dir, output_file)).as_str());
     }
 
-    // generovat previews
-    let preview_output_dir = format!("{}/previews", output_dir);
-    fs::create_dir_all(&preview_output_dir).expect("Failed to create preview output directory");
-    cmd.push_str(
-        format!(
-            " -vf \"fps=1/10,scale=320:180\" -vsync vfr -q:v 10 -f image2 \"{}/preview%d.avif\" ",
-            preview_output_dir
-        )
-        .as_str(),
-    );
-
-    /*     println!("Executing: {}", cmd);
+    println!("Executing: {}", cmd);
     Command::new("sh")
         .arg("-c")
         .arg(&cmd)
         .status()
-        .expect("Failed to execute ffmpeg command"); */
+        .expect("Failed to execute ffmpeg command");
 
     webm_files.retain(|file| fs::metadata(file).is_ok());
 
@@ -180,8 +169,8 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
     println!("thumbnail selected time: {:.2} seconds", random_time);
 
     let thumbnail_cmd = format!(
-        "ffmpeg -y -ss {:.2} -i {} -vf 'scale=1920:1080' -frames:v 1 thumbnail.jpg -frames:v 1 thumbnail.avif",
-        random_time, input_file
+        "ffmpeg -y -ss {:.2} -i {} -vf 'scale=1920:1080' -frames:v 1 upload/{}/thumbnail.jpg -frames:v 1 upload/{}/thumbnail.avif",
+        random_time, input_file, output_dir, output_dir
     );
     println!("Executing: {}", thumbnail_cmd);
     Command::new("sh")
@@ -190,7 +179,9 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
         .status()
         .expect("Failed to generate thumbnails");
 
-    // generovat preview list
+    // generovat previews
+    let preview_output_dir = format!("{}/previews", output_dir);
+    fs::create_dir_all(&preview_output_dir).expect("Failed to create preview output directory");
     let mut preview_list: Vec<ConceptPreview> = Vec::new();
     let mut preview_time: u128 = 0;
     let mut preview_id: u128 = 1;

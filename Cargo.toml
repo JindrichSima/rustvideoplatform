@@ -23,6 +23,3 @@ ahash = "*"
 argon2 = "0.5"
 rand = "0.8"
 ffmpeg-next = "6.1"
-
-[build-dependencies]
-bindgen = {version = "*", default_features = false, features = ["static"]}
