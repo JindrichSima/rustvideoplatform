@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE media SET views = views + 1 WHERE id=$1 RETURNING views;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "views",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b5a33fddcc28e0726d01e356fb39e79428e5e19e6dae88fc09d8b53220f9397c"
+}
