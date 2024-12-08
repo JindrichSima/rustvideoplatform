@@ -1,15 +1,15 @@
 {% for concept in concepts %}
 <div class="col-xl-2 col-lg-4 col-6 my-3 d-flex justify-content-center">
-    {% if !concept.processed %}
+    {% if concept.processed %}
     <a href="/studio/concept/{{ concept.id }}" class="text-decoration-none">
     {% endif %}
         <table>
             <tr>
-                <td>
+                <td class="d-flex justify-content-center">
                     {% if !concept.processed %}
-                    <i class="fa-solid fa-wand-magic-sparkles fa-beat mx-2" width="176" height="99"></i>
+                    <i class="fa-solid fa-wand-magic-sparkles fa-beat fa-4x text-decoration-none"></i>
                     {% else %}
-                    <i class="fa-solid fa-check mx-2" width="176" height="99"></i>
+                    <i class="fa-solid fa-check fa-4x text-decoration-none"></i>
                     {% endif %}
                 </td>
                 <td>
@@ -36,7 +36,7 @@
                 </td>
             </tr>
         </table>
-    {% if !concept.processed %}
+    {% if concept.processed %}
     </a>
     {% endif %}
 </div>

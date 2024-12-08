@@ -22,7 +22,6 @@ use axum::{
     Extension, Json, Router,
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
-use ffmpeg_next::{codec, format, media};
 use memory_serve::{load_assets, MemoryServe};
 use rand::Rng;
 use serde::Deserialize;
@@ -30,7 +29,6 @@ use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::io::BufRead;
-use std::process::Command;
 use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, sync::Mutex};
 
@@ -54,8 +52,6 @@ async fn main() {
 
     let session_store: Arc<Mutex<AHashMap<String, String>>> =
         Arc::new(Mutex::new(AHashMap::default()));
-
-    tokio::task::spawn(process(pool.clone()));
 
     let app = Router::new()
         .route("/", get(home))
@@ -116,4 +112,3 @@ include!("channel.rs");
 include!("studio.rs");
 include!("upload.rs");
 include!("concept.rs");
-include!("processing.rs");

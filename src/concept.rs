@@ -25,7 +25,7 @@ async fn concepts(
         ));
     }
 
-    let sidebar = generate_sidebar(&config, "trending".to_owned());
+    let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ConceptsTemplate {
         sidebar,

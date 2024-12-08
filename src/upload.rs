@@ -17,7 +17,7 @@ async fn upload(
         ));
     }
 
-    let sidebar = generate_sidebar(&config, "upload".to_owned());
+    let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = UploadTemplate {
         sidebar,
@@ -67,8 +67,8 @@ async fn hx_upload(
             file_name
         ));
         response_html.push_str(&format!(
-            "<tr><th>Medium ID</th><td><a href=\"/studio/{}\">{}</a></td></tr>",
-            medium_id, medium_id
+            "<tr><th>Medium ID</th><td>{}</td></tr>",
+             medium_id
         ));
         response_html.push_str(&format!(
             "<tr><th>File Size</th><td>{}</td></tr>",
@@ -78,6 +78,9 @@ async fn hx_upload(
             "<tr><th>File Type</th><td>{}</td></tr>",
             file_type
         ));
+        response_html.push_str(
+            "<tr><th><a href=\"/studio/concepts\" class=\"btn btn-primary\">View Concepts</a></th></tr>"
+        );
         response_html.push_str("</table><br>");
         sqlx::query!(
             "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1,$2,$3,$4)",
