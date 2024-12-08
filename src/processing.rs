@@ -1,21 +1,39 @@
-async fn process(Extension(pool): Extension<PgPool>) {
-    let unprocessed_concepts = sqlx::query!(
-        "SELECT id,type FROM media_concepts WHERE processed = false;"
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+async fn process(pool: PgPool) {
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000));
 
-    for concept in unprocessed_concepts {
-        if concept.r#type == "video".to_owned() {
-            tokio::task::spawn(process_video(concept.id));
+    loop {
+        interval.tick().await;
+        let unprocessed_concepts =
+            sqlx::query!("SELECT id,type FROM media_concepts WHERE processed = false;")
+                .fetch_all(&pool)
+                .await
+                .expect("Database error");
+
+        for concept in unprocessed_concepts {
+            if concept.r#type == "video".to_owned() {
+                tokio::task::spawn(process_video(concept.id, pool.clone()));
+            }
         }
+        println!("processing run finished!");
     }
 }
 
-async fn process_video(concept_id: String) {
-    fs::create_dir_all(format!("upload/{}",&concept_id)).expect("Failed to create concept processing result directory");
-    transcode_video(format!("upload/{}",concept_id).as_str(), format!("upload/{}",concept_id).as_str()).expect("error");
+async fn process_video(concept_id: String, pool: PgPool) {
+    fs::create_dir_all(format!("upload/{}", &concept_id))
+        .expect("Failed to create concept processing result directory");
+    let transcode_result = transcode_video(
+        format!("upload/{}", concept_id).as_str(),
+        format!("upload/{}", concept_id).as_str(),
+    );
+    if transcode_result.is_ok() {
+        sqlx::query!(
+            "UPDATE media_concepts SET processed = true WHERE id = $1;",
+            concept_id
+        )
+        .execute(&pool)
+        .await
+        .expect("Database error");
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -89,11 +107,11 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
         height /= 2;
         audio_bitrate /= 2;
     }
-    
-     let mut webm_files = Vec::new();
-    let dash_output_dir = format!("{}/video",output_dir);
 
-     let mut cmd = format!(
+    let mut webm_files = Vec::new();
+    let dash_output_dir = format!("{}/video", output_dir);
+
+    let mut cmd = format!(
         "ffmpeg -y -hwaccel vaapi -vaapi_device /dev/dri/renderD128 -i {} ",
         input_file
     );
@@ -105,11 +123,17 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
     }
 
     // generovat previews
-    let preview_output_dir = format!("{}/previews",output_dir);
+    let preview_output_dir = format!("{}/previews", output_dir);
     fs::create_dir_all(&preview_output_dir).expect("Failed to create preview output directory");
-    cmd.push_str(format!(" -vf \"fps=1/10,scale=320:180\" -vsync vfr -q:v 10 -f image2 \"{}/preview%d.avif\" ", preview_output_dir).as_str());
+    cmd.push_str(
+        format!(
+            " -vf \"fps=1/10,scale=320:180\" -vsync vfr -q:v 10 -f image2 \"{}/preview%d.avif\" ",
+            preview_output_dir
+        )
+        .as_str(),
+    );
 
-/*     println!("Executing: {}", cmd);
+    /*     println!("Executing: {}", cmd);
     Command::new("sh")
         .arg("-c")
         .arg(&cmd)
@@ -165,7 +189,7 @@ fn transcode_video(input_file: &str, output_dir: &str) -> Result<(), ffmpeg_next
         .arg(thumbnail_cmd)
         .status()
         .expect("Failed to generate thumbnails");
-    
+
     // generovat preview list
     let mut preview_list: Vec<ConceptPreview> = Vec::new();
     let mut preview_time: u128 = 0;

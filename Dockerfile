@@ -1,6 +1,6 @@
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig
+RUN apk add --no-cache musl-dev openssl-dev pkgconfig ffmpeg-dev
 
 RUN mkdir /src
 COPY ./ /src/rustvideoplatform
@@ -11,6 +11,8 @@ RUN cd /src/rustvideoplatform && cargo build --release
 
 FROM alpine:latest
 COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
+
+RUN apk add --no-cache ffmpeg libva
 
 EXPOSE 8080
 STOPSIGNAL SIGTERM

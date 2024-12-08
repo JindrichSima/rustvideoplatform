@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![allow(non_snake_case)]
 use std::fs;
 
 use argon2::Argon2;
@@ -12,27 +13,26 @@ use ahash::AHashMap;
 use argon2::password_hash::{rand_core::OsRng, PasswordHash};
 use askama::Template;
 use axum::{
-    extract::{Form, Path, Multipart, DefaultBodyLimit},
+    extract::{DefaultBodyLimit, Form, Multipart, Path},
     http::header::HeaderMap,
     http::header::{ACCEPT_LANGUAGE, COOKIE, HOST, USER_AGENT},
     response::{Html, IntoResponse},
     routing::get,
     routing::post,
-    Json,
-    Extension, Router,
+    Extension, Json, Router,
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
+use ffmpeg_next::{codec, format, media};
 use memory_serve::{load_assets, MemoryServe};
 use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use std::sync::Arc;
-use tokio::{sync::Mutex, io::AsyncWriteExt};
 use std::io::BufRead;
-use ffmpeg_next::{codec, format, media};
 use std::process::Command;
+use std::sync::Arc;
+use tokio::{io::AsyncWriteExt, sync::Mutex};
 
 #[derive(Deserialize, Clone)]
 struct Config {
@@ -54,6 +54,8 @@ async fn main() {
 
     let session_store: Arc<Mutex<AHashMap<String, String>>> =
         Arc::new(Mutex::new(AHashMap::default()));
+
+    tokio::task::spawn(process(pool.clone()));
 
     let app = Router::new()
         .route("/", get(home))

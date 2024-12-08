@@ -31,3 +31,11 @@ CREATE TABLE public.subscriptions (
 	subscriber varchar(40) NOT NULL,
 	target varchar(40) NOT NULL
 );
+CREATE TABLE public.media_concepts (
+	id varchar NOT NULL,
+	"name" varchar NOT NULL,
+	"owner" varchar NOT NULL,
+	processed bool DEFAULT false NOT NULL,
+	"type" varchar NOT NULL,
+	CONSTRAINT media_concepts_pk PRIMARY KEY (id)
+);
