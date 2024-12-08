@@ -80,8 +80,8 @@ async fn hx_upload(
         ));
         response_html.push_str("</table><br>");
         sqlx::query!(
-            "INSERT INTO media (id, name, description, owner, public, type) VALUES ($1,$2,$3,$4,$5,$6)",
-            medium_id, file_name, file_name, user_info.clone().unwrap().login,false,detect_medium_type_mime(file_type)
+            "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1,$2,$3,$4)",
+            medium_id, file_name, user_info.clone().unwrap().login,detect_medium_type_mime(file_type)
         )
         .execute(&pool)
         .await

@@ -1,0 +1,43 @@
+{% for concept in concepts %}
+<div class="col-xl-2 col-lg-4 col-6 my-3 d-flex justify-content-center">
+    {% if !concept.processed %}
+    <a href="/studio/concept/{{ concept.id }}" class="text-decoration-none">
+    {% endif %}
+        <table>
+            <tr>
+                <td>
+                    {% if !concept.processed %}
+                    <i class="fa-solid fa-wand-magic-sparkles fa-beat mx-2" width="176" height="99"></i>
+                    {% else %}
+                    <i class="fa-solid fa-check mx-2" width="176" height="99"></i>
+                    {% endif %}
+                </td>
+                <td>
+
+                </td>
+            </tr>
+            <tr>
+                <td class="text-center">
+                    <b class="text-white font-weight-bold">{{ concept.name }}</b>
+                    <p class="text-secondary">status:&nbsp;
+                        {% if !concept.processed %}
+                        preparing...
+                        {% else %}
+                        ready!
+                        {% endif %}
+                        {% if concept.type == "video" %}
+                        <i class="fa-solid fa-video fa-sm ms-1"></i>
+                        {% else if concept.type == "audio" %}
+                        <i class="fa-solid fa-music fa-sm ms-1"></i>
+                        {% else if concept.type == "picture" %}
+                        <i class="fa-solid fa-image fa-sm ms-1"></i>
+                        {% endif %}
+                    </p>
+                </td>
+            </tr>
+        </table>
+    {% if !concept.processed %}
+    </a>
+    {% endif %}
+</div>
+{% endfor %}

@@ -31,6 +31,8 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::{sync::Mutex, io::AsyncWriteExt};
 use std::io::BufRead;
+use ffmpeg_next::{codec, format, media};
+use std::process::Command;
 
 #[derive(Deserialize, Clone)]
 struct Config {
@@ -79,6 +81,8 @@ async fn main() {
         .route("/hx/usermedia/:userid", get(hx_usermedia))
         .route("/studio", get(studio))
         .route("/hx/studio", get(hx_studio))
+        .route("/studio/concepts", get(concepts))
+        .route("/hx/studio/concepts", get(hx_concepts))
         .route("/upload", get(upload))
         .route("/hx/upload", post(hx_upload))
         .nest("/source", axum_static::static_router("source"))
@@ -109,3 +113,5 @@ include!("search.rs");
 include!("channel.rs");
 include!("studio.rs");
 include!("upload.rs");
+include!("concept.rs");
+include!("processing.rs");
