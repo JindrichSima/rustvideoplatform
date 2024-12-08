@@ -12,7 +12,7 @@ RUN cd /src/rustvideoplatform && cargo build --release
 FROM alpine:latest
 COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
 
-RUN apk add --no-cache ffmpeg libva libva-utils msea-dri-gallium mesa-va-gallium intel-media-driver
+RUN apk add --no-cache ffmpeg libva libva-utils mesa-dri-gallium mesa-va-gallium intel-media-driver
 
 EXPOSE 8080
 STOPSIGNAL SIGTERM
