@@ -18,7 +18,7 @@ async fn hx_search_suggestions(
     let search_term = format!("%{}%", form.search);
     let suggestions = sqlx::query_as!(
         Medium,
-        "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 LIMIT 5;",
+        "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 AND public=true LIMIT 5;",
         search_term
     )
     .fetch_all(&pool)
@@ -55,7 +55,7 @@ async fn hx_search(
     let search_querry = format!("%{}%", form.search);
     let search_results = sqlx::query_as!(
         Medium,
-        "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 LIMIT 10 OFFSET $2;",
+        "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 AND public=true LIMIT 10 OFFSET $2;",
         search_querry,
         offset
     )

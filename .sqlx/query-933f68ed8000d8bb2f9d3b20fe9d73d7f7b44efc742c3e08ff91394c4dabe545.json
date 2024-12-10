@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 LIMIT 5;",
+  "query": "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 AND public=true LIMIT 5;",
   "describe": {
     "columns": [
       {
@@ -42,5 +42,5 @@
       false
     ]
   },
-  "hash": "00c601d9a42e62139a783401a1cdea6b29b9dd13c0d8d3ee99eeacd9d332307c"
+  "hash": "933f68ed8000d8bb2f9d3b20fe9d73d7f7b44efc742c3e08ff91394c4dabe545"
 }

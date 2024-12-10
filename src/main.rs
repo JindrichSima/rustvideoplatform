@@ -81,6 +81,8 @@ async fn main() {
         .route("/hx/studio", get(hx_studio))
         .route("/studio/concepts", get(concepts))
         .route("/hx/studio/concepts", get(hx_concepts))
+        .route("/studio/concept/:conceptid", get(concept))
+        .route("/studio/concept/:conceptid/publish", post(publish))
         .route("/upload", get(upload))
         .route("/hx/upload", post(hx_upload))
         .nest("/source", axum_static::static_router("source"))

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 LIMIT 10 OFFSET $2;",
+  "query": "SELECT id,name,type,processed FROM media_concepts WHERE owner = $1 AND id = $2 AND processed = true;",
   "describe": {
     "columns": [
       {
@@ -15,33 +15,27 @@
       },
       {
         "ordinal": 2,
-        "name": "owner",
+        "name": "type",
         "type_info": "Varchar"
       },
       {
         "ordinal": 3,
-        "name": "views",
-        "type_info": "Int8"
-      },
-      {
-        "ordinal": 4,
-        "name": "type",
-        "type_info": "Varchar"
+        "name": "processed",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
         "Text",
-        "Int8"
+        "Text"
       ]
     },
     "nullable": [
       false,
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "224a0f93f3658dac9cffea03ceccad6c48b496fca80ffc1b0543bf9890f419fd"
+  "hash": "11aac44f6cda5f83d76bb950e365d5729ea28c2733be7fe5ca207d1b8d832fdb"
 }

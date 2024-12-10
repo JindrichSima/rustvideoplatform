@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,name,description,views,type FROM media ORDER BY upload DESC;",
+  "query": "SELECT id,name,owner,views,type FROM media WHERE name ILIKE $1 AND public=true LIMIT 10 OFFSET $2;",
   "describe": {
     "columns": [
       {
@@ -15,8 +15,8 @@
       },
       {
         "ordinal": 2,
-        "name": "description",
-        "type_info": "Text"
+        "name": "owner",
+        "type_info": "Varchar"
       },
       {
         "ordinal": 3,
@@ -30,7 +30,10 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text",
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -40,5 +43,5 @@
       false
     ]
   },
-  "hash": "8c12ac7c60680cada9310a8d73a0ed2a0b6c85db9ae0da0a83ac66b1684a873d"
+  "hash": "32dfcbb9c50721c433c77235cb9944b483cdf095d07dbc49e875f57b11a119df"
 }
