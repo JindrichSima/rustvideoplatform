@@ -76,7 +76,9 @@ async fn concept(
 ) -> axum::response::Html<Vec<u8>> {
     let user_info = get_user_login(headers.clone(), &pool, session_store).await;
     if !is_logged(user_info.clone()).await {
-        return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
     }
     let user_info = user_info.unwrap();
 
@@ -128,7 +130,8 @@ async fn publish(
     let concept_move = move_dir(
         format!("upload/{}_processing", conceptid).as_str(),
         format!("source/{}", form.medium_id).as_str(),
-    ).await;
+    )
+    .await;
     if concept_move.is_ok() {
         let ispublic: bool;
         if form.medium_visibility == "public".to_owned() {
@@ -136,7 +139,7 @@ async fn publish(
         } else {
             ispublic = false;
         }
-        let _result = sqlx::query!(
+        let _ = sqlx::query!(
             "INSERT INTO media (id,name,description,owner,public,type) VALUES ($1,$2,$3,$4,$5,$6);",
             form.medium_id,
             form.medium_name,
@@ -147,11 +150,17 @@ async fn publish(
         )
         .execute(&pool)
         .await;
+        let _ = sqlx::query!("DELETE FROM media_concepts WHERE id=$1;", concept.id)
+            .execute(&pool)
+            .await;
         return Html(format!(
             "<script>window.location.replace(\"/m/{}\");</script>",
             form.medium_id
         ));
     } else {
-        return Html(format!("<h1>ERROR MOVING PROCESSED CONCEPT TO MEDIA!</h1><br>{:?}",concept_move));
+        return Html(format!(
+            "<h1>ERROR MOVING PROCESSED CONCEPT TO MEDIA!</h1><br>{:?}",
+            concept_move
+        ));
     }
 }
