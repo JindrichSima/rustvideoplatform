@@ -125,10 +125,10 @@ async fn publish(
     .await
     .expect("Database error");
 
-    let concept_move = fs::rename(
-        format!("upload/{}_processing", conceptid),
-        format!("source/{}", form.medium_id),
-    );
+    let concept_move = move_dir(
+        format!("upload/{}_processing", conceptid).as_str(),
+        format!("source/{}", form.medium_id).as_str(),
+    ).await;
     if concept_move.is_ok() {
         let ispublic: bool;
         if form.medium_visibility == "public".to_owned() {

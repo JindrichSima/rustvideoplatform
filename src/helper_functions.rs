@@ -171,3 +171,36 @@ fn detect_medium_type_mime(mime: String) -> String {
     }
     result.to_owned()
 }
+
+async fn copy_dir(src: &str, dest: &str) -> io::Result<()> {
+    let src_path = std::path::Path::new(src);
+    let dest_path = std::path::Path::new(dest);
+
+    if !dest_path.exists() {
+        fs::create_dir_all(dest_path).await?;
+    }
+
+    let mut entries = fs::read_dir(src_path).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let src_entry_path = entry.path();
+        let dest_entry_path = dest_path.join(entry.file_name());
+
+        if src_entry_path.is_dir() {
+            Box::pin(copy_dir(
+                src_entry_path.to_str().unwrap(),
+                dest_entry_path.to_str().unwrap(),
+            ))
+            .await?;
+        } else {
+            fs::copy(&src_entry_path, &dest_entry_path).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn move_dir(src: &str, dest: &str) -> io::Result<()> {
+    copy_dir(src, dest).await?;
+    fs::remove_dir_all(src).await?;
+    Ok(())
+}

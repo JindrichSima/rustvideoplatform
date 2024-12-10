@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 #![allow(non_snake_case)]
-use std::fs;
 
 use argon2::Argon2;
 use argon2::PasswordVerifier;
@@ -30,7 +29,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::io::BufRead;
 use std::sync::Arc;
-use tokio::{io::AsyncWriteExt, sync::Mutex};
+use tokio::{io::AsyncWriteExt, sync::Mutex, io, fs};
 
 #[derive(Deserialize, Clone)]
 struct Config {
@@ -40,7 +39,7 @@ struct Config {
 }
 #[tokio::main]
 async fn main() {
-    let config: Config = serde_json::from_str(&fs::read_to_string("config.json").unwrap()).unwrap();
+    let config: Config = serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
 
     let pool = PgPoolOptions::new()
         .max_connections(100)
