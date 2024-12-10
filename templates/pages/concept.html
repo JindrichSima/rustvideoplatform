@@ -24,47 +24,41 @@
                     <div>
                         <form action="/studio/concept/{{concept.id}}/publish" method="post">
                             <div class="form-group row">
-                                <label for="medium_url" class="col-4 col-form-label">URL</label>
+                                <label for="medium_id" class="col-4 col-form-label">URL</label>
                                 <div class="col-8">
                                     <div class="input-group">
-                                        <div class="input-group-prepend">
-                                            <div class="input-group-text">
-                                                <i class="fa fa-address-book"></i>
-                                            </div>
-                                        </div>
-                                        <input id="medium_url" name="medium_url" type="text" required
-                                            class="form-control" value="{{concept.id}}">
+                                        <input id="medium_id" name="medium_id" type="text" required class="form-control"
+                                            value="{{concept.id}}">
                                     </div>
                                 </div>
-                            </div>
-                            <div class="form-group row">
-                                <label for="medium_name" class="col-4 col-form-label">Name</label>
-                                <div class="col-8">
-                                    <input id="medium_name" name="medium_name" type="text" class="form-control" required
-                                        value="{{concept.name}}">
+                                <div class="form-group row">
+                                    <label for="medium_name" class="col-4 col-form-label">Name</label>
+                                    <div class="col-8">
+                                        <input id="medium_name" name="medium_name" type="text" class="form-control"
+                                            required value="{{concept.name}}">
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="form-group row">
-                                <label for="medium_description" class="col-4 col-form-label">Description</label>
-                                <div class="col-8">
-                                    <textarea id="medium_description" name="medium_description" cols="40" rows="6"
-                                        class="form-control" required></textarea>
+                                <div class="form-group row">
+                                    <label for="medium_description" class="col-4 col-form-label">Description</label>
+                                    <div class="col-8">
+                                        <textarea id="medium_description" name="medium_description" cols="40" rows="6"
+                                            class="form-control" required></textarea>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="form-group row">
-                                <label for="medium_visibility" class="col-4 col-form-label">Visibility</label>
-                                <div class="col-8">
-                                    <select id="medium_visibility" name="medium_visibility" required>
-                                        <option value="public">Public</option>
-                                        <option value="hidden">Hidden</option>
-                                    </select>
+                                <div class="form-group row">
+                                    <label for="medium_visibility" class="col-4 col-form-label">Visibility</label>
+                                    <div class="col-8">
+                                        <select id="medium_visibility" name="medium_visibility" required>
+                                            <option value="public">Public</option>
+                                            <option value="hidden">Hidden</option>
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="form-group row">
-                                <div class="offset-4 col-8">
-                                    <button name="submit" type="submit" class="btn btn-primary">Publish</button>
+                                <div class="form-group row">
+                                    <div class="offset-4 col-8">
+                                        <button name="submit" type="submit" class="btn btn-primary">Publish</button>
+                                    </div>
                                 </div>
-                            </div>
                         </form>
                     </div>
                     <div></div>

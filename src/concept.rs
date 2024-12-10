@@ -126,7 +126,7 @@ async fn publish(
     .expect("Database error");
 
     let concept_move = fs::rename(
-        format!("upload/{}_processed", conceptid),
+        format!("upload/{}_processing", conceptid),
         format!("source/{}", form.medium_id),
     );
     if concept_move.is_ok() {
@@ -152,6 +152,6 @@ async fn publish(
             form.medium_id
         ));
     } else {
-        return Html("<h1>ERROR MOVING PROCESSED CONCEPT TO MEDIA!</h1>".to_owned());
+        return Html(format!("<h1>ERROR MOVING PROCESSED CONCEPT TO MEDIA!</h1><br>{:?}",concept_move));
     }
 }
