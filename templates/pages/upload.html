@@ -22,70 +22,43 @@
                 <div class="d-flex justify-content-center">
                     <div></div>
                     <div>
-                        <form id="form" class="m-3" onsubmit="startChunkedUpload(event)">
-                            <div class="d-flex flex-column align-items-center">
-                                <input id="fileInput" class="btn btn-primary m-3" type="file" name="file" style="width:40vw;">
-                                <br>
-                                <button class="btn btn-primary text-center m-3" id="submitbutton"
-                                    style="width:150px;">Upload</button>
-                                <progress id="progress" value="0" max="100" class="m-3"
-                                    style="display:none;width:38vw;"></progress>
-                            </div>
-                        </form>
+                        <input type="file" id="fileInput" />
+                        <button onclick="uploadFile()">Upload File</button>
+                        <div id="uploadProgress"></div>
+
+                        <script>
+                            async function uploadFile() {
+                                const file = document.getElementById('fileInput').files[0];
+                                if (!file) {
+                                    alert('Please select a file to upload.');
+                                    return;
+                                }
+
+                                const chunkSize = 5 * 1024 * 1024; // 5MB per chunk
+                                const totalChunks = Math.ceil(file.size / chunkSize);
+
+                                for (let i = 0; i < totalChunks; i++) {
+                                    const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+                                    const formData = new FormData();
+                                    formData.append('chunk', chunk);
+                                    formData.append('chunk_index', i);
+                                    formData.append('total_chunks', totalChunks);
+
+                                    await fetch("/upload?file_name=${encodeURIComponent(file.name)}", {
+                                        method: 'POST',
+                                        body: formData
+                                    });
+
+                                    document.getElementById('uploadProgress').innerText = "Uploaded chunk ${i + 1} of ${totalChunks}";
+                                }
+
+                                alert('File uploaded successfully!');
+                            }
+                        </script>
+
                     </div>
                     <div></div>
                 </div>
-                <script>
-                    async function startChunkedUpload(event) {
-                        event.preventDefault(); // Prevent default form submission
-                        
-                        const fileInput = document.getElementById('fileInput');
-                        const progress = document.getElementById('progress');
-                        const submitButton = document.getElementById('submitbutton');
-                        
-                        // UI adjustments
-                        submitButton.disabled = true;
-                        submitButton.style.display = "none";
-                        progress.style.display = "inline";
-
-                        // File details
-                        const file = fileInput.files[0];
-                        const chunkSize = 5 * 1024 * 1024; // 5MB chunks
-                        const totalChunks = Math.ceil(file.size / chunkSize);
-
-                        let uploadedBytes = 0;
-
-                        for (let i = 0; i < totalChunks; i++) {
-                            const start = i * chunkSize;
-                            const end = Math.min(file.size, start + chunkSize);
-                            const chunk = file.slice(start, end);
-
-                            const formData = new FormData();
-                            formData.append("file", chunk, file.name);
-                            formData.append("chunkIndex", i);
-                            formData.append("totalChunks", totalChunks);
-
-                            // Upload the chunk
-                            await fetch("/hx/upload", {
-                                method: "POST",
-                                body: formData
-                            }).then(response => {
-                                if (!response.ok) {
-                                    throw new Error(`Failed to upload chunk ${i}`);
-                                }
-                            });
-
-                            // Update progress bar
-                            uploadedBytes += chunk.size;
-                            progress.value = (uploadedBytes / file.size) * 100;
-                        }
-
-                        alert("File uploaded successfully!");
-                        progress.style.display = "none";
-                        submitButton.disabled = false;
-                        submitButton.style.display = "inline";
-                    }
-                </script>
             </div>
         </div>
     </div>
