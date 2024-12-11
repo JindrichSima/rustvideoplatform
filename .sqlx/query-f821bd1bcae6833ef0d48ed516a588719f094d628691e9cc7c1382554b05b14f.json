@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1,$2,$3,$4)",
+  "query": "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1, $2, $3, $4)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -13,5 +13,5 @@
     },
     "nullable": []
   },
-  "hash": "34fea04300e804329995a5966dcfc7a88bb66f0809bdd6094a305b91e401393e"
+  "hash": "f821bd1bcae6833ef0d48ed516a588719f094d628691e9cc7c1382554b05b14f"
 }
