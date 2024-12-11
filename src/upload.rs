@@ -45,7 +45,8 @@ async fn hx_upload(
     let medium_id = generate_medium_id();
 
     let mut response_html = String::new();
-    response_html.push_str("<h3 class=\"text-center text-success\">File uploaded successfully!</h3>");
+    response_html
+        .push_str("<h3 class=\"text-center text-success\">File uploaded successfully!</h3>");
 
     let mut final_file_name = String::new();
     let mut final_file_type = String::new();
@@ -54,10 +55,7 @@ async fn hx_upload(
     // Step 3: Process multipart fields (handle file chunks)
     while let Some(mut field) = multipart.next_field().await.unwrap() {
         let file_name = field.file_name().unwrap_or("unknown").to_string();
-        let chunk_index: usize = field
-            .name()
-            .and_then(|n| n.parse().ok())
-            .unwrap_or(0);
+        let chunk_index: usize = field.name().and_then(|n| n.parse().ok()).unwrap_or(0);
         let total_chunks: usize = field
             .headers()
             .get("total-chunks")
@@ -84,7 +82,7 @@ async fn hx_upload(
             file.write_all(&chunk).await.unwrap();
         }
 
-        // If it's the last chunk, finalize the response
+        // If it's the last chunk, finalize the file details
         if chunk_index + 1 == total_chunks {
             final_file_name = file_name;
             final_file_type = field
@@ -95,7 +93,7 @@ async fn hx_upload(
         }
     }
 
-    // Save metadata to the database after successful upload
+    // Save metadata to the database **after all chunks are uploaded**
     let formatted_file_size = format_file_size(final_file_size as usize);
 
     sqlx::query!(
@@ -109,6 +107,7 @@ async fn hx_upload(
     .await
     .expect("Database error");
 
+    // Generate the HTML response
     response_html.push_str("<table cellpadding=\"10\">");
     response_html.push_str(&format!(
         "<tr><th>File Name</th><td>{}</td></tr>",

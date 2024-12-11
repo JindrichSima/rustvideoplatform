@@ -23,52 +23,55 @@
                     <div></div>
                     <div>
 
-                        <form id="upload-form" hx-post="/hx/upload" hx-encoding="multipart/form-data"
-                            hx-target="#upload-result">
+                        <form id="upload-form">
                             <input type="file" id="fileInput" name="file" required />
                             <br>
                             <button type="button" onclick="startUpload()">Upload File</button>
                         </form>
+                        
                         <div id="uploadProgress"></div>
                         <div id="upload-result"></div>
-
+                        
                         <script>
                             async function startUpload() {
                                 const fileInput = document.getElementById('fileInput');
                                 const file = fileInput.files[0];
-
+                        
                                 if (!file) {
                                     alert('Please select a file to upload.');
                                     return;
                                 }
-
+                        
                                 const chunkSize = 5 * 1024 * 1024; // 5MB
                                 const totalChunks = Math.ceil(file.size / chunkSize);
                                 const uploadProgress = document.getElementById('uploadProgress');
-
+                        
+                                const fileId = crypto.randomUUID(); // Unique ID for the file upload
+                        
                                 for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
                                     const chunk = file.slice(chunkIndex * chunkSize, (chunkIndex + 1) * chunkSize);
                                     const formData = new FormData();
-
+                        
                                     formData.append('file', chunk, file.name);
-                                    formData.append('chunk_index', chunkIndex);
-                                    formData.append('total_chunks', totalChunks);
-
+                                    formData.append('chunk_index', chunkIndex); // Index of this chunk
+                                    formData.append('total_chunks', totalChunks); // Total number of chunks
+                                    formData.append('file_id', fileId); // File identifier (the same for all chunks)
+                        
                                     const response = await fetch('/hx/upload', {
                                         method: 'POST',
                                         body: formData,
                                     });
-
+                        
                                     if (!response.ok) {
                                         alert('An error occurred during upload. Please try again.');
                                         return;
                                     }
-
+                        
                                     uploadProgress.innerText = `Uploaded chunk ${chunkIndex + 1} of ${totalChunks}`;
                                 }
-
+                        
                                 uploadProgress.innerText = 'File uploaded successfully!';
-                                fileInput.value = '';
+                                fileInput.value = ''; // Reset the file input
                             }
                         </script>
 
