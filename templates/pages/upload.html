@@ -22,37 +22,54 @@
                 <div class="d-flex justify-content-center">
                     <div></div>
                     <div>
-                        <input type="file" id="fileInput" />
-                        <button onclick="uploadFile()">Upload File</button>
+
+                        <form id="upload-form" hx-post="/upload" hx-encoding="multipart/form-data"
+                            hx-target="#upload-result">
+                            <label for="fileInput">Select File:</label>
+                            <input type="file" id="fileInput" name="file" required />
+                            <br>
+                            <button type="button" onclick="startUpload()">Upload File</button>
+                        </form>
                         <div id="uploadProgress"></div>
+                        <div id="upload-result"></div>
 
                         <script>
-                            async function uploadFile() {
-                                const file = document.getElementById('fileInput').files[0];
+                            async function startUpload() {
+                                const fileInput = document.getElementById('fileInput');
+                                const file = fileInput.files[0];
+
                                 if (!file) {
                                     alert('Please select a file to upload.');
                                     return;
                                 }
 
-                                const chunkSize = 5 * 1024 * 1024; // 5MB per chunk
+                                const chunkSize = 5 * 1024 * 1024; // 5MB
                                 const totalChunks = Math.ceil(file.size / chunkSize);
+                                const uploadProgress = document.getElementById('uploadProgress');
 
-                                for (let i = 0; i < totalChunks; i++) {
-                                    const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+                                for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                                    const chunk = file.slice(chunkIndex * chunkSize, (chunkIndex + 1) * chunkSize);
                                     const formData = new FormData();
-                                    formData.append('chunk', chunk);
-                                    formData.append('chunk_index', i);
+
+                                    formData.append('file', chunk, file.name);
+                                    formData.append('chunk_index', chunkIndex);
                                     formData.append('total_chunks', totalChunks);
 
-                                    await fetch("/upload?file_name=${encodeURIComponent(file.name)}", {
+                                    const response = await fetch('/upload', {
                                         method: 'POST',
-                                        body: formData
+                                        body: formData,
                                     });
 
-                                    document.getElementById('uploadProgress').innerText = "Uploaded chunk ${i + 1} of ${totalChunks}";
+                                    if (!response.ok) {
+                                        alert('An error occurred during upload. Please try again.');
+                                        return;
+                                    }
+
+                                    uploadProgress.innerText = `Uploaded chunk ${chunkIndex + 1} of ${totalChunks}`;
                                 }
 
-                                alert('File uploaded successfully!');
+                                uploadProgress.innerText = 'File uploaded successfully!';
+                                fileInput.value = '';
                             }
                         </script>
 
