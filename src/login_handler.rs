@@ -21,6 +21,7 @@ struct User {
 }
 
 async fn hx_login(
+    Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
     Form(form): Form<LoginForm>,
@@ -49,7 +50,14 @@ async fn hx_login(
         .is_ok()
     {
         let session_cookie_value = generate_secure_string();
-        let session_cookie_set = format!("session={}; Path=/", session_cookie_value);
+        let session_restriction: String;
+        if config.custom_session_domain.is_some() {
+            session_restriction =
+                format!("Domain={}", config.custom_session_domain.clone().unwrap());
+        } else {
+            session_restriction = "Path=/".to_owned()
+        }
+        let session_cookie_set = format!("session={}; {}", session_cookie_value, session_restriction);
         session_store
             .lock()
             .await

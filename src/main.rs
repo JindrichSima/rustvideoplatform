@@ -36,7 +36,8 @@ struct Config {
     dbconnection: String,
     instancename: String,
     welcome: String,
-    custom_upload_url: Option<String>
+    custom_upload_url: Option<String>,
+    custom_session_domain: Option<String>
 }
 #[tokio::main]
 async fn main() {
