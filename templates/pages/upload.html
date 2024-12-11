@@ -23,9 +23,8 @@
                     <div></div>
                     <div>
 
-                        <form id="upload-form" hx-post="/upload" hx-encoding="multipart/form-data"
+                        <form id="upload-form" hx-post="/hx/upload" hx-encoding="multipart/form-data"
                             hx-target="#upload-result">
-                            <label for="fileInput">Select File:</label>
                             <input type="file" id="fileInput" name="file" required />
                             <br>
                             <button type="button" onclick="startUpload()">Upload File</button>
