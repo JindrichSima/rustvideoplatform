@@ -37,7 +37,7 @@ async fn medium(
     let common_headers = extract_common_headers(&headers).unwrap();
     let medium = sqlx::query!(
         "SELECT id,name,description,upload,owner,likes,dislikes,views,type FROM media WHERE id=$1;",
-        mediumid
+        mediumid.to_ascii_lowercase()
     )
     .fetch_one(&pool)
     .await
@@ -45,9 +45,9 @@ async fn medium(
 
     let medium_captions_exist: bool;
     let mut medium_captions_list: Vec<String> = Vec::new();
-    if std::path::Path::new(&format!("source/{}/captions/list.txt", mediumid)).exists() {
+    if std::path::Path::new(&format!("source/{}/captions/list.txt", medium.id)).exists() {
         medium_captions_exist = true;
-        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", mediumid)) {
+        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium.id)) {
             medium_captions_list.push(caption_name);
         }
     } else {
@@ -55,14 +55,14 @@ async fn medium(
     }
 
     let medium_chapters_exist: bool;
-    if std::path::Path::new(&format!("source/{}/chapters.vtt", mediumid)).exists() {
+    if std::path::Path::new(&format!("source/{}/chapters.vtt", medium.id)).exists() {
         medium_chapters_exist = true;
     } else {
         medium_chapters_exist = false;
     }
 
     let medium_previews_exist: bool;
-    if std::path::Path::new(&format!("source/{}/previews/previews.json", mediumid)).exists() {
+    if std::path::Path::new(&format!("source/{}/previews/previews.json", medium.id)).exists() {
         medium_previews_exist = true;
     } else {
         medium_previews_exist = false;

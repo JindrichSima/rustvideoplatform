@@ -129,7 +129,7 @@ async fn publish(
 
     let concept_move = move_dir(
         format!("upload/{}_processing", conceptid).as_str(),
-        format!("source/{}", form.medium_id).as_str(),
+        format!("source/{}", form.medium_id.to_ascii_lowercase()).as_str(),
     )
     .await;
     if concept_move.is_ok() {
@@ -141,7 +141,7 @@ async fn publish(
         }
         let _ = sqlx::query!(
             "INSERT INTO media (id,name,description,owner,public,type) VALUES ($1,$2,$3,$4,$5,$6);",
-            form.medium_id,
+            form.medium_id.to_ascii_lowercase(),
             form.medium_name,
             form.medium_description,
             user_info.login,
