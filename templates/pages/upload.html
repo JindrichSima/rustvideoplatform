@@ -54,7 +54,7 @@
                                     formData.append('chunk_index', chunkIndex);
                                     formData.append('total_chunks', totalChunks);
 
-                                    const response = await fetch('/upload', {
+                                    const response = await fetch('/hx/upload', {
                                         method: 'POST',
                                         body: formData,
                                     });
