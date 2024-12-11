@@ -53,7 +53,7 @@ async fn hx_login(
         let session_restriction: String;
         if config.custom_session_domain.is_some() {
             session_restriction =
-                format!("Domain={}", config.custom_session_domain.clone().unwrap());
+                format!("Path=/;Domain={}", config.custom_session_domain.clone().unwrap());
         } else {
             session_restriction = "Path=/".to_owned()
         }

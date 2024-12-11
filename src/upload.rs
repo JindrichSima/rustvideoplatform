@@ -27,6 +27,23 @@ async fn upload(
     Html(minifi_html(template.render().unwrap()))
 }
 
+#[derive(Template)]
+#[template(path = "pages/uploadform.html", escape = "none")]
+struct UploadFormTemplate {}
+async fn uploadform(
+    Extension(pool): Extension<PgPool>,
+    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    if !is_logged(get_user_login(headers.clone(), &pool, session_store).await).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+    let template = UploadFormTemplate {};
+    Html(minifi_html(template.render().unwrap()))
+}
+
 async fn hx_upload(
     Extension(pool): Extension<PgPool>,
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
