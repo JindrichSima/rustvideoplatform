@@ -50,7 +50,7 @@
     {% include "component-navbar.html" %}
     <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
         <div class="col-12 col-sm-12 col-md-12 col-lg-9">
-            <div class="card py-3 px-3 text-white">
+            <div class="card py-3 px-3 text-white" style="min-height:85vh;">
                 <div class="d-flex justify-content-center">
                     {% if medium_type == "video" %}
                     <media-player viewType="video" src="/source/{{ medium_id }}/video/video.mpd" aspectRatio="16/9"
@@ -67,7 +67,8 @@
                             {% endif %}
                             <poster className="vds-poster" src="/source/{{ medium_id }}/thumbnail.avif" />
                         </media-provider>
-                        <media-video-layout {% if medium_previews_exist %}thumbnails="/m/{{ medium_id }}/previews.json"{% endif %}></media-video-layout>
+                        <media-video-layout {% if medium_previews_exist %}thumbnails="/m/{{ medium_id }}/previews.json"
+                            {% endif %}></media-video-layout>
                     </media-player>
                     {% else if medium_type == "audio" %}
                     <media-player src='/source/{{ medium_id }}/audio.ogg' type="audio/ogg" aspectRatio="4/3"
@@ -97,7 +98,7 @@
                         <li>
                             <div class="row">
                                 <a href="/channel/{{ medium_owner }}"
-                                    class="text-secondary text-center mt-1 text-decoration-none fs-5 col-sm">{{
+                                    class="text-secondary text-center my-2 text-decoration-none fs-5 col-sm">{{
                                     medium_owner }}</a>
                                 <div hx-get="/hx/subscribebutton/{{ medium_owner }}" hx-trigger="load" class="col-sm">
                                 </div>
