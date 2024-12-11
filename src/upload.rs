@@ -45,15 +45,13 @@ async fn hx_upload(
     let medium_id = generate_medium_id();
 
     let mut response_html = String::new();
-    response_html.push_str("<h3 class=\"text-center text-success\">File uploaded successfully!</h3>");
+    response_html
+        .push_str("<h3 class=\"text-center text-success\">File uploaded successfully!</h3>");
 
     // Step 3: Process multipart fields (handle file chunks)
     while let Some(mut field) = multipart.next_field().await.unwrap() {
         let file_name = field.file_name().unwrap_or("unknown").to_string();
-        let chunk_index: usize = field
-            .name()
-            .and_then(|n| n.parse().ok())
-            .unwrap_or(0);
+        let chunk_index: usize = field.name().and_then(|n| n.parse().ok()).unwrap_or(0);
         let total_chunks: usize = field
             .headers()
             .get("total-chunks")
@@ -88,43 +86,40 @@ async fn hx_upload(
                 .unwrap_or_else(|| "unknown".to_string());
             let file_size = fs::metadata(&file_path).await.unwrap().len();
             let formatted_file_size = format_file_size(file_size as usize);
-
-            // Update response HTML
-            response_html.push_str("<table cellpadding=\"10\">");
-            response_html.push_str(&format!(
-                "<tr><th>File Name</th><td>{}</td></tr>",
-                file_name
-            ));
-            response_html.push_str(&format!(
-                "<tr><th>Medium ID</th><td>{}</td></tr>",
-                medium_id
-            ));
-            response_html.push_str(&format!(
-                "<tr><th>File Size</th><td>{}</td></tr>",
-                formatted_file_size
-            ));
-            response_html.push_str(&format!(
-                "<tr><th>File Type</th><td>{}</td></tr>",
-                file_type
-            ));
-            response_html.push_str(
-                "<tr><th><a href=\"/studio/concepts\" class=\"btn btn-primary\">View Concepts</a></th></tr>"
-            );
-            response_html.push_str("</table><br>");
-
-            // Save metadata to the database
-            sqlx::query!(
-                "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1, $2, $3, $4)",
-                medium_id,
-                file_name,
-                user_info.clone().unwrap().login,
-                detect_medium_type_mime(file_type)
-            )
-            .execute(&pool)
-            .await
-            .expect("Database error");
         }
-    }
 
+        // Update response HTML
+        response_html.push_str("<table cellpadding=\"10\">");
+        response_html.push_str(&format!(
+            "<tr><th>File Name</th><td>{}</td></tr>",
+            file_name
+        ));
+        response_html.push_str(&format!(
+            "<tr><th>Medium ID</th><td>{}</td></tr>",
+            medium_id
+        ));
+        response_html.push_str(&format!(
+            "<tr><th>File Size</th><td>{}</td></tr>",
+            formatted_file_size
+        ));
+        response_html.push_str(&format!(
+            "<tr><th>File Type</th><td>{}</td></tr>",
+            file_type
+        ));
+        response_html.push_str(
+                    "<tr><th><a href=\"/studio/concepts\" class=\"btn btn-primary\">View Concepts</a></th></tr>"
+                );
+        response_html.push_str("</table><br>");
+    }
+    sqlx::query!(
+        "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1, $2, $3, $4)",
+        medium_id,
+        file_name,
+        user_info.clone().unwrap().login,
+        detect_medium_type_mime(file_type)
+    )
+    .execute(&pool)
+    .await
+    .expect("Database error");
     Html(response_html)
 }
