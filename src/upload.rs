@@ -41,7 +41,7 @@ async fn hx_upload(
 
     // Step 2: Setup directories
     let upload_dir = std::path::Path::new("upload");
-    tokio::fs::create_dir_all(upload_dir).await.unwrap(); // Ensure upload directory exists
+    fs::create_dir_all(upload_dir).await.unwrap(); // Ensure upload directory exists
     let medium_id = generate_medium_id();
 
     let mut response_html = String::new();
@@ -66,9 +66,9 @@ async fn hx_upload(
 
         // Create or append to the file
         let mut file = if chunk_index == 0 {
-            tokio::fs::File::create(&file_path).await.unwrap() // Create a new file for the first chunk
+            fs::File::create(&file_path).await.unwrap() // Create a new file for the first chunk
         } else {
-            tokio::fs::File::options()
+            fs::File::options()
                 .append(true)
                 .open(&file_path)
                 .await
@@ -86,7 +86,7 @@ async fn hx_upload(
                 .content_type()
                 .map(|ct| ct.to_string())
                 .unwrap_or_else(|| "unknown".to_string());
-            let file_size = tokio::fs::metadata(&file_path).await.unwrap().len();
+            let file_size = fs::metadata(&file_path).await.unwrap().len();
             let formatted_file_size = format_file_size(file_size as usize);
 
             // Update response HTML
