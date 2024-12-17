@@ -45,7 +45,7 @@
     {% endif %}
 </head>
 
-<body>
+<body hx-ext="preload">
     {{ sidebar }}
     {% include "component-navbar.html" %}
     <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
@@ -98,7 +98,7 @@
                         <li>
                             <div class="row">
                                 <a href="/channel/{{ medium_owner }}"
-                                    class="text-secondary text-center my-2 text-decoration-none fs-5 col-sm">{{
+                                    class="text-secondary text-center my-2 text-decoration-none fs-5 col-sm" preload>{{
                                     medium_owner }}</a>
                                 <div hx-get="/hx/subscribebutton/{{ medium_owner }}" hx-trigger="load" class="col-sm">
                                 </div>

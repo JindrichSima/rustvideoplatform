@@ -11,7 +11,7 @@
     <meta property="og:url" content="https://{{ common_headers.host }}/search" />
 </head>
 
-<body>
+<body hx-ext="preload">
     {{ sidebar }}
     {% include "component-navbar.html" %}
     <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">

@@ -64,5 +64,5 @@ async fn hx_subscribebutton(
         return Html(button);
     }
 
-    Html("<a href=\"/login\" class=\"btn btn-primary\"><i class=\"fa-solid fa-user-plus\"></i>&nbsp;Subscribe</a>".to_string())
+    Html("<a href=\"/login\" class=\"btn btn-primary\" preload><i class=\"fa-solid fa-user-plus\"></i>&nbsp;Subscribe</a>".to_string())
 }

@@ -11,7 +11,7 @@
     <meta property="og:url" content="https://{{ common_headers.host }}" />
 </head>
 
-<body>
+<body hx-ext="preload">
     {{ sidebar }}
     {% include "component-navbar.html" %}
     <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
@@ -26,7 +26,7 @@
         </div>
         <div class="col-12 col-sm-12 col-md-12 col-lg-12">
             <div class="card py-3 px-3 text-white" style="min-height:100vh;">
-                <h3 class="my-2 mx-3"><a href="/trending" class="text-decoration-none text-white">Trending</a></h3>
+                <h3 class="my-2 mx-3"><a href="/trending" class="text-decoration-none text-white" preload>Trending</a></h3>
                 <hr>
                 <div hx-get="/hx/trending" hx-trigger="load" class="row mb-3">
                 </div>

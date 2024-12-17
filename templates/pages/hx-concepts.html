@@ -1,7 +1,7 @@
 {% for concept in concepts %}
 <div class="col-xl-2 col-lg-4 col-6 my-3 d-flex justify-content-center">
     {% if concept.processed %}
-    <a href="/studio/concept/{{ concept.id }}" class="text-decoration-none">
+    <a href="/studio/concept/{{ concept.id }}" class="text-decoration-none" preload>
     {% endif %}
         <table>
             <tr>
