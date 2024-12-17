@@ -14,7 +14,7 @@
         </div>
         <ul id="suggestions" class="list-group bg-dark text-white p-2 m-1" style="display: none;"></ul>
     </form>
-    <div class="m-2 mx-4 text-white" hx-get="/hx/usernav" hx-trigger="load" style="width:100px;height:40px;">
+    <div class="m-2 mx-4 text-white" hx-get="/hx/usernav" hx-trigger="load" style="width:100px;height:40px;" preload="always">
         <a href="/login" preload="mouseover"><button class="btn text-white"><i class="fa-solid fa-user mx-2"></i>Log in</button></a>
     </div>
     <div class="m-2 text-white">

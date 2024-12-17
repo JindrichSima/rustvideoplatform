@@ -38,7 +38,7 @@
             <div class="card py-3 px-3 text-white">
                 <h3 class="my-2 mx-3">Latest videos</h3>
                 <hr>
-                <div hx-get="/hx/usermedia/{{ user.login }}" hx-trigger="load" class="row mb-3" style="min-height:100vh;">
+                <div hx-get="/hx/usermedia/{{ user.login }}" hx-trigger="load" class="row mb-3" style="min-height:100vh;" preload="always">
                 </div>
             </div>
         </div>
