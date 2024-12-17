@@ -9,6 +9,8 @@
   --bs-info: #0dcaf0;
   --bs-warning: #ffc107;
   --bs-danger: #dc3545;
+  --bs-white: #000;
+  --bs-secondary: #a9a9a9;
   --bs-font-sans-serif: 'Nunito', serif;
   --bs-font-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --bs-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
@@ -40,6 +42,8 @@
   --bs-info: #0dcaf0;
   --bs-warning: #ffc107;
   --bs-danger: #dc3545;
+  --bs-white: #fff;
+  --bs-secondary: #a9a9a9;
   --bs-font-sans-serif: 'Nunito', serif;
   --bs-font-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --bs-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
@@ -7697,7 +7701,7 @@ fieldset:disabled .btn {
 
 .text-bg-secondary {
   color: #fff !important;
-  background-color: RGBA(var(--bs-secondary-rgb), var(--bs-bg-opacity, 1)) !important;
+  background-color: RGBA(var(--bs-secondary), var(--bs-bg-opacity, 1)) !important;
 }
 
 .text-bg-success {
@@ -7744,9 +7748,9 @@ fieldset:disabled .btn {
 }
 
 .link-secondary {
-  color: RGBA(var(--bs-secondary-rgb), var(--bs-link-opacity, 1)) !important;
-  -webkit-text-decoration-color: RGBA(var(--bs-secondary-rgb), var(--bs-link-underline-opacity, 1)) !important;
-  text-decoration-color: RGBA(var(--bs-secondary-rgb), var(--bs-link-underline-opacity, 1)) !important;
+  color: RGBA(var(--bs-secondary), var(--bs-link-opacity, 1)) !important;
+  -webkit-text-decoration-color: RGBA(var(--bs-secondary), var(--bs-link-underline-opacity, 1)) !important;
+  text-decoration-color: RGBA(var(--bs-secondary), var(--bs-link-underline-opacity, 1)) !important;
 }
 
 .link-secondary:hover,
@@ -8277,7 +8281,7 @@ fieldset:disabled .btn {
 }
 
 .focus-ring-secondary {
-  --bs-focus-ring-color: rgba(var(--bs-secondary-rgb), var(--bs-focus-ring-opacity));
+  --bs-focus-ring-color: rgba(var(--bs-secondary), var(--bs-focus-ring-opacity));
 }
 
 .focus-ring-success {
@@ -8432,7 +8436,7 @@ fieldset:disabled .btn {
 
 .border-secondary {
   --bs-border-opacity: 1;
-  border-color: rgba(var(--bs-secondary-rgb), var(--bs-border-opacity)) !important;
+  border-color: rgba(var(--bs-secondary), var(--bs-border-opacity)) !important;
 }
 
 .border-success {
@@ -8472,7 +8476,7 @@ fieldset:disabled .btn {
 
 .border-white {
   --bs-border-opacity: 1;
-  border-color: rgba(var(--bs-white-rgb), var(--bs-border-opacity)) !important;
+  border-color: rgba(var(--bs-white), var(--bs-border-opacity)) !important;
 }
 
 .border-primary-subtle {
@@ -9389,7 +9393,7 @@ fieldset:disabled .btn {
 
 .text-secondary {
   --bs-text-opacity: 1;
-  color: rgba(var(--bs-secondary-rgb), var(--bs-text-opacity)) !important;
+  color: var(--bs-secondary) !important;
 }
 
 .text-success {
@@ -9429,7 +9433,7 @@ fieldset:disabled .btn {
 
 .text-white {
   --bs-text-opacity: 1;
-  color: rgba(var(--bs-white-rgb), var(--bs-text-opacity)) !important;
+  color: var(--bs-white) !important;
 }
 
 .text-body {
@@ -9592,8 +9596,8 @@ fieldset:disabled .btn {
 
 .link-underline-secondary {
   --bs-link-underline-opacity: 1;
-  -webkit-text-decoration-color: rgba(var(--bs-secondary-rgb), var(--bs-link-underline-opacity)) !important;
-  text-decoration-color: rgba(var(--bs-secondary-rgb), var(--bs-link-underline-opacity)) !important;
+  -webkit-text-decoration-color: rgba(var(--bs-secondary), var(--bs-link-underline-opacity)) !important;
+  text-decoration-color: rgba(var(--bs-secondary), var(--bs-link-underline-opacity)) !important;
 }
 
 .link-underline-success {
@@ -9693,7 +9697,7 @@ fieldset:disabled .btn {
 
 .bg-secondary {
   --bs-bg-opacity: 1;
-  background-color: rgba(var(--bs-secondary-rgb), var(--bs-bg-opacity)) !important;
+  background-color: rgba(var(--bs-secondary), var(--bs-bg-opacity)) !important;
 }
 
 .bg-success {
@@ -9733,7 +9737,7 @@ fieldset:disabled .btn {
 
 .bg-white {
   --bs-bg-opacity: 1;
-  background-color: rgba(var(--bs-white-rgb), var(--bs-bg-opacity)) !important;
+  background-color: rgba(var(--bs-white), var(--bs-bg-opacity)) !important;
 }
 
 .bg-body {
