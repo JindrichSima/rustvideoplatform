@@ -14,7 +14,7 @@ async fn hx_usernav(
         let template = HXUsernavTemplate { user };
         return Html(minifi_html(template.render().unwrap()));
     } else {
-        let result = format!("<a href=\"/login\"><button class=\"btn text-white\"><i class=\"fa-solid fa-user mx-2\" preload></i>Log in</button></a>");
+        let result = format!("<a href=\"/login\"><button class=\"btn text-white\"><i class=\"fa-solid fa-user mx-2\" preload=\"mouseover\"></i>Log in</button></a>");
         return Html(minifi_html(result));
     }
 }

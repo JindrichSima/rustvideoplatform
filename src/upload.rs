@@ -104,7 +104,7 @@ async fn hx_upload(
             file_type
         ));
         response_html.push_str(
-            "<tr><th><button class=\"btn btn-primary\" onclick=\"parent.location.href=\"/studio/concepts\"; \" preload>View Concepts</button></th></tr>"
+            "<tr><th><button class=\"btn btn-primary\" onclick=\"parent.location.href=\"/studio/concepts\"; \" preload=\"mouseover\">View Concepts</button></th></tr>"
         );
         response_html.push_str("</table><br>");
 
