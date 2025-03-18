@@ -2,11 +2,7 @@
 <html>
 
 <head>
-    {% if medium_type == "video" %}
-    <link rel="stylesheet" href="https://cdn.vidstack.io/player/theme.css" />
-    <link rel="stylesheet" href="https://cdn.vidstack.io/player/video.css" />
-    <script src="https://cdn.vidstack.io/player" type="module"></script>
-    {% else if medium_type == "audio" %}
+    {% if medium_type == "video" || medium_type == "audio" %}
     <link rel="stylesheet" href="https://cdn.vidstack.io/player/theme.css" />
     <link rel="stylesheet" href="https://cdn.vidstack.io/player/video.css" />
     <script src="https://cdn.vidstack.io/player" type="module"></script>

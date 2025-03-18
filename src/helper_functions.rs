@@ -20,14 +20,13 @@ fn read_lines_to_vec(filepath: &str) -> Vec<String> {
 }
 
 fn generate_secure_string() -> String {
-    // Define the character set: a-z and 0-9
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
     const STRING_LEN: usize = 100;
 
-    let mut rng = OsRng; // Use OsRng for cryptographically secure random number generation
+    let mut rng = rng();
     let secure_string: String = (0..STRING_LEN)
         .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
+            let idx = rng.random_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect();
@@ -144,10 +143,10 @@ fn format_file_size(size_bytes: usize) -> String {
 
 fn generate_medium_id() -> String {
     let charset = b"abcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let random_string: String = (0..10)
         .map(|_| {
-            let idx = rng.gen_range(0..charset.len());
+            let idx = rng.random_range(0..charset.len());
             charset[idx] as char
         })
         .collect();

@@ -9,7 +9,7 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 use ahash::AHashMap;
-use argon2::password_hash::{rand_core::OsRng, PasswordHash};
+use argon2::password_hash::PasswordHash;
 use askama::Template;
 use axum::{
     extract::{DefaultBodyLimit, Form, Multipart, Path},
@@ -22,7 +22,7 @@ use axum::{
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
 use memory_serve::{load_assets, MemoryServe};
-use rand::Rng;
+use rand::{rng, Rng};
 use serde::Deserialize;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
@@ -30,6 +30,7 @@ use sqlx::PgPool;
 use std::io::BufRead;
 use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, sync::Mutex, io, fs};
+use tower_http::services::ServeDir;
 
 #[derive(Deserialize, Clone)]
 struct Config {
@@ -59,35 +60,35 @@ async fn main() {
         .route("/login", get(login))
         .route("/trending", get(trending))
         .route("/hx/trending", get(hx_trending))
-        .route("/m/:mediumid", get(medium))
-        .route("/m/:mediumid/previews.json", get(medium_previews_prepare))
-        .route("/hx/comments/:mediumid", get(hx_comments))
-        .route("/hx/reccomended/:mediumid", get(hx_recommended))
-        .route("/hx/new_view/:mediumid", get(hx_new_view))
-        .route("/hx/like/:mediumid", get(hx_like))
-        .route("/hx/dislike/:mediumid", get(hx_dislike))
-        .route("/hx/subscribe/:userid", get(hx_subscribe))
-        .route("/hx/unsubscribe/:userid", get(hx_unsubscribe))
-        .route("/hx/subscribebutton/:userid", get(hx_subscribebutton))
+        .route("/m/{mediumid}", get(medium))
+        .route("/m/{mediumid}/previews.json", get(medium_previews_prepare))
+        .route("/hx/comments/{mediumid}", get(hx_comments))
+        .route("/hx/reccomended/{mediumid}", get(hx_recommended))
+        .route("/hx/new_view/{mediumid}", get(hx_new_view))
+        .route("/hx/like/{mediumid}", get(hx_like))
+        .route("/hx/dislike/{mediumid}", get(hx_dislike))
+        .route("/hx/subscribe/{userid}", get(hx_subscribe))
+        .route("/hx/unsubscribe/{userid}", get(hx_unsubscribe))
+        .route("/hx/subscribebutton/{userid}", get(hx_subscribebutton))
         .route("/hx/login", post(hx_login))
         .route("/hx/logout", get(hx_logout))
         .route("/hx/usernav", get(hx_usernav))
-        .route("/hx/sidebar/:active_item", get(hx_sidebar))
+        .route("/hx/sidebar/{active_item}", get(hx_sidebar))
         .route("/hx/searchsuggestions", post(hx_search_suggestions))
         .route("/search", get(search))
-        .route("/hx/search/:pageid", post(hx_search))
-        .route("/channel/:userid", get(channel))
-        .route("/hx/usermedia/:userid", get(hx_usermedia))
+        .route("/hx/search/{pageid}", post(hx_search))
+        .route("/channel/{userid}", get(channel))
+        .route("/hx/usermedia/{userid}", get(hx_usermedia))
         .route("/studio", get(studio))
         .route("/hx/studio", get(hx_studio))
         .route("/studio/concepts", get(concepts))
         .route("/hx/studio/concepts", get(hx_concepts))
-        .route("/studio/concept/:conceptid", get(concept))
-        .route("/studio/concept/:conceptid/publish", post(publish))
+        .route("/studio/concept/{conceptid}", get(concept))
+        .route("/studio/concept/{conceptid}/publish", post(publish))
         .route("/upload", get(upload))
         .route("/uploadform", get(uploadform))
         .route("/hx/upload", post(hx_upload))
-        .nest("/source", axum_static::static_router("source"))
+        .nest("/source", static_router("source"))
         .layer(Extension(pool))
         .layer(Extension(config))
         .layer(Extension(session_store))
@@ -116,3 +117,4 @@ include!("channel.rs");
 include!("studio.rs");
 include!("upload.rs");
 include!("concept.rs");
+include!("serve.rs");
