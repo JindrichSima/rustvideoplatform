@@ -15,10 +15,10 @@ tower = "*"
 tower-http = { version = "*", features = ["fs"] }
 memory-serve = "1.2"
 serde = { version = "1.0", features = ["derive"] }
-sqlx = { version = "0.8", features = [ "postgres", "runtime-tokio-rustls" ] }
-askama = "0.14"
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls"] }
+askama = "0.15"
 serde_json = "*"
-minify-html-onepass = "0.16"
+minify-html-onepass = "0.18"
 chrono = "0.4"
 ahash = "*"
 argon2 = "0.5"
