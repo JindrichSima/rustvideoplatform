@@ -96,3 +96,20 @@ struct Preview {
     endTime: u128,
     text: String,
 }
+async fn medium_previews_prepare(Path(mediumid): Path<String>) -> Json<Vec<Preview>> {
+    let source_file_path = format!("source/{}/previews/previews.vtt", mediumid);
+    let parsed_preview_list: Vec<Preview> =
+        serde_json::from_str(&fs::read_to_string(source_file_path).await.unwrap()).unwrap();
+    let mut new_preview_list: Vec<Preview> = Vec::new();
+    for preview in parsed_preview_list {
+        let fixed_url = format!("/source/{}/{}", mediumid, preview.text);
+        let new_preview: Preview = Preview {
+            startTime: preview.startTime,
+            endTime: preview.endTime,
+            text: fixed_url,
+        };
+        new_preview_list.push(new_preview);
+    }
+
+    Json(new_preview_list)
+}
