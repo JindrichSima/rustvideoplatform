@@ -109,7 +109,7 @@ async fn medium_previews_prepare(Path(mediumid): Path<String>) -> Response<Body>
 }
 
 fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
-    let base_path = format!("/source/{}/", mediumid);
+    let base_path = format!("/source/{}/previews/", mediumid);
 
     vtt_content
         .lines()
