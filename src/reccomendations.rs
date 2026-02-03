@@ -6,14 +6,7 @@ struct HXReccomendedTemplate {
     playlist_id: Option<String>,
     current_medium_id: Option<String>,
 }
-#[derive(Serialize, Deserialize)]
-struct Medium {
-    id: String,
-    name: String,
-    owner: String,
-    views: i64,
-    r#type: String,
-}
+
 async fn hx_recommended(
     Extension(pool): Extension<PgPool>,
     Path(mediumid): Path<String>,
@@ -22,8 +15,7 @@ async fn hx_recommended(
     let playlist_id = params.get("playlist").cloned();
 
     if let Some(ref plid) = playlist_id {
-        let items: Vec<PlaylistItemDetail> = sqlx::query_as!(
-            PlaylistItemDetail,
+        let records = sqlx::query!(
             r#"
             SELECT
                 pi.id,
@@ -50,16 +42,18 @@ async fn hx_recommended(
                 .body("Failed to fetch playlist items".into())
                 .unwrap()
         })?;
-        let recommendations: Vec<Medium> = items
+
+        let recommendations: Vec<Medium> = records
             .into_iter()
-            .map(|item| Medium {
-                id: item.media_id,
-                name: item.media_name,
-                owner: item.media_owner,
-                views: item.media_views,
-                r#type: item.media_type,
+            .map(|row| Medium {
+                id: row.media_id,
+                name: row.media_name.unwrap_or_default(),
+                owner: row.media_owner,
+                views: row.media_views.unwrap_or(0),
+                r#type: row.media_type,
             })
             .collect();
+
         let template = HXReccomendedTemplate {
             recommendations,
             is_playlist: true,

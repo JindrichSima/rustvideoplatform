@@ -1,5 +1,3 @@
-rustvideoplatform/src/playlists.rs
-```rust
 #[derive(Template)]
 #[template(path = "pages/playlists.html", escape = "none")]
 struct PlaylistsTemplate {
@@ -101,8 +99,7 @@ async fn user_playlists_page(
     let user = user_info.unwrap();
     let common_headers = extract_common_headers(&headers).unwrap();
 
-    let playlists = sqlx::query_as!(
-        PlaylistInfo,
+    let playlist_rows = sqlx::query!(
         r#"
         SELECT
             p.id,
@@ -122,6 +119,18 @@ async fn user_playlists_page(
     .fetch_all(&pool)
     .await
     .unwrap_or_default();
+
+    let playlists: Vec<PlaylistInfo> = playlist_rows
+        .into_iter()
+        .map(|row| PlaylistInfo {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            owner: row.owner,
+            created_at: row.created_at,
+            item_count: row.item_count.unwrap_or(0),
+        })
+        .collect();
 
     let sidebar = generate_sidebar(&config, "playlists".to_owned());
     let template = PlaylistsTemplate {
@@ -147,8 +156,7 @@ async fn hx_user_playlists(
 
     let user = user_info.unwrap();
 
-    let playlists = sqlx::query_as!(
-        PlaylistInfo,
+    let playlist_rows = sqlx::query!(
         r#"
         SELECT
             p.id,
@@ -170,6 +178,18 @@ async fn hx_user_playlists(
     .await
     .unwrap_or_default();
 
+    let playlists: Vec<PlaylistInfo> = playlist_rows
+        .into_iter()
+        .map(|row| PlaylistInfo {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            owner: row.owner,
+            created_at: row.created_at,
+            item_count: row.item_count.unwrap_or(0),
+        })
+        .collect();
+
     let template = HXPlaylistsTemplate { playlists };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -185,8 +205,7 @@ async fn view_playlist(
     let user_info = get_user_login(headers.clone(), &pool, session_store.clone()).await;
     let common_headers = extract_common_headers(&headers).unwrap();
 
-    let playlist = sqlx::query_as!(
-        PlaylistInfo,
+    let playlist_row = sqlx::query!(
         r#"
         SELECT
             p.id,
@@ -205,6 +224,15 @@ async fn view_playlist(
     .fetch_one(&pool)
     .await;
 
+    let playlist = playlist_row.map(|row| PlaylistInfo {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        owner: row.owner,
+        created_at: row.created_at,
+        item_count: row.item_count.unwrap_or(0),
+    });
+
     if playlist.is_err() {
         return Html(minifi_html("<h1>Playlist not found</h1>".to_owned()));
     }
@@ -212,8 +240,7 @@ async fn view_playlist(
     let playlist = playlist.unwrap();
     let is_owner = user_info.as_ref().map(|u| u.login == playlist.owner).unwrap_or(false);
 
-    let items = sqlx::query_as!(
-        PlaylistItemDetail,
+    let item_rows = sqlx::query!(
         r#"
         SELECT
             pi.id,
@@ -233,6 +260,19 @@ async fn view_playlist(
     .fetch_all(&pool)
     .await
     .unwrap_or_default();
+
+    let items: Vec<PlaylistItemDetail> = item_rows
+        .into_iter()
+        .map(|row| PlaylistItemDetail {
+            id: row.id,
+            media_id: row.media_id,
+            media_name: row.media_name.unwrap_or_default(),
+            media_owner: row.media_owner,
+            media_views: row.media_views.unwrap_or(0),
+            media_type: row.media_type,
+            item_order: row.item_order.unwrap_or(0),
+        })
+        .collect();
 
     let current_medium_id = params.get("current").cloned();
     let sidebar = generate_sidebar(&config, "playlists".to_owned());
@@ -422,8 +462,7 @@ async fn hx_playlist_selector(
 
     let user = user_info.unwrap();
 
-    let playlists = sqlx::query_as!(
-        PlaylistInfo,
+    let playlist_rows = sqlx::query!(
         r#"
         SELECT
             p.id,
@@ -444,6 +483,18 @@ async fn hx_playlist_selector(
     .await
     .unwrap_or_default();
 
+    let playlists: Vec<PlaylistInfo> = playlist_rows
+        .into_iter()
+        .map(|row| PlaylistInfo {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            owner: row.owner,
+            created_at: row.created_at,
+            item_count: row.item_count.unwrap_or(0),
+        })
+        .collect();
+
     let template = HXPlaylistSelectorTemplate {
         playlists,
         medium_id,
@@ -458,8 +509,7 @@ async fn hx_playlist_items_for_recommendations(
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
     let current_medium_id = params.get("current").cloned().unwrap_or_default();
 
-    let items = sqlx::query_as!(
-        PlaylistItemDetail,
+    let item_rows = sqlx::query!(
         r#"
         SELECT
             pi.id,
@@ -484,6 +534,19 @@ async fn hx_playlist_items_for_recommendations(
             .body("Failed to fetch playlist items".into())
             .unwrap()
     })?;
+
+    let items: Vec<PlaylistItemDetail> = item_rows
+        .into_iter()
+        .map(|row| PlaylistItemDetail {
+            id: row.id,
+            media_id: row.media_id,
+            media_name: row.media_name.unwrap_or_default(),
+            media_owner: row.media_owner,
+            media_views: row.media_views.unwrap_or(0),
+            media_type: row.media_type,
+            item_order: row.item_order.unwrap_or(0),
+        })
+        .collect();
 
     let template = HXPlaylistItemsTemplate {
         items,
