@@ -62,7 +62,7 @@ async fn medium(
     }
 
     let medium_previews_exist: bool;
-    if std::path::Path::new(&format!("source/{}/previews/previews.json", medium.id)).exists() {
+    if std::path::Path::new(&format!("source/{}/previews/previews.vtt", medium.id)).exists() {
         medium_previews_exist = true;
     } else {
         medium_previews_exist = false;
@@ -97,7 +97,7 @@ struct Preview {
     text: String,
 }
 async fn medium_previews_prepare(Path(mediumid): Path<String>) -> Json<Vec<Preview>> {
-    let source_file_path = format!("source/{}/previews/previews.json", mediumid);
+    let source_file_path = format!("source/{}/previews/previews.vtt", mediumid);
     let parsed_preview_list: Vec<Preview> =
         serde_json::from_str(&fs::read_to_string(source_file_path).await.unwrap()).unwrap();
     let mut new_preview_list: Vec<Preview> = Vec::new();

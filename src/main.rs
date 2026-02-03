@@ -61,7 +61,7 @@ async fn main() {
         .route("/trending", get(trending))
         .route("/hx/trending", get(hx_trending))
         .route("/m/{mediumid}", get(medium))
-        .route("/m/{mediumid}/previews.json", get(medium_previews_prepare))
+        .route("/m/{mediumid}/previews.vtt", get(medium_previews_prepare))
         .route("/hx/comments/{mediumid}", get(hx_comments))
         .route("/hx/reccomended/{mediumid}", get(hx_recommended))
         .route("/hx/new_view/{mediumid}", get(hx_new_view))

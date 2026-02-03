@@ -1,31 +1,36 @@
 {% for concept in concepts %}
 <div class="col-xl-2 col-lg-4 col-6 my-3 d-flex justify-content-center">
     {% if concept.processed %}
-    <a href="/studio/concept/{{ concept.id }}" class="text-decoration-none" preload="mouseover">
-    {% endif %}
+    <a
+        href="/studio/concept/{{ concept.id }}"
+        class="text-decoration-none"
+        preload="mouseover"
+    >
+        {% endif %}
         <table>
             <tr>
                 <td class="d-flex justify-content-center">
                     {% if !concept.processed %}
-                    <i class="fa-solid fa-wand-magic-sparkles fa-beat fa-4x text-decoration-none mb-3"></i>
+                    <i
+                        class="fa-solid fa-wand-magic-sparkles fa-beat fa-4x text-decoration-none mb-3"
+                    ></i>
                     {% else %}
-                    <i class="fa-solid fa-check fa-4x text-decoration-none mb-3"></i>
+                    <i
+                        class="fa-solid fa-check fa-4x text-decoration-none mb-3"
+                    ></i>
                     {% endif %}
                 </td>
-                <td>
-
-                </td>
+                <td></td>
             </tr>
             <tr>
                 <td class="text-center">
-                    <b class="text-white font-weight-bold">{{ concept.name }}</b>
-                    <p class="text-secondary">status:&nbsp;
-                        {% if !concept.processed %}
-                        preparing...
-                        {% else %}
-                        ready!
-                        {% endif %}
-                        {% if concept.type == "video" %}
+                    <b class="text-white font-weight-bold"
+                        >{{ concept.name }}</b
+                    >
+                    <p class="text-secondary">
+                        status:&nbsp; {% if !concept.processed %} preparing...
+                        {% else %} ready! {% endif %} {% if concept.type ==
+                        "video" %}
                         <i class="fa-solid fa-video fa-sm ms-1"></i>
                         {% else if concept.type == "audio" %}
                         <i class="fa-solid fa-music fa-sm ms-1"></i>
@@ -36,7 +41,7 @@
                 </td>
             </tr>
         </table>
-    {% if concept.processed %}
+        {% if concept.processed %}
     </a>
     {% endif %}
 </div>
