@@ -29,7 +29,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::io::BufRead;
 use std::sync::Arc;
-use tokio::{io::AsyncWriteExt, sync::Mutex, io, fs};
+use tokio::{fs, io, io::AsyncWriteExt, sync::Mutex};
 use tower_http::services::ServeDir;
 
 #[derive(Deserialize, Clone)]
@@ -38,11 +38,12 @@ struct Config {
     instancename: String,
     welcome: String,
     custom_upload_url: Option<String>,
-    custom_session_domain: Option<String>
+    custom_session_domain: Option<String>,
 }
 #[tokio::main]
 async fn main() {
-    let config: Config = serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
+    let config: Config =
+        serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
 
     let pool = PgPoolOptions::new()
         .max_connections(100)
@@ -61,7 +62,6 @@ async fn main() {
         .route("/trending", get(trending))
         .route("/hx/trending", get(hx_trending))
         .route("/m/{mediumid}", get(medium))
-        .route("/m/{mediumid}/previews.vtt", get(medium_previews_prepare))
         .route("/hx/comments/{mediumid}", get(hx_comments))
         .route("/hx/reccomended/{mediumid}", get(hx_recommended))
         .route("/hx/new_view/{mediumid}", get(hx_new_view))
