@@ -1,18 +1,56 @@
-{% for medium in recommendations %}
-<a href="/m/{{ medium.id }}" class="text-decoration-none" preload="mouseover">
+{% for item in recommendations %}
+<a
+    href="/m/{{ item.medium.id }}"
+    class="text-decoration-none"
+    preload="mouseover"
+>
     <table class="my-3">
         <tr>
             <td class="d-flex justify-content-center">
-                <img src="/source/{{ medium.id }}/thumbnail.avif" width="176" height="99" class="mx-2 rounded">
+                <div
+                    class="thumbnail-container"
+                    style="position: relative; width: 176px; height: 99px"
+                >
+                    <img
+                        src="/source/{{ item.medium.id }}/thumbnail.avif"
+                        class="mx-2 rounded thumbnail-static"
+                        style="
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            transition: opacity 0.3s;
+                        "
+                        width="176"
+                        height="99"
+                    />
+                    {% if item.showcase_exists %}
+                    <img
+                        src="/source/{{ item.medium.id }}/showcase.avif"
+                        class="mx-2 rounded thumbnail-animated"
+                        style="
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            opacity: 0;
+                            transition: opacity 0.3s;
+                        "
+                        width="176"
+                        height="99"
+                    />
+                    {% endif %}
+                </div>
             </td>
             <td>
-                <b class="text-white font-weight-bold">{{ medium.name }}</b>
-                <p class="text-secondary">{{ medium.owner }}<br>{{ medium.views }} views
-                    {% if medium.type == "video" %}
+                <b class="text-white font-weight-bold"
+                    >{{ item.medium.name }}</b
+                >
+                <p class="text-secondary">
+                    {{ item.medium.owner }}<br />{{ item.medium.views }} views
+                    {% if item.medium.type == "video" %}
                     <i class="fa-solid fa-video fa-sm ms-1"></i>
-                    {% else if medium.type == "audio" %}
+                    {% else if item.medium.type == "audio" %}
                     <i class="fa-solid fa-music fa-sm ms-1"></i>
-                    {% else if medium.type == "picture" %}
+                    {% else if item.medium.type == "picture" %}
                     <i class="fa-solid fa-image fa-sm ms-1"></i>
                     {% endif %}
                 </p>
@@ -21,3 +59,12 @@
     </table>
 </a>
 {% endfor %}
+
+<style>
+    .thumbnail-container:hover .thumbnail-static {
+        opacity: 0 !important;
+    }
+    .thumbnail-container:hover .thumbnail-animated {
+        opacity: 1 !important;
+    }
+</style>
