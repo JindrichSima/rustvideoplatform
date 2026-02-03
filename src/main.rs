@@ -88,6 +88,25 @@ async fn main() {
         .route("/upload", get(upload))
         .route("/uploadform", get(uploadform))
         .route("/hx/upload", post(hx_upload))
+        .route("/playlists", get(user_playlists_page))
+        .route("/playlist/{playlistid}", get(view_playlist))
+        .route("/hx/playlists", get(hx_user_playlists))
+        .route("/hx/playlist/create", post(hx_create_playlist))
+        .route("/hx/playlist/{playlistid}/delete", post(hx_delete_playlist))
+        .route("/hx/playlist/add", post(hx_add_to_playlist))
+        .route("/hx/playlist/remove", post(hx_remove_from_playlist))
+        .route(
+            "/hx/playlist/selector/{mediumid}",
+            get(hx_playlist_selector),
+        )
+        .route(
+            "/hx/playlist/{playlistid}/items",
+            get(hx_playlist_items_for_recommendations),
+        )
+        .route(
+            "/hx/playlist/{playlistid}/reorder/{itemid}/{direction}",
+            post(hx_reorder_playlist_item),
+        )
         .nest("/source", static_router("source"))
         .layer(Extension(pool))
         .layer(Extension(config))
@@ -101,9 +120,22 @@ async fn main() {
 }
 
 include!("helper_functions.rs");
+
+#[derive(Serialize, Deserialize)]
+pub struct PlaylistItemDetail {
+    pub id: i64,
+    pub media_id: String,
+    pub media_name: String,
+    pub media_owner: String,
+    pub media_views: i64,
+    pub media_type: String,
+    pub item_order: i64,
+}
+
 include!("sidebar.rs");
 include!("medium.rs");
 include!("comments.rs");
+include!("playlists.rs");
 include!("reccomendations.rs");
 include!("likes_dislikes.rs");
 include!("subscriptions.rs");
