@@ -39,3 +39,26 @@ CREATE TABLE public.media_concepts (
 	"type" varchar NOT NULL,
 	CONSTRAINT media_concepts_pk PRIMARY KEY (id)
 );
+
+CREATE TABLE public.playlists (
+	id varchar NOT NULL,
+	"name" varchar NOT NULL,
+	description text NOT NULL,
+	"owner" varchar NOT NULL,
+	created_at int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
+	public bool DEFAULT true NOT NULL,
+	CONSTRAINT playlists_pk PRIMARY KEY (id)
+);
+
+CREATE TABLE public.playlist_items (
+	id bigserial NOT NULL,
+	playlist_id varchar NOT NULL,
+	media_id varchar NOT NULL,
+	item_order int8 DEFAULT 0 NOT NULL,
+	added_at int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
+	CONSTRAINT playlist_items_pk PRIMARY KEY (id),
+	CONSTRAINT playlist_items_playlist_fk FOREIGN KEY (playlist_id) REFERENCES public.playlists(id) ON DELETE CASCADE,
+	CONSTRAINT playlist_items_media_fk FOREIGN KEY (media_id) REFERENCES public.media(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX playlist_items_unique_media_per_playlist ON public.playlist_items(playlist_id, media_id);
