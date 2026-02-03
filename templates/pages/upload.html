@@ -1,37 +1,93 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
+    <head>
+        {% include "component-dependencies.html" %}
 
-<head>
-    {% include "component-dependencies.html" %}
+        <title>Upload</title>
 
-    <title>Upload</title>
+        <meta property="og:title" content="{{ config.instancename }} Upload" />
+        <meta property="og:type" content="website" />
+        <meta
+            property="og:url"
+            content="https://{{ common_headers.host }}/upload"
+        />
+    </head>
 
-    <meta property="og:title" content="{{ config.instancename }} Upload" />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://{{ common_headers.host }}/upload" />
-</head>
-
-<body hx-ext="preload">
-    {{ sidebar }}
-    {% include "component-navbar.html" %}
-    <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
-        <div class="col-12 col-sm-12 col-md-12 col-lg-12">
-            <div class="card py-3 px-3 text-white" style="min-height: 80vh;">
-                <h3 class="my-2 mx-3">Upload</h3>
-                <hr>
-                <h1 class="m-3 text-center">What do you want to upload today?</h1>
-                <div class="d-flex justify-content-center">
-                    <div></div>
-                    <div>
-                        <iframe
-                            src="{% if config.custom_upload_url.is_some() %}{{config.custom_upload_url.clone().unwrap()}}{% else %}/uploadform{% endif %}"
-                            style="border:none;height:60vh;width:40vw;"></iframe>
+    <body hx-ext="preload">
+        {{ sidebar }} {% include "component-navbar.html" %}
+        <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%">
+            <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                <div class="card py-3 px-3 text-white" style="min-height: 80vh">
+                    <h3 class="my-2 mx-3">Upload</h3>
+                    <hr />
+                    <h1 class="m-3 text-center">
+                        What do you want to upload today?
+                    </h1>
+                    <div class="d-flex justify-content-center">
+                        <div class="w-100" style="max-width: 600px">
+                            <div id="upload-container">
+                                <form
+                                    id="form"
+                                    hx-encoding="multipart/form-data"
+                                    hx-post="/hx/upload"
+                                    class="m-3"
+                                    onsubmit="beginupload()"
+                                    hx-target="#upload-result"
+                                >
+                                    <div
+                                        class="d-flex flex-column align-items-center"
+                                    >
+                                        <input
+                                            class="btn btn-primary m-3"
+                                            type="file"
+                                            name="file"
+                                            style="
+                                                width: 100%;
+                                                max-width: 500px;
+                                            "
+                                        />
+                                        <br />
+                                        <button
+                                            class="btn btn-primary text-center m-3"
+                                            id="submitbutton"
+                                            style="width: 150px"
+                                        >
+                                            Upload
+                                        </button>
+                                        <progress
+                                            id="progress"
+                                            value="0"
+                                            max="100"
+                                            class="m-3"
+                                            style="
+                                                display: none;
+                                                width: 100%;
+                                                max-width: 500px;
+                                            "
+                                        ></progress>
+                                    </div>
+                                </form>
+                                <div id="upload-result"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div></div>
                 </div>
             </div>
         </div>
-    </div>
-</body>
+        <script>
+            function beginupload() {
+                submitbutton.disabled = true;
+                document.getElementById("submitbutton").style.display = "none";
+                document.getElementById("progress").style.display = "inline";
+                return true;
+            }
 
+            htmx.on("#form", "htmx:xhr:progress", function (evt) {
+                htmx.find("#progress").setAttribute(
+                    "value",
+                    (evt.detail.loaded / evt.detail.total) * 100,
+                );
+            });
+        </script>
+    </body>
 </html>

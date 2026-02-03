@@ -27,23 +27,6 @@ async fn upload(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Template)]
-#[template(path = "pages/uploadform.html", escape = "none")]
-struct UploadFormTemplate {}
-async fn uploadform(
-    Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
-    headers: HeaderMap,
-) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, session_store).await).await {
-        return Html(minifi_html(
-            "<script>window.location.replace(\"/login\");</script>".to_owned(),
-        ));
-    }
-    let template = UploadFormTemplate {};
-    Html(minifi_html(template.render().unwrap()))
-}
-
 async fn hx_upload(
     Extension(pool): Extension<PgPool>,
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
@@ -104,7 +87,7 @@ async fn hx_upload(
             file_type
         ));
         response_html.push_str(
-            "<tr><th><button class=\"btn btn-primary\" onclick=\"parent.location.href=\"/studio/concepts\"; \" preload=\"mouseover\">View Concepts</button></th></tr>"
+            "<tr><th><a href=\"/studio/concepts\" class=\"btn btn-primary\" preload=\"mouseover\">View Concepts</a></th></tr>"
         );
         response_html.push_str("</table><br>");
 

@@ -124,12 +124,13 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
                 return line.to_string();
             }
 
-            let lower = trimmed.to_lowercase();
-            if lower.ends_with(".avif")
-                && !trimmed.starts_with('/')
+            let path_part = trimmed.split('#').next().unwrap_or(trimmed);
+            let is_avif = path_part.to_lowercase().ends_with(".avif");
+            let is_relative = !trimmed.starts_with('/')
                 && !trimmed.starts_with("http://")
-                && !trimmed.starts_with("https://")
-            {
+                && !trimmed.starts_with("https://");
+
+            if is_avif && is_relative {
                 if let Some(hash_pos) = trimmed.find('#') {
                     let (path, fragment) = trimmed.split_at(hash_pos);
                     return format!("{}{}{}", base_path, path, fragment);

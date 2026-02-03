@@ -12,13 +12,13 @@ use ahash::AHashMap;
 use argon2::password_hash::PasswordHash;
 use askama::Template;
 use axum::{
+    body::Body,
     extract::{DefaultBodyLimit, Form, Multipart, Path},
     http::header::HeaderMap,
     http::header::{ACCEPT_LANGUAGE, COOKIE, HOST, USER_AGENT},
     response::{Html, IntoResponse, Response},
     routing::get,
     routing::post,
-    body::Body,
     Extension, Json, Router,
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
@@ -30,7 +30,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::io::BufRead;
 use std::sync::Arc;
-use tokio::{io::AsyncWriteExt, sync::Mutex, io, fs};
+use tokio::{fs, io, io::AsyncWriteExt, sync::Mutex};
 use tower_http::services::ServeDir;
 
 #[derive(Deserialize, Clone)]
@@ -39,11 +39,12 @@ struct Config {
     instancename: String,
     welcome: String,
     custom_upload_url: Option<String>,
-    custom_session_domain: Option<String>
+    custom_session_domain: Option<String>,
 }
 #[tokio::main]
 async fn main() {
-    let config: Config = serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
+    let config: Config =
+        serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
 
     let pool = PgPoolOptions::new()
         .max_connections(100)
@@ -87,7 +88,6 @@ async fn main() {
         .route("/studio/concept/{conceptid}", get(concept))
         .route("/studio/concept/{conceptid}/publish", post(publish))
         .route("/upload", get(upload))
-        .route("/uploadform", get(uploadform))
         .route("/hx/upload", post(hx_upload))
         .nest("/source", static_router("source"))
         .layer(Extension(pool))
