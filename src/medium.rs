@@ -20,12 +20,12 @@ struct MediumTemplate {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Medium {
-    pub id: String,
-    pub name: String,
-    pub owner: String,
-    pub views: i64,
-    pub r#type: String,
+struct Medium {
+    id: String,
+    name: String,
+    owner: String,
+    views: i64,
+    r#type: String,
 }
 
 async fn medium(
