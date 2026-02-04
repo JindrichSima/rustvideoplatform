@@ -94,6 +94,7 @@
                             aspectRatio="16/9"
                             load="idle"
                             posterLoad="eager"
+                            pip="false"
                         >
                             <media-provider>
                                 {% if medium_captions_exist %} {% for
@@ -131,7 +132,10 @@
                         <media-player
                             src="/source/{{ medium_id }}/audio.ogg"
                             view-type="video"
+                            aspectRatio="16/9"
                             load="idle"
+                            posterLoad="eager"
+                            pip="false"
                         >
                             <media-provider>
                                 <media-poster
