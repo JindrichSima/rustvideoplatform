@@ -19,7 +19,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::get,
     routing::post,
-    Extension, Json, Router,
+    Extension, Router,
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
 use memory_serve::{load_assets, MemoryServe};
