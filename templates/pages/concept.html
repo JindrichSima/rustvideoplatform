@@ -6,7 +6,7 @@
 
     <title>{{concept.name}}</title>
 
-    <meta property="og:title" content="{{ config.instancename }} Concept" />
+    <meta property="og:title" content="{{ config.instancename }} {{ translations.tl("concepts.concept_detail_title") }}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://{{ common_headers.host }}/concepts" />
 </head>
@@ -17,14 +17,14 @@
     <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
         <div class="col-12 col-sm-12 col-md-12 col-lg-12">
             <div class="card py-3 px-3 text-white" style="min-height: 80vh;">
-                <h3 class="my-2 mx-3">Concept</h3>
+                <h3 class="my-2 mx-3">{{ translations.tl("concepts.concept_detail_title") }}</h3>
                 <hr>
                 <div class="d-flex justify-content-center">
                     <div></div>
                     <div>
                         <form action="/studio/concept/{{concept.id}}/publish" method="post">
                             <div class="form-group row">
-                                <label for="medium_id" class="col-4 col-form-label">URL</label>
+                                <label for="medium_id" class="col-4 col-form-label">{{ translations.tl("concepts.url") }}</label>
                                 <div class="col-8">
                                     <div class="input-group">
                                         <input id="medium_id" name="medium_id" type="text" required class="form-control"
@@ -32,32 +32,32 @@
                                     </div>
                                 </div>
                                 <div class="form-group row">
-                                    <label for="medium_name" class="col-4 col-form-label">Name</label>
+                                    <label for="medium_name" class="col-4 col-form-label">{{ translations.tl("concepts.name") }}</label>
                                     <div class="col-8">
                                         <input id="medium_name" name="medium_name" type="text" class="form-control"
                                             required value="{{concept.name}}">
                                     </div>
                                 </div>
                                 <div class="form-group row">
-                                    <label for="medium_description" class="col-4 col-form-label">Description</label>
+                                    <label for="medium_description" class="col-4 col-form-label">{{ translations.tl("concepts.description") }}</label>
                                     <div class="col-8">
                                         <textarea id="medium_description" name="medium_description" cols="50" rows="6"
                                             class="form-control" style="resize: none;" required></textarea>
                                     </div>
                                 </div>
                                 <div class="form-group row">
-                                    <label for="medium_visibility" class="col-4 col-form-label">Visibility</label>
+                                    <label for="medium_visibility" class="col-4 col-form-label">{{ translations.tl("concepts.visibility") }}</label>
                                     <div class="col-8">
                                         <select id="medium_visibility" name="medium_visibility" class="form-select"
                                             required>
-                                            <option value="public" selected>Public</option>
-                                            <option value="hidden">Hidden</option>
+                                            <option value="public" selected>{{ translations.tl("concepts.public") }}</option>
+                                            <option value="hidden">{{ translations.tl("concepts.hidden") }}</option>
                                         </select>
                                     </div>
                                 </div>
                                 <div class="form-group row">
                                     <div class="offset-4 col-8">
-                                        <button name="submit" type="submit" class="btn btn-primary">Publish</button>
+                                        <button name="submit" type="submit" class="btn btn-primary">{{ translations.tl("concepts.publish") }}</button>
                                     </div>
                                 </div>
                             </div>

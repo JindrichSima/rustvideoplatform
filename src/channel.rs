@@ -13,6 +13,7 @@ struct ChannelTemplate {
     config: Config,
     common_headers: CommonHeaders,
     user: UserChannel,
+    translations: Translations,
 }
 async fn channel(
     Extension(pool): Extension<PgPool>,
@@ -49,13 +50,15 @@ WHERE
     .fetch_one(&pool)
     .await
     .unwrap();
-    let sidebar = generate_sidebar(&config, "channel".to_owned());
+    let translations = Translations::from_headers(&headers).await;
+    let sidebar = generate_sidebar(&config, "channel".to_owned(), translations.clone());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ChannelTemplate {
         sidebar,
         config,
         common_headers,
         user,
+        translations,
     };
     Html(minifi_html(template.render().unwrap()))
 }

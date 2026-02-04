@@ -3,9 +3,9 @@
     <head>
         {% include "component-dependencies.html" %}
 
-        <title>Upload</title>
+        <title>{{ translations.tl("upload.title") }}</title>
 
-        <meta property="og:title" content="{{ config.instancename }} Upload" />
+        <meta property="og:title" content="{{ config.instancename }} {{ translations.tl("upload.title") }}" />
         <meta property="og:type" content="website" />
         <meta
             property="og:url"
@@ -18,10 +18,10 @@
         <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%">
             <div class="col-12 col-sm-12 col-md-12 col-lg-12">
                 <div class="card py-3 px-3 text-white" style="min-height: 80vh">
-                    <h3 class="my-2 mx-3">Upload</h3>
+                    <h3 class="my-2 mx-3">{{ translations.tl("upload.title") }}</h3>
                     <hr />
                     <h1 class="m-3 text-center">
-                        What do you want to upload today?
+                        {{ translations.tl("upload.question") }}
                     </h1>
                     <div class="d-flex justify-content-center">
                         <div class="w-100" style="max-width: 600px">
@@ -52,7 +52,7 @@
                                             id="submitbutton"
                                             style="width: 150px"
                                         >
-                                            Upload
+                                            {{ translations.tl("upload.upload_button") }}
                                         </button>
                                         <progress
                                             id="progress"

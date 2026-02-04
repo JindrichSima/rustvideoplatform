@@ -4,7 +4,7 @@
 <head>
     {% include "component-dependencies.html" %}
 
-    <title>{{ config.instancename }} - Login</title>
+    <title>{{ config.instancename }} - {{ translations.tl("nav.login") }}</title>
 </head>
 
 <body>
@@ -17,11 +17,11 @@
                 <div id="logininfo">
                 </div>
                 <form hx-post="/hx/login" hx-target="#logininfo">
-                    <label>User Name</label><br>
+                    <label>{{ translations.tl("login.username") }}</label><br>
                     <input class="form-control" type="text" id="login" name="login"><br>
-                    <label>Password</label><br>
+                    <label>{{ translations.tl("login.password") }}</label><br>
                     <input class="form-control" type="password" id="password" name="password">
-                    <input class="btn btn-lg btn-primary mt-3" type="submit" value="Login" />
+                    <input class="btn btn-lg btn-primary mt-3" type="submit" value="{{ translations.tl("login.login_button") }}" />
                 </form>
             </div>
         </div>

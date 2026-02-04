@@ -43,7 +43,7 @@ struct Config {
 #[tokio::main]
 async fn main() {
     let config: Config =
-        serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
+        serde_json::from_str(&fs::read_to_string("/config.json").await.unwrap()).unwrap();
 
     let pool = PgPoolOptions::new()
         .max_connections(100)

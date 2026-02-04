@@ -1,0 +1,66 @@
+{
+  "nav": {
+    "home": "Domů",
+    "trending": "Trendy",
+    "subscribed": "Odběry",
+    "favourites": "Oblíbené",
+    "studio": "Studio",
+    "search": "Vyhledávání",
+    "login": "Přihlásit se",
+    "logout": "Odhlásit se",
+    "my_channel": "Můj kanál"
+  },
+  "home": {
+    "welcome": "Vítejte na {instancename}!",
+    "trending_link": "Trendy"
+  },
+  "login": {
+    "username": "Uživatelské jméno",
+    "password": "Heslo",
+    "login_button": "Přihlásit se"
+  },
+  "studio": {
+    "title": "Studio",
+    "upload_button": "Nahrát",
+    "concepts_button": "Koncepty",
+    "latest_videos": "Nejnovější videa"
+  },
+  "upload": {
+    "title": "Nahrát",
+    "question": "Co chcete dnes nahrát?",
+    "upload_button": "Nahrát"
+  },
+  "search": {
+    "title": "Vyhledávání"
+  },
+  "trending": {
+    "title": "Trendy"
+  },
+  "subscriptions": {
+    "title": "Odběry"
+  },
+  "medium": {
+    "recommended": "Doporučeno",
+    "comments": "Komentáře",
+    "views": "zobrazení",
+    "uploaded": "nahráno:",
+    "cover_image": "Titulní obrázek"
+  },
+  "channel": {
+    "subscriptions": "odběrů"
+  },
+  "concepts": {
+    "title": "Koncepty",
+    "status": "stav:",
+    "preparing": "připravuje se...",
+    "ready": "připraveno!",
+    "concept_detail_title": "Koncept",
+    "url": "URL",
+    "name": "Název",
+    "description": "Popis",
+    "visibility": "Viditelnost",
+    "public": "Veřejné",
+    "hidden": "Skryté",
+    "publish": "Zveřejnit"
+  }
+}

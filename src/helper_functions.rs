@@ -11,11 +11,8 @@ fn minifi_html(html: String) -> Vec<u8> {
 fn read_lines_to_vec(filepath: &str) -> Vec<String> {
     let file = std::fs::File::open(filepath).unwrap();
     let reader = std::io::BufReader::new(file);
-    let lines: Vec<String> = reader
-        .lines()
-        .filter_map(|line| line.ok())
-        .collect();
-    
+    let lines: Vec<String> = reader.lines().filter_map(|line| line.ok()).collect();
+
     lines
 }
 
@@ -121,8 +118,7 @@ async fn is_logged(user: Option<User>) -> bool {
     let isloggedin: bool;
     if user.is_some() && user.unwrap().login != "".to_owned() {
         isloggedin = true;
-    }
-    else {
+    } else {
         isloggedin = false;
     }
     isloggedin
@@ -158,14 +154,11 @@ fn detect_medium_type_mime(mime: String) -> String {
     let mime_type = mime.to_ascii_lowercase();
     if mime_type.contains("video") {
         result = "video";
-    }
-    else if mime_type.contains("audio") {
+    } else if mime_type.contains("audio") {
         result = "audio"
-    }
-    else if mime_type.contains("image") {
+    } else if mime_type.contains("image") {
         result = "picture"
-    }
-    else {
+    } else {
         result = "other"
     }
     result.to_owned()
@@ -202,4 +195,97 @@ async fn move_dir(src: &str, dest: &str) -> io::Result<()> {
     copy_dir(src, dest).await?;
     fs::remove_dir_all(src).await?;
     Ok(())
+}
+/// Translations struct to hold localized strings for a request
+#[derive(Clone, Debug)]
+pub struct Translations {
+    data: serde_json::Value,
+    pub lang: String,
+}
+
+impl Translations {
+    /// Create new Translations from Accept-Language header
+    pub async fn from_headers(headers: &HeaderMap) -> Self {
+        let cached = get_localization_cache().await;
+        let lang = Self::detect_language(headers, &cached);
+
+        let data = cached
+            .get(&lang)
+            .cloned()
+            .unwrap_or_else(|| cached.get("en").cloned().unwrap_or(serde_json::Value::Null));
+
+        Self { data, lang }
+    }
+
+    /// Get translation by key using dot notation (e.g., "nav.home")
+    pub fn tl(&self, key: &str) -> String {
+        self.get_nested_value(key)
+            .unwrap_or_else(|| key.to_string())
+    }
+
+    /// Get translation with variable substitution
+    pub fn tl_with_vars(&self, key: &str, vars: &[(&str, &str)]) -> String {
+        let mut text = self.tl(key);
+        for (var, value) in vars {
+            text = text.replace(&format!("{{{}}}", var), value);
+        }
+        text
+    }
+
+    fn detect_language(
+        headers: &HeaderMap,
+        cache: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> String {
+        if let Some(accept_lang) = headers.get(ACCEPT_LANGUAGE) {
+            if let Ok(lang_str) = accept_lang.to_str() {
+                for lang_entry in lang_str.split(',') {
+                    let lang_part = lang_entry.split(';').next().unwrap_or(lang_entry).trim();
+                    let lang_code = lang_part.to_lowercase();
+                    let base_code = lang_code.split('-').next().unwrap_or(&lang_code);
+
+                    if cache.contains_key(&lang_code) {
+                        return lang_code;
+                    }
+                    if cache.contains_key(base_code) {
+                        return base_code.to_string();
+                    }
+                }
+            }
+        }
+        "en".to_string()
+    }
+
+    fn get_nested_value(&self, path: &str) -> Option<String> {
+        let mut current = &self.data;
+        for key in path.split('.') {
+            current = current.get(key)?;
+        }
+        current.as_str().map(|s| s.to_string())
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref LOCALIZATION_CACHE: std::sync::Arc<tokio::sync::RwLock<std::collections::HashMap<String, serde_json::Value>>> =
+        std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
+}
+
+pub async fn init_localizations() {
+    let mut cache = LOCALIZATION_CACHE.write().await;
+
+    let files = vec![
+        ("en", "/opt/localization/en.json"),
+        ("cs", "/opt/localization/cs.json"),
+    ];
+
+    for (lang, path) in files {
+        if let Ok(content) = tokio::fs::read_to_string(path).await {
+            if let Ok(json) = serde_json::from_str(&content) {
+                cache.insert(lang.to_string(), json);
+            }
+        }
+    }
+}
+
+async fn get_localization_cache() -> std::collections::HashMap<String, serde_json::Value> {
+    LOCALIZATION_CACHE.read().await.clone()
 }

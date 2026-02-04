@@ -17,6 +17,7 @@ struct MediumTemplate {
     medium_previews_exist: bool,
     config: Config,
     common_headers: CommonHeaders,
+    translations: Translations,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,7 +69,8 @@ async fn medium(
         medium_previews_exist = false;
     }
 
-    let sidebar = generate_sidebar(&config, "medium".to_owned());
+    let translations = Translations::from_headers(&headers).await;
+    let sidebar = generate_sidebar(&config, "medium".to_owned(), translations.clone());
     let template = MediumTemplate {
         sidebar,
         medium_id: medium.id,
@@ -86,6 +88,7 @@ async fn medium(
         medium_previews_exist,
         config,
         common_headers,
+        translations,
     };
     Html(minifi_html(template.render().unwrap()))
 }

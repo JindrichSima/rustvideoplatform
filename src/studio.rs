@@ -4,6 +4,7 @@ struct StudioTemplate {
     sidebar: String,
     config: Config,
     common_headers: CommonHeaders,
+    translations: Translations,
 }
 async fn studio(
     Extension(config): Extension<Config>,
@@ -17,12 +18,14 @@ async fn studio(
         ));
     }
 
-    let sidebar = generate_sidebar(&config, "studio".to_owned());
+    let translations = Translations::from_headers(&headers).await;
+    let sidebar = generate_sidebar(&config, "studio".to_owned(), translations.clone());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = StudioTemplate {
         sidebar,
         config,
         common_headers,
+        translations,
     };
     Html(minifi_html(template.render().unwrap()))
 }
