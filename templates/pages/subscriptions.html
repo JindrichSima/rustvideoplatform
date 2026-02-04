@@ -1,29 +1,39 @@
-<!DOCTYPE html>
-<html></html>
+<!doctype html>
+<html>
+    <head>
+        {% include "component-dependencies.html" %}
 
-<head></head>
-    {% include "component-dependencies.html" %}
+        <title>Subscriptions</title>
 
-    <title></title>Subscriptions</title>
+        <meta
+            property="og:title"
+            content="{{ config.instancename }} Subscriptions"
+        />
+        <meta property="og:type" content="website" />
+        <meta
+            property="og:url"
+            content="https://{{ common_headers.host }}/subscriptions"
+        />
+    </head>
 
-    <meta property="og:title" content="{{ config.instancename }} Subscriptions" />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://{{ common_headers.host }}/subscriptions" />
-</head>
-
-<body hx-ext="preload">
-    {{ sidebar }}
-    {% include "component-navbar.html" %}
-    <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
-        <div class="col-12 col-sm-12 col-md-12 col-lg-12">
-            <div class="card py-3 px-3 text-white" style="min-height:100vh;">
-                <h3 class="my-2 mx-3">Subscriptions</h3>
-                <hr>
-                <div hx-get="/hx/subscriptions" hx-trigger="load" class="row mb-3" preload="always">
+    <body hx-ext="preload">
+        {{ sidebar }} {% include "component-navbar.html" %}
+        <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%">
+            <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                <div
+                    class="card py-3 px-3 text-white"
+                    style="min-height: 100vh"
+                >
+                    <h3 class="my-2 mx-3">Subscriptions</h3>
+                    <hr />
+                    <div
+                        hx-get="/hx/subscriptions"
+                        hx-trigger="load"
+                        class="row mb-3"
+                        preload="always"
+                    ></div>
                 </div>
             </div>
         </div>
-    </div>
-</body>
-
+    </body>
 </html>
