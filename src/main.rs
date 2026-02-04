@@ -62,6 +62,8 @@ async fn main() {
         .route("/login", get(login))
         .route("/trending", get(trending))
         .route("/hx/trending", get(hx_trending))
+        .route("/subscriptions", get(subscriptions))
+        .route("/hx/subscriptions", get(hx_subscriptions))
         .route("/m/{mediumid}", get(medium))
         .route("/m/{mediumid}/previews.vtt", get(medium_previews_prepare))
         .route("/hx/comments/{mediumid}", get(hx_comments))

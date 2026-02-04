@@ -1,3 +1,76 @@
+#[derive(Template)]
+#[template(path = "pages/subscriptions.html", escape = "none")]
+struct SubscriptionsTemplate {
+    sidebar: String,
+    config: Config,
+    common_headers: CommonHeaders,
+}
+
+async fn subscriptions(
+    Extension(config): Extension<Config>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    let sidebar = generate_sidebar(&config, "subscribed".to_owned());
+    let common_headers = extract_common_headers(&headers).unwrap();
+    let template = SubscriptionsTemplate {
+        sidebar,
+        config,
+        common_headers,
+    };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-subscriptions.html", escape = "none")]
+struct HXSubscriptionsTemplate {
+    reccomendations: Vec<MediumWithShowcase>,
+}
+
+async fn hx_subscriptions(
+    headers: HeaderMap,
+    Extension(pool): Extension<PgPool>,
+    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+) -> axum::response::Html<Vec<u8>> {
+    let user = match get_user_login(headers, &pool, session_store).await {
+        Some(user) => user,
+        None => {
+            return Html(
+                "Please log in to see your subscriptions"
+                    .as_bytes()
+                    .to_vec(),
+            )
+        }
+    };
+
+    let media = sqlx::query_as!(
+        Medium,
+        "SELECT m.id, m.name, m.owner, m.views, m.type
+         FROM media m
+         INNER JOIN subscriptions s ON m.owner = s.target
+         WHERE s.subscriber = $1 AND m.public = true
+         ORDER BY m.upload DESC
+         LIMIT 100;",
+        user.login
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
+
+    let reccomendations: Vec<MediumWithShowcase> = media
+        .into_iter()
+        .map(|m| {
+            let has_showcase = showcase_exists(&m.id);
+            MediumWithShowcase {
+                medium: m,
+                showcase_exists: has_showcase,
+            }
+        })
+        .collect();
+
+    let template = HXSubscriptionsTemplate { reccomendations };
+    Html(minifi_html(template.render().unwrap()))
+}
+
 async fn hx_subscribe(
     headers: HeaderMap,
     Extension(pool): Extension<PgPool>,
