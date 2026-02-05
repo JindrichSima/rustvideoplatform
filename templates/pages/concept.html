@@ -87,6 +87,7 @@
                                                 theme: "snow",
                                                 placeholder:
                                                     "Enter description here...",
+                                                syntax: true
                                             },
                                         );
 
@@ -102,6 +103,13 @@
                                                 ).value = JSON.stringify(delta);
                                             },
                                         );
+
+                                        quill.on('text-change', function() {
+                                          var codeBlocks = document.querySelectorAll('pre code');
+                                          codeBlocks.forEach(function(block) {
+                                            hljs.highlightBlock(block);
+                                          });
+                                        });
                                     </script>
                                     <div class="form-group row">
                                         <label

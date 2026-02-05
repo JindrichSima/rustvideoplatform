@@ -11,10 +11,9 @@
     --bs-danger: #dc3545;
     --bs-white: #000;
     --bs-secondary: #a9a9a9;
-    --bs-font-sans-serif: "Nunito", serif;
-    --bs-font-monospace:
-        SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-        "Courier New", monospace;
+    --bs-font-sans-serif: "Nunito";
+    --bs-font-monospace: "Fira Code";
+    --bs-font-serif: "Source Serif 4";
     --bs-gradient: linear-gradient(
         180deg,
         rgba(255, 255, 255, 0.15),
@@ -49,11 +48,12 @@
     --bs-warning: #ffc107;
     --bs-danger: #dc3545;
     --bs-white: #fff;
-    --bs-secondary: #a9a9a9;
-    --bs-font-sans-serif: "Nunito", serif;
-    --bs-font-monospace:
-        SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-        "Courier New", monospace;
+    --bs-secondary:#a9a9a9
+    --bs-code-dark: #121212
+    --bs-code-light: #fff
+    --bs-font-sans-serif: "Nunito";
+    --bs-font-monospace: "Fira Code";
+    --bs-font-serif: "Source Serif 4";
     --bs-gradient: linear-gradient(
         180deg,
         rgba(255, 255, 255, 0.15),
@@ -98,6 +98,21 @@
     font-style: normal;
     src: url("https://fonts.googleapis.com/css2?family=Nunito:wght@600&display=swap");
 }
+
+.fira-code {
+  font-family: "Fira Code", monospace;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.source-serif-4 {
+  font-family: "Source Serif 4", serif;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-style: normal;
+}
+
 
 body {
     margin: 0;
@@ -3405,7 +3420,6 @@ textarea.form-control.is-invalid {
 .btn {
     --bs-btn-padding-x: 0.75rem;
     --bs-btn-padding-y: 0.375rem;
-    --bs-btn-font-family: ;
     --bs-btn-font-size: 1rem;
     --bs-btn-font-weight: 400;
     --bs-btn-line-height: 1.5;
@@ -14372,7 +14386,7 @@ fieldset:disabled .btn {
 .searchbtn {
     --bs-btn-padding-x: 0.75rem;
     --bs-btn-padding-y: 0.375rem;
-    --bs-btn-font-family: ;
+    --bs-btn-font-family: var(--bs-font-sans-serif);
     --bs-btn-font-size: 1rem;
     --bs-btn-font-weight: 400;
     --bs-btn-line-height: 1.5;
@@ -14471,7 +14485,7 @@ fieldset:disabled .btn {
 
 .ql-container {
     box-sizing: border-box;
-    font-family: Nunita, Arial, sans-serif;
+    font-family: var(--bs-font-sans-serif);
     font-size: 13px;
     height: 100%;
     margin: 0;
@@ -14959,7 +14973,7 @@ fieldset:disabled .btn {
 }
 
 .ql-editor .ql-code-block-container {
-    font-family: Nunita;
+    font-family: var(--bs-font-sans-serif);
 }
 
 .ql-editor .ql-video {
@@ -15032,17 +15046,11 @@ fieldset:disabled .btn {
 }
 
 .ql-editor .ql-font-serif {
-    font-family:
-        Nunita,
-        Times New Roman,
-        serif;
+    font-family: var(--bs-font-serif);
 }
 
 .ql-editor .ql-font-monospace {
-    font-family:
-        Nunita,
-        Courier New,
-        monospace;
+    font-family: var(--bs-font-monospace);
 }
 
 .ql-editor .ql-size-small {
@@ -15353,7 +15361,9 @@ fieldset:disabled .btn {
 
 .ql-snow .ql-editor code,
 .ql-snow .ql-editor .ql-code-block-container {
-    border-color: var(--bs-info);
+    background-color: var(--bs-code-dark);
+    color: var(--bs-code-light);
+    font-family: var(--bs-font-monospace);
     border-radius: 3px;
 }
 
@@ -15591,17 +15601,11 @@ fieldset:disabled .btn {
 }
 
 .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="serif"]::before {
-    font-family:
-        Nunita,
-        Times New Roman,
-        serif;
+    font-family: var(--bs-font-serif);
 }
 
 .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="monospace"]::before {
-    font-family:
-        Nunita,
-        Courier New,
-        monospace;
+    font-family: var(--bs-font-monospace);
 }
 
 .ql-snow .ql-picker.ql-size {
@@ -15660,7 +15664,7 @@ fieldset:disabled .btn {
 .ql-toolbar.ql-snow {
     border: 1px solid #ccc;
     box-sizing: border-box;
-    font-family: Nunita, "Helvetica", "Arial", sans-serif;
+    font-family: var(--bs-font-sans-serif);
     padding: 8px;
 }
 
