@@ -266,9 +266,7 @@
                         ></div>
                         <script>
                             document.addEventListener("DOMContentLoaded", function () {
-                                // Ensure hljs is loaded and available
                                 if (typeof hljs !== 'undefined') {
-                                    // Initialize Quill
                                     const quillView = new Quill("#medium_description_view", {
                                         theme: "snow",
                                         readOnly: true,
@@ -278,7 +276,6 @@
                                     quillView.setText("Loading description...");
 
                                     quillView.on("text-change", function () {
-                                        // Highlight all code blocks whenever text changes
                                         var codeBlocks = document.querySelectorAll("pre code");
                                         codeBlocks.forEach(function (block) {
                                             hljs.highlightBlock(block);
@@ -291,7 +288,7 @@
                                     fetch(jsonUrl)
                                         .then((response) => {
                                             if (!response.ok) throw new Error("Failed to fetch description.json");
-                                            return response.json(); // expecting Quill Delta JSON
+                                            return response.json();
                                         })
                                         .then((data) => {
                                             quillView.setContents(data);
