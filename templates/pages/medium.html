@@ -258,9 +258,22 @@
                         ><b class="text-secondary">
                             views, uploaded: {{ medium_upload }}</b
                         >
-                        <p style="overflow-y: scroll">
-                            {{ medium_description }}
-                        </p>
+                        <div
+                            id="medium_description_view"
+                            style="height: 400px; overflow-y: scroll"
+                        ></div>
+                        <script>
+                            const quillData = {{ medium_description | safe }}; // assuming it's valid JSON
+
+                            const quillView = new Quill('#medium_description_view', {
+                                theme: 'snow',
+                                readOnly: true,
+                                modules: {
+                                    toolbar: false
+                                }
+                            });
+                            quillView.setContents(quillData);
+                        </script>
                     </div>
                 </div>
                 <div

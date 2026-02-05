@@ -139,11 +139,13 @@ async fn publish(
         } else {
             ispublic = false;
         }
+        let description: serde_json::Value =
+            serde_json::from_str(&form.medium_description).unwrap();
         let _ = sqlx::query!(
             "INSERT INTO media (id,name,description,owner,public,type) VALUES ($1,$2,$3,$4,$5,$6);",
             form.medium_id.to_ascii_lowercase(),
             form.medium_name,
-            form.medium_description,
+            description,
             user_info.login,
             ispublic,
             concept.r#type

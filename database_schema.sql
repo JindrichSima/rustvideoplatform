@@ -1,7 +1,7 @@
 CREATE TABLE public.media (
 	id varchar NOT NULL,
 	"name" varchar NOT NULL,
-	description text NOT NULL,
+	description jsonb,
 	upload int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
 	"owner" varchar NOT NULL,
 	likes int8 DEFAULT 0 NOT NULL,
