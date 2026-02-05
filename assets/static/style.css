@@ -15389,7 +15389,7 @@ fieldset:disabled .btn {
 }
 
 .ql-snow .ql-picker {
-    color: #444;
+    color: var(--bs-white);
     display: inline-block;
     float: left;
     font-size: 14px;
@@ -15776,4 +15776,18 @@ fieldset:disabled .btn {
 
 .ql-snow a {
     color: #06c;
+}
+
+.ql-toolbar .ql-stroke {
+    fill: none;
+    stroke: var(--bs-white);
+}
+
+.ql-toolbar .ql-fill {
+    fill: var(--bs-white);
+    stroke: none;
+}
+
+.ql-toolbar .ql-picker {
+    color: var(--bs-white);
 }
