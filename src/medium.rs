@@ -4,7 +4,6 @@ struct MediumTemplate {
     sidebar: String,
     medium_id: String,
     medium_name: String,
-    medium_description: serde_json::Value,
     medium_owner: String,
     medium_likes: i64,
     medium_dislikes: i64,
@@ -73,7 +72,6 @@ async fn medium(
         sidebar,
         medium_id: medium.id,
         medium_name: medium.name,
-        medium_description: medium.description.unwrap_or_default(),
         medium_owner: medium.owner,
         medium_likes: medium.likes,
         medium_dislikes: medium.dislikes,
@@ -143,4 +141,21 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+async fn medium_description_prepare(
+    Extension(pool): Extension<PgPool>,
+    Path(mediumid): Path<String>,
+) -> Json<serde_json::Value> {
+    Json(
+        sqlx::query!(
+            "SELECT description FROM media WHERE id=$1;",
+            mediumid.to_ascii_lowercase()
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Database error")
+        .description
+        .unwrap_or_default(),
+    )
 }

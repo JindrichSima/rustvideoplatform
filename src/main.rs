@@ -19,7 +19,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::get,
     routing::post,
-    Extension, Router,
+    Extension, Json, Router,
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
 use memory_serve::{load_assets, MemoryServe};
@@ -65,6 +65,10 @@ async fn main() {
         .route("/hx/subscriptions", get(hx_subscriptions))
         .route("/m/{mediumid}", get(medium))
         .route("/m/{mediumid}/previews.vtt", get(medium_previews_prepare))
+        .route(
+            "/m/{mediumid}/description.json",
+            get(medium_description_prepare),
+        )
         .route("/hx/comments/{mediumid}", get(hx_comments))
         .route("/hx/reccomended/{mediumid}", get(hx_recommended))
         .route("/hx/new_view/{mediumid}", get(hx_new_view))

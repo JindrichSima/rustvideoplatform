@@ -30,7 +30,6 @@
             content="https://{{ common_headers.host }}/source/{{ medium_id }}/thumbnail.jpg"
         />
         {% endif %}
-        <meta property="og:description" content="{{ medium_description }}" />
         <meta property="og:site_name" content="{{ config.instancename }}" />
 
         {% if medium_type == "video" %}
@@ -263,16 +262,38 @@
                             style="height: 400px; overflow-y: scroll"
                         ></div>
                         <script>
-                            const quillData = {{ medium_description | safe }}; // assuming it's valid JSON
+                            const quillView = new Quill(
+                                "#medium_description_view",
+                                {
+                                    theme: "snow",
+                                    readOnly: true,
+                                    modules: { toolbar: false },
+                                },
+                            );
 
-                            const quillView = new Quill('#medium_description_view', {
-                                theme: 'snow',
-                                readOnly: true,
-                                modules: {
-                                    toolbar: false
-                                }
-                            });
-                            quillView.setContents(quillData);
+                            quillView.setText("Loading description...");
+
+                            const jsonUrl =
+                                window.location.pathname.replace(/\/$/, "") +
+                                "/description.json";
+
+                            fetch(jsonUrl)
+                                .then((response) => {
+                                    if (!response.ok)
+                                        throw new Error(
+                                            "Failed to fetch description.json",
+                                        );
+                                    return response.json(); // expecting Quill Delta JSON
+                                })
+                                .then((data) => {
+                                    quillView.setContents(data);
+                                })
+                                .catch((err) => {
+                                    console.error(err);
+                                    quillView.setText(
+                                        "Failed to load description.",
+                                    );
+                                });
                         </script>
                     </div>
                 </div>

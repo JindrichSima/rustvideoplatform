@@ -10,7 +10,7 @@ lto = true
 [dependencies]
 mimalloc = { version = "*", features = ["secure"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs"] }
-axum = { version = "0.8", features = ["multipart"] }
+axum = { version = "0.8", features = ["multipart", "json"] }
 tower = "*"
 tower-http = { version = "*", features = ["fs"] }
 memory-serve = "1.2"
