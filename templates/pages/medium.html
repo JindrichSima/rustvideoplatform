@@ -96,6 +96,9 @@
                             load="idle"
                             posterLoad="eager"
                             pip="false"
+                            stream-type="on-demand"
+                            log-level="silent"
+                            autoplay
                         >
                             <media-provider>
                                 {% if medium_captions_exist %} {% for
@@ -114,10 +117,11 @@
                                     default
                                 />
                                 {% endif %}
-                                <poster
-                                    className="vds-poster"
+                                <media-poster
+                                    class="vds-poster"
                                     src="/source/{{ medium_id }}/thumbnail.avif"
-                                />
+                                    alt="Cover Image"
+                                ></media-poster>
                             </media-provider>
                             <media-video-layout
                                 {%
@@ -137,6 +141,9 @@
                             load="idle"
                             posterLoad="eager"
                             pip="false"
+                            stream-type="on-demand"
+                            log-level="silent"
+                            autoplay
                         >
                             <media-provider>
                                 <media-poster
