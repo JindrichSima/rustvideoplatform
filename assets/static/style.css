@@ -15225,6 +15225,8 @@ fieldset:disabled .btn {
 
 .ql-snow {
     box-sizing: border-box;
+    background-color: var(--bs-primary);
+    border-radius: 1rem;
 }
 
 .ql-snow * {
