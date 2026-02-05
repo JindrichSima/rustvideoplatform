@@ -75,18 +75,21 @@
             </div>
         </div>
         <script>
-            function beginupload() {
-                submitbutton.disabled = true;
-                document.getElementById("submitbutton").style.display = "none";
-                document.getElementById("progress").style.display = "inline";
-                return true;
-            }
+            document.addEventListener('htmx:load', function () {
+                function beginupload() {
+                    const submitbutton = document.getElementById("submitbutton");
+                    submitbutton.disabled = true;
+                    submitbutton.style.display = "none";
+                    document.getElementById("progress").style.display = "inline";
+                    return true;
+                }
 
-            htmx.on("#form", "htmx:xhr:progress", function (evt) {
-                htmx.find("#progress").setAttribute(
-                    "value",
-                    (evt.detail.loaded / evt.detail.total) * 100,
-                );
+                htmx.on("#form", "htmx:xhr:progress", function (evt) {
+                    htmx.find("#progress").setAttribute(
+                        "value",
+                        (evt.detail.loaded / evt.detail.total) * 100
+                    );
+                });
             });
         </script>
     </body>

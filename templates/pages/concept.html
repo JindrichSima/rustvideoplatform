@@ -80,35 +80,54 @@
                                             />
                                         </div>
                                     </div>
+
                                     <script>
-                                        const quill = new Quill(
-                                            "#medium_description_editor",
-                                            {
-                                                theme: "snow",
-                                                placeholder:
-                                                    "Enter description here...",
-                                                syntax: true
-                                            },
-                                        );
+                                        document.addEventListener("DOMContentLoaded", function () {
+                                            // Ensure hljs is loaded and available
+                                            if (typeof hljs !== 'undefined') {
+                                                // Initialize Quill for view-only (description view)
+                                                const quillView = new Quill("#medium_description_view", {
+                                                    theme: "snow",
+                                                    readOnly: true,
+                                                    modules: { toolbar: false, syntax: true }
+                                                });
 
-                                        const form =
-                                            document.querySelector("form");
-                                        form.addEventListener(
-                                            "submit",
-                                            function () {
-                                                const delta =
-                                                    quill.getContents();
-                                                document.getElementById(
-                                                    "medium_description",
-                                                ).value = JSON.stringify(delta);
-                                            },
-                                        );
+                                                quillView.setText("Loading description...");
 
-                                        quill.on('text-change', function() {
-                                          var codeBlocks = document.querySelectorAll('pre code');
-                                          codeBlocks.forEach(function(block) {
-                                            hljs.highlightBlock(block);
-                                          });
+                                                // Set up fetching and displaying the description JSON
+                                                const jsonUrl = window.location.pathname.replace(/\/$/, "") + "/description.json";
+                                                fetch(jsonUrl)
+                                                    .then(response => response.ok ? response.json() : Promise.reject('Failed to fetch description.json'))
+                                                    .then(data => quillView.setContents(data))
+                                                    .catch(err => {
+                                                        console.error(err);
+                                                        quillView.setText("Failed to load description.");
+                                                    });
+
+                                                // Initialize Quill for the editor (editable description)
+                                                const quillEditor = new Quill("#medium_description_editor", {
+                                                    theme: "snow",
+                                                    placeholder: "Enter description here...",
+                                                    modules: { syntax: true }  // No toolbar here
+                                                });
+
+                                                const form = document.querySelector("form");
+                                                form.addEventListener("submit", function () {
+                                                    const delta = quillEditor.getContents();  // Get editor content (Delta format)
+                                                    document.getElementById("medium_description").value = JSON.stringify(delta);  // Serialize Delta
+                                                });
+
+                                                // Syntax highlighting when text changes in the editor
+                                                quillEditor.on('text-change', function () {
+                                                    var codeBlocks = document.querySelectorAll('pre code');
+                                                    codeBlocks.forEach(function (block) {
+                                                        hljs.highlightBlock(block);  // Highlight each code block
+                                                    });
+                                                });
+
+                                            } else {
+                                                console.error("Highlight.js is not loaded!");
+                                            }
                                         });
                                     </script>
                                     <div class="form-group row">

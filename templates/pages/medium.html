@@ -265,46 +265,46 @@
                             class="mt-3"
                         ></div>
                         <script>
-                            const quillView = new Quill(
-                                "#medium_description_view",
-                                {
-                                    theme: "snow",
-                                    readOnly: true,
-                                    modules: { toolbar: false, syntax: true },
-                                },
-                            );
+                            document.addEventListener("DOMContentLoaded", function () {
+                                // Ensure hljs is loaded and available
+                                if (typeof hljs !== 'undefined') {
+                                    // Initialize Quill
+                                    const quillView = new Quill("#medium_description_view", {
+                                        theme: "snow",
+                                        readOnly: true,
+                                        modules: { toolbar: false, syntax: true },
+                                    });
 
-                            quillView.setText("Loading description...");
+                                    quillView.setText("Loading description...");
 
-                            quill.on("text-change", function () {
-                                var codeBlocks =
-                                    document.querySelectorAll("pre code");
-                                codeBlocks.forEach(function (block) {
-                                    hljs.highlightBlock(block);
-                                });
+                                    quillView.on("text-change", function () {
+                                        // Highlight all code blocks whenever text changes
+                                        var codeBlocks = document.querySelectorAll("pre code");
+                                        codeBlocks.forEach(function (block) {
+                                            hljs.highlightBlock(block);
+                                        });
+                                    });
+
+                                    // Fetch the description JSON
+                                    const jsonUrl = window.location.pathname.replace(/\/$/, "") + "/description.json";
+
+                                    fetch(jsonUrl)
+                                        .then((response) => {
+                                            if (!response.ok) throw new Error("Failed to fetch description.json");
+                                            return response.json(); // expecting Quill Delta JSON
+                                        })
+                                        .then((data) => {
+                                            quillView.setContents(data);
+                                        })
+                                        .catch((err) => {
+                                            console.error(err);
+                                            quillView.setText("Failed to load description.");
+                                        });
+
+                                } else {
+                                    console.error("Highlight.js is not loaded!");
+                                }
                             });
-
-                            const jsonUrl =
-                                window.location.pathname.replace(/\/$/, "") +
-                                "/description.json";
-
-                            fetch(jsonUrl)
-                                .then((response) => {
-                                    if (!response.ok)
-                                        throw new Error(
-                                            "Failed to fetch description.json",
-                                        );
-                                    return response.json(); // expecting Quill Delta JSON
-                                })
-                                .then((data) => {
-                                    quillView.setContents(data);
-                                })
-                                .catch((err) => {
-                                    console.error(err);
-                                    quillView.setText(
-                                        "Failed to load description.",
-                                    );
-                                });
                         </script>
                     </div>
                 </div>
