@@ -10,9 +10,7 @@ RUN cd /src/rustvideoplatform && cargo build --release
 
 
 FROM alpine:latest
-WORKDIR /opt
 COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
-COPY --from=builder /src/rustvideoplatform/localization /opt/localization
 
 EXPOSE 8080
 STOPSIGNAL SIGTERM

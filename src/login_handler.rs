@@ -2,17 +2,9 @@
 #[template(path = "pages/login.html", escape = "none")]
 struct LoginTemplate {
     config: Config,
-    translations: Translations,
 }
-async fn login(
-    Extension(config): Extension<Config>,
-    headers: HeaderMap,
-) -> axum::response::Html<Vec<u8>> {
-    let translations = Translations::from_headers(&headers).await;
-    let template = LoginTemplate {
-        config,
-        translations,
-    };
+async fn login(Extension(config): Extension<Config>) -> axum::response::Html<Vec<u8>> {
+    let template = LoginTemplate { config };
     Html(minifi_html(template.render().unwrap()))
 }
 
@@ -60,15 +52,12 @@ async fn hx_login(
         let session_cookie_value = generate_secure_string();
         let session_restriction: String;
         if config.custom_session_domain.is_some() {
-            session_restriction = format!(
-                "Path=/;Domain={}",
-                config.custom_session_domain.clone().unwrap()
-            );
+            session_restriction =
+                format!("Path=/;Domain={}", config.custom_session_domain.clone().unwrap());
         } else {
             session_restriction = "Path=/".to_owned()
         }
-        let session_cookie_set =
-            format!("session={}; {}", session_cookie_value, session_restriction);
+        let session_cookie_set = format!("session={}; {}", session_cookie_value, session_restriction);
         session_store
             .lock()
             .await

@@ -12,7 +12,6 @@ struct ConceptsTemplate {
     sidebar: String,
     config: Config,
     common_headers: CommonHeaders,
-    translations: Translations,
 }
 async fn concepts(
     Extension(pool): Extension<PgPool>,
@@ -26,14 +25,12 @@ async fn concepts(
         ));
     }
 
-    let translations = Translations::from_headers(&headers).await;
-    let sidebar = generate_sidebar(&config, "studio".to_owned(), translations.clone());
+    let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ConceptsTemplate {
         sidebar,
         config,
         common_headers,
-        translations,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -69,7 +66,6 @@ struct ConceptTemplate {
     config: Config,
     concept: MediumConcept,
     common_headers: CommonHeaders,
-    translations: Translations,
 }
 async fn concept(
     Extension(pool): Extension<PgPool>,
@@ -93,15 +89,13 @@ async fn concept(
     .await
     .expect("Database error");
 
-    let translations = Translations::from_headers(&headers).await;
-    let sidebar = generate_sidebar(&config, "studio".to_owned(), translations.clone());
+    let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ConceptTemplate {
         sidebar,
         config,
         concept,
         common_headers,
-        translations,
     };
     Html(minifi_html(template.render().unwrap()))
 }

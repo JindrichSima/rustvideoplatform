@@ -3,13 +3,11 @@
 struct SidebarComponentTemplate {
     config: Config,
     active_item: String,
-    translations: Translations,
 }
-fn generate_sidebar(config: &Config, active_item: String, translations: Translations) -> String {
+fn generate_sidebar(config: &Config, active_item: String) -> String {
     let template = SidebarComponentTemplate {
         config: config.to_owned(),
         active_item,
-        translations,
     };
     template.render().unwrap()
 }
@@ -18,7 +16,6 @@ fn generate_sidebar(config: &Config, active_item: String, translations: Translat
 #[template(path = "pages/hx-sidebar.html", escape = "none")]
 struct HXSidebarTemplate {
     active_item: String,
-    translations: Translations,
 }
 async fn hx_sidebar(
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
@@ -26,12 +23,10 @@ async fn hx_sidebar(
     Path(active_item): Path<String>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers.clone(), &pool, session_store).await;
+    let user = get_user_login(headers, &pool, session_store).await;
     if user.is_some() {
-        let translations = Translations::from_headers(&headers).await;
         let template = HXSidebarTemplate {
             active_item,
-            translations,
         };
         Html(minifi_html(template.render().unwrap()))
     } else {

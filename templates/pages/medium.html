@@ -141,7 +141,7 @@
                                 <media-poster
                                     class="vds-poster"
                                     src="/source/{{ medium_id }}/thumbnail.avif"
-                                    alt="{{ translations.tl("medium.cover_image") }}"
+                                    alt="Cover Image"
                                 ></media-poster>
                             </media-provider>
                             <media-video-layout></media-video-layout>
@@ -256,7 +256,7 @@
                             hx-trigger="load delay:5s"
                             >{{ medium_views }}</b
                         ><b class="text-secondary">
-                            {{ translations.tl("medium.views") }}, {{ translations.tl("medium.uploaded") }} {{ medium_upload }}</b
+                            views, uploaded: {{ medium_upload }}</b
                         >
                         <p style="overflow-y: scroll">
                             {{ medium_description }}
@@ -267,7 +267,7 @@
                     class="card py-3 px-3 mt-3 text-white"
                     style="min-height: 30vh"
                 >
-                    <h3 class="my-2">{{ translations.tl("medium.comments") }}</h3>
+                    <h3 class="my-2">Comments</h3>
                     <hr />
                     <div
                         hx-get="/hx/comments/{{ medium_id }}"
@@ -277,7 +277,7 @@
             </div>
             <div class="col-12 col-sm-12 col-md-12 col-lg-3">
                 <div class="card py-3 px-3 h-100" style="overflow-x: auto">
-                    <h3 class="my-2 text-white text-center">{{ translations.tl("medium.recommended") }}</h3>
+                    <h3 class="my-2 text-white text-center">Reccomended</h3>
                     <hr />
                     <div
                         hx-get="/hx/reccomended/{{ medium_id }}"

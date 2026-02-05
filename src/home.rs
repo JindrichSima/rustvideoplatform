@@ -4,20 +4,17 @@ struct HomeTemplate {
     sidebar: String,
     config: Config,
     common_headers: CommonHeaders,
-    translations: Translations,
 }
 async fn home(
     Extension(config): Extension<Config>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let translations = Translations::from_headers(&headers).await;
-    let sidebar = generate_sidebar(&config, "home".to_owned(), translations.clone());
+    let sidebar = generate_sidebar(&config, "home".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = HomeTemplate {
         config,
         sidebar,
         common_headers,
-        translations,
     };
     Html(minifi_html(template.render().unwrap()))
 }

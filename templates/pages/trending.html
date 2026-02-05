@@ -4,9 +4,9 @@
 <head>
     {% include "component-dependencies.html" %}
 
-    <title>{{ translations.tl("trending.title") }}</title>
+    <title>Trending</title>
 
-    <meta property="og:title" content="{{ config.instancename }} {{ translations.tl("trending.title") }}" />
+    <meta property="og:title" content="{{ config.instancename }} Trending" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://{{ common_headers.host }}/trending" />
 </head>
@@ -17,7 +17,7 @@
     <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
         <div class="col-12 col-sm-12 col-md-12 col-lg-12">
             <div class="card py-3 px-3 text-white" style="min-height:100vh;">
-                <h3 class="my-2 mx-3">{{ translations.tl("trending.title") }}</h3>
+                <h3 class="my-2 mx-3">Trending</h3>
                 <hr>
                 <div hx-get="/hx/trending" hx-trigger="load" class="row mb-3" preload="always">
                 </div>
