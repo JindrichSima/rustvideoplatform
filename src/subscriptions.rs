@@ -125,12 +125,12 @@ async fn hx_subscribebutton(
         let button = if issubscribed {
             format!(
                 "<a hx-get=\"/hx/unsubscribe/{}\" hx-swap=\"outerHTML\" class=\"btn btn-secondary\"><i class=\"fa-solid fa-user-minus\"></i>&nbsp;Unsubscribe</a>",
-                user.login
+                userid
             )
         } else {
             format!(
                 "<a hx-get=\"/hx/subscribe/{}\" hx-swap=\"outerHTML\" class=\"btn btn-primary\"><i class=\"fa-solid fa-user-plus\"></i>&nbsp;Subscribe</a>",
-                user.login
+                userid
             )
         };
 
