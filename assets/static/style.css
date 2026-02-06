@@ -15415,7 +15415,7 @@ fieldset:disabled .btn {
 }
 
 .ql-snow .ql-picker-options {
-    background-color: #fff;
+    background-color: var(--bs-dark);
     display: none;
     min-width: 100%;
     padding: 4px 8px;
