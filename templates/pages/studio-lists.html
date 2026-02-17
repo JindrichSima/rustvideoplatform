@@ -4,11 +4,11 @@
 <head>
     {% include "component-dependencies.html" %}
 
-    <title>Studio</title>
+    <title>Studio - Lists</title>
 
-    <meta property="og:title" content="{{ config.instancename }} Studio" />
+    <meta property="og:title" content="{{ config.instancename }} Studio - Lists" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://{{ common_headers.host }}/studio" />
+    <meta property="og:url" content="https://{{ common_headers.host }}/studio/lists" />
 </head>
 
 <body hx-ext="preload">
@@ -18,18 +18,16 @@
         <div class="col-12 col-sm-12 col-md-12 col-lg-12">
             <div class="card py-3 px-3 text-white" style="min-height:30vh;">
                 <div class="row justify-content-between">
-                    <h3 class="my-2 mx-3" style="width:200px;">Studio</h3>
+                    <h3 class="my-2 mx-3" style="width:200px;">Lists</h3>
                     <div style="width:400px;">
-                    <a href="/upload" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
-                            class="fa-solid fa-upload"></i>&nbsp;Upload</a>
+                    <a href="/studio" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
+                            class="fa-solid fa-photo-film"></i>&nbsp;Media</a>
                     <a href="/studio/concepts" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
                             class="fa-solid fa-wand-magic-sparkles"></i>&nbsp;Concepts</a>
-                    <a href="/studio/lists" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
-                            class="fa-solid fa-list"></i>&nbsp;Lists</a>
                     </div>
                 </div>
                 <hr>
-                <div hx-get="/hx/studio" hx-trigger="load" class="row mb-3 hx-placeholder" style="min-height:100vh;" preload="always">
+                <div hx-get="/hx/studio/lists" hx-trigger="load" class="row mb-3 hx-placeholder" style="min-height:100vh;" preload="always">
                 </div>
             </div>
         </div>
