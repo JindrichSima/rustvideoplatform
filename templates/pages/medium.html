@@ -328,7 +328,67 @@
                 >
                     <h3 class="my-2">Comments</h3>
                     <hr />
+                    {% if is_logged_in %}
+                    <div class="mb-3">
+                        <div id="comment_editor" style="height: 120px;"></div>
+                        <input type="hidden" id="comment_text" />
+                        <button
+                            id="comment_submit_btn"
+                            class="btn btn-primary mt-2"
+                            type="button"
+                        >
+                            Comment
+                        </button>
+                    </div>
+                    <hr />
+                    <script>
+                        document.addEventListener("DOMContentLoaded", function () {
+                            const commentQuill = new Quill("#comment_editor", {
+                                theme: "snow",
+                                placeholder: "Write a comment...",
+                                modules: {
+                                    toolbar: [
+                                        ["bold", "italic", "underline", "strike"],
+                                        ["link", "code-block"],
+                                        [{ list: "ordered" }, { list: "bullet" }],
+                                    ],
+                                },
+                            });
+
+                            const submitBtn = document.getElementById("comment_submit_btn");
+                            submitBtn.addEventListener("click", function () {
+                                const text = commentQuill.getText().trim();
+                                if (text.length === 0) return;
+
+                                const html = commentQuill.getSemanticHTML();
+                                const formData = new FormData();
+                                formData.append("text", html);
+
+                                submitBtn.disabled = true;
+                                fetch("/hx/comments/{{ medium_id }}/add", {
+                                    method: "POST",
+                                    body: new URLSearchParams(formData),
+                                })
+                                    .then((response) => {
+                                        if (!response.ok) throw new Error("Failed to post comment");
+                                        return response.text();
+                                    })
+                                    .then((html) => {
+                                        const commentsList = document.getElementById("comments-list");
+                                        commentsList.insertAdjacentHTML("afterbegin", html);
+                                        commentQuill.setText("");
+                                        submitBtn.disabled = false;
+                                    })
+                                    .catch((err) => {
+                                        console.error(err);
+                                        submitBtn.disabled = false;
+                                    });
+                            });
+                        });
+                    </script>
+                    {% endif %}
                     <div
+                        id="comments-list"
                         hx-get="/hx/comments/{{ medium_id }}"
                         hx-trigger="revealed"
                         class="hx-placeholder"
