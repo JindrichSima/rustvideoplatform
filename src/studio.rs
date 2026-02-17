@@ -64,6 +64,64 @@ async fn hx_studio(
     Html(minifi_html(template.render().unwrap()))
 }
 
+#[derive(Template)]
+#[template(path = "pages/studio-lists.html", escape = "none")]
+struct StudioListsTemplate {
+    sidebar: String,
+    config: Config,
+    common_headers: CommonHeaders,
+}
+async fn studio_lists(
+    Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    if !is_logged(get_user_login(headers.clone(), &pool, session_store).await).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+
+    let sidebar = generate_sidebar(&config, "studio".to_owned());
+    let common_headers = extract_common_headers(&headers).unwrap();
+    let template = StudioListsTemplate {
+        sidebar,
+        config,
+        common_headers,
+    };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-studio-lists.html", escape = "none")]
+struct HXStudioListsTemplate {
+    lists: Vec<ListWithCount>,
+}
+async fn hx_studio_lists(
+    Extension(pool): Extension<PgPool>,
+    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+    let user_info = user_info.unwrap();
+    let lists = sqlx::query_as!(
+        ListWithCount,
+        "SELECT l.id, l.name, l.owner, l.public, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;",
+        user_info.login
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
+    let template = HXStudioListsTemplate { lists };
+    Html(minifi_html(template.render().unwrap()))
+}
+
 async fn hx_delete_video(
     Extension(pool): Extension<PgPool>,
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,

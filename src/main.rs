@@ -89,6 +89,8 @@ async fn main() {
         .route("/studio", get(studio))
         .route("/hx/studio", get(hx_studio))
         .route("/hx/studio/delete/{mediumid}", get(hx_delete_video))
+        .route("/studio/lists", get(studio_lists))
+        .route("/hx/studio/lists", get(hx_studio_lists))
         .route("/studio/concepts", get(concepts))
         .route("/hx/studio/concepts", get(hx_concepts))
         .route("/studio/concept/{conceptid}", get(concept))
