@@ -91,14 +91,6 @@
     }
 }
 
-@font-face {
-    font-family: "Nunito";
-    font-display: swap;
-    font-weight: 600;
-    font-style: normal;
-    src: url("https://fonts.googleapis.com/css2?family=Nunito:wght@600&display=swap");
-}
-
 .fira-code {
   font-family: "Fira Code", monospace;
   font-optical-sizing: auto;
@@ -15790,4 +15782,59 @@ fieldset:disabled .btn {
 
 .ql-toolbar .ql-picker {
     color: var(--bs-white);
+}
+
+/* ── Layout-shift reduction ── */
+
+/* HTMX placeholder: reserves space for content loaded via hx-trigger="load" */
+.hx-placeholder {
+    min-height: 120px;
+}
+
+/* Sidebar placeholder for dynamically loaded nav items */
+.sidebar-hx-placeholder {
+    min-height: 96px;
+}
+
+/* Subscribe button placeholder */
+.subscribe-placeholder {
+    min-height: 38px;
+    min-width: 110px;
+}
+
+/* Channel profile image container — prevent shift before image loads */
+.channel-picture-container {
+    aspect-ratio: 16 / 9;
+    max-height: 15vh;
+    overflow: hidden;
+}
+
+.channel-picture-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Medium page picture — maintain aspect ratio before load */
+.medium-picture {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+}
+
+/* Media player container — reserve 16:9 space before player initializes */
+.player-container {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+}
+
+/* Limit reflow scope for cards that receive HTMX content */
+.card {
+    contain: layout style;
+}
+
+/* Prevent sidebar from shifting main content during HTMX load */
+.sidebar {
+    contain: layout style;
+    overflow: hidden;
 }

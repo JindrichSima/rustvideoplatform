@@ -22,7 +22,9 @@
                 <table>
                     <tr>
                         <td class="text-center">
-                            <img src="/source/{{ user.channel_picture.clone().unwrap() }}/picture.avif" style="max-height:15vh;">
+                            <div class="channel-picture-container d-inline-block">
+                                <img src="/source/{{ user.channel_picture.clone().unwrap() }}/picture.avif">
+                            </div>
                         </td>
                     </tr>
                     <tr>
@@ -38,7 +40,7 @@
             <div class="card py-3 px-3 text-white">
                 <h3 class="my-2 mx-3">Latest videos</h3>
                 <hr>
-                <div hx-get="/hx/usermedia/{{ user.login }}" hx-trigger="load" class="row mb-3" style="min-height:100vh;" preload="always">
+                <div hx-get="/hx/usermedia/{{ user.login }}" hx-trigger="load" class="row mb-3 hx-placeholder" style="min-height:100vh;" preload="always">
                 </div>
             </div>
         </div>
