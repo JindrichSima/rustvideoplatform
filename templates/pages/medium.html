@@ -87,7 +87,7 @@
         <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%">
             <div class="col-12 col-sm-12 col-md-12 col-lg-9">
                 <div class="card py-3 px-3 text-white" style="min-height: 85vh">
-                    <div class="d-flex justify-content-center">
+                    <div class="d-flex justify-content-center player-container">
                         {% if medium_type == "video" %}
                         <media-player
                             viewType="video"
@@ -157,7 +157,7 @@
                         {% else if medium_type == "picture" %}
                         <img
                             src="/source/{{ medium_id }}/picture.avif"
-                            style="width: 100%"
+                            class="medium-picture"
                         />
                         {% endif %}
                     </div>
@@ -189,7 +189,7 @@
                                     <div
                                         hx-get="/hx/subscribebutton/{{ medium_owner }}"
                                         hx-trigger="load"
-                                        class="col-sm"
+                                        class="col-sm subscribe-placeholder"
                                     ></div>
                                 </div>
                             </li>
@@ -321,6 +321,7 @@
                     <div
                         hx-get="/hx/comments/{{ medium_id }}"
                         hx-trigger="revealed"
+                        class="hx-placeholder"
                     ></div>
                 </div>
             </div>
@@ -331,6 +332,7 @@
                     <div
                         hx-get="/hx/reccomended/{{ medium_id }}"
                         hx-trigger="load"
+                        class="hx-placeholder"
                     ></div>
                 </div>
             </div>
