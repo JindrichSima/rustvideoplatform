@@ -39,3 +39,17 @@ CREATE TABLE public.media_concepts (
 	"type" varchar NOT NULL,
 	CONSTRAINT media_concepts_pk PRIMARY KEY (id)
 );
+CREATE TABLE public.lists (
+	id varchar NOT NULL,
+	"name" varchar NOT NULL,
+	"owner" varchar(40) NOT NULL,
+	public bool DEFAULT false NOT NULL,
+	created int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
+	CONSTRAINT lists_pk PRIMARY KEY (id)
+);
+CREATE TABLE public.list_items (
+	list_id varchar NOT NULL,
+	media_id varchar NOT NULL,
+	"position" int4 DEFAULT 0 NOT NULL,
+	added int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL
+);

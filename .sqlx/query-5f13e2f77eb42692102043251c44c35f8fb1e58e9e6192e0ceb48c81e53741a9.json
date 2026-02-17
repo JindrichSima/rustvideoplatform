@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.id, m.name, m.owner, m.views, m.type FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC;",
+  "describe": {
+    "columns": [{"ordinal":0,"name":"id","type_info":"Varchar"},{"ordinal":1,"name":"name","type_info":"Varchar"},{"ordinal":2,"name":"owner","type_info":"Varchar"},{"ordinal":3,"name":"views","type_info":"Int8"},{"ordinal":4,"name":"type","type_info":"Varchar"}],
+    "parameters": {
+      "Left": ["Varchar"]
+    },
+    "nullable": [false,false,false,false,false]
+  },
+  "hash": "5f13e2f77eb42692102043251c44c35f8fb1e58e9e6192e0ceb48c81e53741a9"
+}

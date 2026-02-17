@@ -1,0 +1,13 @@
+{% for list in lists %}
+<div class="col-xl-3 col-lg-4 col-6 my-3">
+    <a href="/list/{{ list.id }}" class="text-decoration-none" preload="mouseover">
+        <div class="card p-3" style="min-height: 80px;">
+            <b class="text-white"><i class="fa-solid fa-list me-2"></i>{{ list.name }}</b>
+            <p class="text-secondary mb-0">{{ list.item_count.unwrap_or(0) }} items</p>
+        </div>
+    </a>
+</div>
+{% endfor %}
+{% if lists.is_empty() %}
+<p class="text-secondary text-center">No public lists.</p>
+{% endif %}

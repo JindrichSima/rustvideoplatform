@@ -95,6 +95,16 @@ async fn main() {
         .route("/studio/concept/{conceptid}/publish", post(publish))
         .route("/upload", get(upload))
         .route("/hx/upload", post(hx_upload))
+        .route("/list/{listid}", get(list_page))
+        .route("/l/{listid}/{mediumid}", get(medium_in_list))
+        .route("/hx/listitems/{listid}", get(hx_list_items))
+        .route("/hx/listsidebar/{listid}/{mediumid}", get(hx_list_sidebar))
+        .route("/hx/listmodal/{mediumid}", get(hx_list_modal))
+        .route("/hx/createlist/{mediumid}", post(hx_create_list))
+        .route("/hx/addtolist/{listid}/{mediumid}", get(hx_add_to_list))
+        .route("/hx/removefromlist/{listid}/{mediumid}", get(hx_remove_from_list))
+        .route("/hx/deletelist/{listid}", get(hx_delete_list))
+        .route("/hx/userlists/{userid}", get(hx_user_lists))
         .nest("/source", static_router("source"))
         .layer(Extension(pool))
         .layer(Extension(config))
@@ -125,3 +135,4 @@ include!("studio.rs");
 include!("upload.rs");
 include!("concept.rs");
 include!("serve.rs");
+include!("lists.rs");
