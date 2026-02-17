@@ -13,7 +13,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs"] }
 axum = { version = "0.8", features = ["multipart", "json"] }
 tower = "*"
 tower-http = { version = "*", features = ["fs"] }
-memory-serve = "1.2"
+memory-serve = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls"] }
 askama = { version = "0.15", features = ["serde_json"] }

@@ -22,7 +22,7 @@ use axum::{
     Extension, Json, Router,
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
-use memory_serve::{load_assets, MemoryServe};
+use memory_serve::MemoryServe;
 use rand::{rng, Rng};
 use serde::Deserialize;
 use serde::Serialize;
@@ -40,6 +40,7 @@ struct Config {
     welcome: String,
     custom_session_domain: Option<String>,
 }
+
 #[tokio::main]
 async fn main() {
     let config: Config =
@@ -51,7 +52,7 @@ async fn main() {
         .await
         .unwrap();
 
-    let memory_router = MemoryServe::new(load_assets!("assets/static")).into_router();
+    let memory_router = memory_serve::load_directory("assets/static");
 
     let session_store: Arc<Mutex<AHashMap<String, String>>> =
         Arc::new(Mutex::new(AHashMap::default()));
