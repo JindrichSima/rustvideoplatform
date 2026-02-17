@@ -24,6 +24,7 @@
     --bs-body-line-height: 1.5;
     --bs-border-width: 2px;
     --bs-border-style: solid;
+    --bs-border-color: var(--bs-primary);
     --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
     --bs-border-radius: 1rem;
     --bs-border-radius-sm: 0.25rem;
@@ -48,9 +49,9 @@
     --bs-warning: #ffc107;
     --bs-danger: #dc3545;
     --bs-white: #fff;
-    --bs-secondary:#a9a9a9
-    --bs-code-dark: #121212
-    --bs-code-light: #fff
+    --bs-secondary:#a9a9a9;
+    --bs-code-dark: #121212;
+    --bs-code-light: #fff;
     --bs-font-sans-serif: "Nunito";
     --bs-font-monospace: "Fira Code";
     --bs-font-serif: "Source Serif 4";
@@ -64,6 +65,7 @@
     --bs-body-line-height: 1.5;
     --bs-border-width: 2px;
     --bs-border-style: solid;
+    --bs-border-color: var(--bs-primary);
     --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
     --bs-border-radius: 1rem;
     --bs-border-radius-sm: 0.25rem;
@@ -8845,7 +8847,7 @@ fieldset:disabled .btn {
 .border-warning {
     --bs-border-opacity: 1;
     border-color: rgba(
-        var(--bs-warning-rgb),
+        var(--bs-warning),
         var(--bs-border-opacity)
     ) !important;
 }
@@ -15870,4 +15872,8 @@ fieldset:disabled .btn {
     border-radius: 0.5rem;
     display: block;
     padding: 0.25rem;
+}
+
+.bg-hover:hover {
+    background-color: var(--bs-primary);
 }
