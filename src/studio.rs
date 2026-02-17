@@ -98,6 +98,11 @@ async fn hx_delete_video(
         .execute(&pool)
         .await;
 
+    // Delete from any lists
+    let _ = sqlx::query!("DELETE FROM list_items WHERE media_id=$1;", mediumid)
+        .execute(&pool)
+        .await;
+
     // Delete the video from database
     let delete_result = sqlx::query!("DELETE FROM media WHERE id=$1;", mediumid)
         .execute(&pool)

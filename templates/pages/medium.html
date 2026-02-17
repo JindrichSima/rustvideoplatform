@@ -254,6 +254,16 @@
                                 ></a>
                                 {% endif %}
                             </li>
+                            {% if is_logged_in %}
+                            <li class="mx-2">
+                                <a
+                                    class="text-decoration-none text-white"
+                                    style="cursor: pointer"
+                                    onclick="document.getElementById('listModalOverlay').style.display='flex'"
+                                    ><i class="fa-solid fa-list fa-xl"></i
+                                ></a>
+                            </li>
+                            {% endif %}
                         </ul>
                     </div>
                     <hr />
@@ -290,7 +300,7 @@
                                     });
 
                                     // Fetch the description JSON
-                                    const jsonUrl = window.location.pathname.replace(/\/$/, "") + "/description.json";
+                                    const jsonUrl = "/m/{{ medium_id }}/description.json";
 
                                     fetch(jsonUrl)
                                         .then((response) => {
@@ -327,6 +337,7 @@
             </div>
             <div class="col-12 col-sm-12 col-md-12 col-lg-3">
                 <div class="card py-3 px-3 h-100" style="overflow-x: auto">
+                    {% if list_id.is_empty() %}
                     <h3 class="my-2 text-white text-center">Reccomended</h3>
                     <hr />
                     <div
@@ -334,8 +345,21 @@
                         hx-trigger="load"
                         class="hx-placeholder"
                     ></div>
+                    {% else %}
+                    <div
+                        hx-get="/hx/listsidebar/{{ list_id }}/{{ medium_id }}"
+                        hx-trigger="load"
+                        class="hx-placeholder"
+                    ></div>
+                    {% endif %}
                 </div>
             </div>
         </div>
+        {% if is_logged_in %}
+        <div id="listmodal-body"
+             hx-get="/hx/listmodal/{{ medium_id }}"
+             hx-trigger="load">
+        </div>
+        {% endif %}
     </body>
 </html>

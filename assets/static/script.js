@@ -40,3 +40,9 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', fun
     var d = window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.setAttribute('data-bs-theme', d ? 'dark' : 'light');
 });
+
+function closeListModal(event) {
+    if (event.target.id === 'listModalOverlay') {
+        event.target.style.display = 'none';
+    }
+}

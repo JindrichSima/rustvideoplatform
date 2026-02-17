@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(MAX(position), -1) AS max_pos FROM list_items WHERE list_id=$1;",
+  "describe": {
+    "columns": [{"ordinal":0,"name":"max_pos","type_info":"Int4"}],
+    "parameters": {
+      "Left": ["Varchar"]
+    },
+    "nullable": [true]
+  },
+  "hash": "6e79110e085f4cdc4dac2c7e6d24a62ba72f6416f9a67e2d44d173912b589068"
+}

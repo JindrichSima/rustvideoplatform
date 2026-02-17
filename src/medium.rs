@@ -16,6 +16,8 @@ struct MediumTemplate {
     medium_previews_exist: bool,
     config: Config,
     common_headers: CommonHeaders,
+    is_logged_in: bool,
+    list_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -30,9 +32,11 @@ struct Medium {
 async fn medium(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
+    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
+    let is_logged_in = is_logged(get_user_login(headers.clone(), &pool, session_store).await).await;
     let common_headers = extract_common_headers(&headers).unwrap();
     let medium = sqlx::query!(
         "SELECT id,name,description,upload,owner,likes,dislikes,views,type FROM media WHERE id=$1;",
@@ -84,6 +88,8 @@ async fn medium(
         medium_previews_exist,
         config,
         common_headers,
+        is_logged_in,
+        list_id: String::new(),
     };
     Html(minifi_html(template.render().unwrap()))
 }

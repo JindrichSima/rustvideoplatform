@@ -1,0 +1,30 @@
+{% for item in items %}
+<div class="col-xl-2 col-lg-4 col-6 my-3 d-flex justify-content-center">
+    <a href="/l/{{ list_id }}/{{ item.id }}" class="text-decoration-none" preload="mouseover">
+        <table>
+            <tr>
+                <td class="d-flex justify-content-center">
+                    <img src="/source/{{ item.id }}/thumbnail.avif" width="176" height="99" class="mx-2 rounded">
+                </td>
+            </tr>
+            <tr>
+                <td class="text-center">
+                    <b class="text-white font-weight-bold">{{ item.name }}</b>
+                    <p class="text-secondary">{{ item.views }} views
+                        {% if item.type == "video" %}
+                        <i class="fa-solid fa-video fa-sm ms-1"></i>
+                        {% else if item.type == "audio" %}
+                        <i class="fa-solid fa-music fa-sm ms-1"></i>
+                        {% else if item.type == "picture" %}
+                        <i class="fa-solid fa-image fa-sm ms-1"></i>
+                        {% endif %}
+                    </p>
+                </td>
+            </tr>
+        </table>
+    </a>
+</div>
+{% endfor %}
+{% if items.is_empty() %}
+<p class="text-secondary text-center">This list is empty.</p>
+{% endif %}
