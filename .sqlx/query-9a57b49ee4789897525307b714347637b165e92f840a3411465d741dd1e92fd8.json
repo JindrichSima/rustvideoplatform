@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,user,text,time FROM comments WHERE media=$1;",
+  "query": "SELECT id,\"user\",text,time FROM comments WHERE media=$1 ORDER BY time DESC LIMIT $2 OFFSET $3;",
   "describe": {
     "columns": [
       {
@@ -11,7 +11,7 @@
       {
         "ordinal": 1,
         "name": "user",
-        "type_info": "Name"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 2,
@@ -26,15 +26,17 @@
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Text",
+        "Int8",
+        "Int8"
       ]
     },
     "nullable": [
       false,
-      null,
+      false,
       false,
       false
     ]
   },
-  "hash": "c3d2fdcab58223a6ba79dbc3d9887aa3ab1b8ad8c9ee3feb5c3ff44aa5d25a43"
+  "hash": "9a57b49ee4789897525307b714347637b165e92f840a3411465d741dd1e92fd8"
 }

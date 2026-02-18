@@ -33,7 +33,6 @@ struct CreateListForm {
 struct ListPageTemplate {
     sidebar: String,
     config: Config,
-    common_headers: CommonHeaders,
     list: List,
     is_owner: bool,
 }
@@ -104,11 +103,9 @@ async fn list_page(
     }
 
     let sidebar = generate_sidebar(&config, "list".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
     let template = ListPageTemplate {
         sidebar,
         config,
-        common_headers,
         list,
         is_owner,
     };

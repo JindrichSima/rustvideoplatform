@@ -1,8 +1,8 @@
 {% for comment in comments %}
 <div class="comment-item my-3 p-3" style="border-left: 3px solid var(--bs-secondary); border-radius: 4px;">
     <div class="d-flex align-items-center mb-2">
-        <a href="/channel/{{ comment.user.clone().unwrap() }}" class="text-decoration-none">
-            <h6 class="mb-0 text-white">{{ comment.user.clone().unwrap() }}</h6>
+        <a href="/channel/{{ comment.user }}" class="text-decoration-none">
+            <h6 class="mb-0 text-white">{{ comment.user }}</h6>
         </a>
     </div>
     <div class="comment-content ql-editor p-0" style="min-height: auto;">{{ comment.text }}</div>

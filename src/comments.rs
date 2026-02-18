@@ -1,7 +1,7 @@
 #[derive(Serialize, Deserialize)]
 struct Comment {
     id: i64,
-    user: Option<String>,
+    user: String,
     text: String,
     time: i64,
 }
@@ -31,7 +31,7 @@ async fn hx_comments(
 
     let comments = sqlx::query_as!(
         Comment,
-        "SELECT id,user,text,time FROM comments WHERE media=$1 ORDER BY time DESC LIMIT $2 OFFSET $3;",
+        r#"SELECT id,"user",text,time FROM comments WHERE media=$1 ORDER BY time DESC LIMIT $2 OFFSET $3;"#,
         mediumid,
         COMMENTS_PER_PAGE + 1,
         offset

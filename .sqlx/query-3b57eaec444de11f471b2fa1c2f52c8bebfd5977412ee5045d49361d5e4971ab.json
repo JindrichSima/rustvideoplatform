@@ -11,7 +11,7 @@
       {
         "ordinal": 1,
         "name": "user",
-        "type_info": "Name"
+        "type_info": "Varchar"
       },
       {
         "ordinal": 2,
@@ -33,7 +33,7 @@
     },
     "nullable": [
       false,
-      null,
+      false,
       false,
       false
     ]
