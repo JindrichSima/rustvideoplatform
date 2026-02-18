@@ -1,0 +1,192 @@
+<!doctype html>
+<html>
+    <head>
+        {% include "component-dependencies.html" %}
+
+        <title>Edit - {{ medium.name }}</title>
+
+        <meta property="og:title" content="{{ config.instancename }} Studio" />
+        <meta property="og:type" content="website" />
+        <meta
+            property="og:url"
+            content="https://{{ common_headers.host }}/studio/edit/{{ medium.id }}"
+        />
+    </head>
+
+    <body hx-ext="preload">
+        {{ sidebar }} {% include "component-navbar.html" %}
+        <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%">
+            <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                <div class="card py-3 px-3 text-white" style="min-height: 80vh">
+                    <div class="row justify-content-between align-items-center">
+                        <h3 class="my-2 mx-3" style="width: auto">Edit Media</h3>
+                        <div style="width: auto">
+                            <a href="/studio" class="btn btn-secondary mx-1" preload="mouseover">
+                                <i class="fa-solid fa-arrow-left"></i>&nbsp;Back to Studio
+                            </a>
+                            <a href="/m/{{ medium.id }}" class="btn btn-primary mx-1" preload="mouseover">
+                                <i class="fa-solid fa-eye"></i>&nbsp;View
+                            </a>
+                        </div>
+                    </div>
+                    <hr />
+                    <form
+                        action="/studio/edit/{{ medium.id }}"
+                        method="post"
+                        class="mx-3"
+                        id="edit-form"
+                    >
+                        <div class="form-group row my-3">
+                            <label for="medium_id_display" class="col-4 col-form-label"
+                                >URL</label
+                            >
+                            <div class="col-8">
+                                <div class="input-group">
+                                    <input
+                                        id="medium_id_display"
+                                        type="text"
+                                        class="form-control"
+                                        value="{{ medium.id }}"
+                                        disabled
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group row my-3">
+                            <label
+                                for="medium_name"
+                                class="col-4 col-form-label"
+                                >Name</label
+                            >
+                            <div class="col-8">
+                                <input
+                                    id="medium_name"
+                                    name="medium_name"
+                                    type="text"
+                                    class="form-control"
+                                    required
+                                    value="{{ medium.name }}"
+                                />
+                            </div>
+                        </div>
+                        <div class="form-group row my-3">
+                            <label
+                                for="medium_description"
+                                class="col-4 col-form-label"
+                                >Description</label
+                            >
+                            <div class="col-8">
+                                <div
+                                    id="medium_description_editor"
+                                    style="height: 50vh"
+                                ></div>
+                                <input
+                                    type="hidden"
+                                    name="medium_description"
+                                    id="medium_description"
+                                />
+                            </div>
+                        </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            let quill = new Quill('#medium_description_editor', {
+                                theme: 'snow'
+                            });
+
+                            // Load existing description
+                            fetch('/m/{{ medium.id }}/description.json')
+                                .then(function(response) {
+                                    if (!response.ok) throw new Error('Failed to load description');
+                                    return response.json();
+                                })
+                                .then(function(data) {
+                                    quill.setContents(data);
+                                })
+                                .catch(function(err) {
+                                    console.error('Could not load existing description:', err);
+                                });
+
+                            const editForm = document.getElementById('edit-form');
+
+                            editForm.addEventListener('submit', function(e) {
+                                let descriptionInput = document.getElementById('medium_description');
+                                let delta = quill.getContents();
+                                descriptionInput.value = JSON.stringify(delta);
+                            });
+                        });
+                        </script>
+                        <div class="form-group row my-3">
+                            <label
+                                for="medium_visibility"
+                                class="col-4 col-form-label"
+                                >Visibility</label
+                            >
+                            <div class="col-8">
+                                <select
+                                    id="medium_visibility"
+                                    name="medium_visibility"
+                                    class="form-select"
+                                    required
+                                >
+                                    <option value="public" {% if medium.public %}selected{% endif %}>
+                                        Public
+                                    </option>
+                                    <option value="hidden" {% if !medium.public %}selected{% endif %}>
+                                        Hidden
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group row my-3">
+                            <div class="offset-4 col-8">
+                                <button
+                                    name="submit"
+                                    type="submit"
+                                    class="btn btn-primary"
+                                >
+                                    <i class="fa-solid fa-floppy-disk"></i>&nbsp;Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    <hr />
+                    <div class="mx-3">
+                        <h5 class="text-danger">Danger Zone</h5>
+                        <button
+                            class="btn btn-outline-danger mt-2"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteModal"
+                        >
+                            <i class="fa-solid fa-trash"></i>&nbsp;Delete Media
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="deleteModalLabel">Delete Media</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        Are you sure you want to delete <b>{{ medium.name }}</b>? This action cannot be undone. All comments and list entries associated with this media will also be removed.
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button
+                            class="btn btn-danger"
+                            hx-get="/hx/studio/delete/{{ medium.id }}"
+                            hx-target="body"
+                        >
+                            <i class="fa-solid fa-trash"></i>&nbsp;Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

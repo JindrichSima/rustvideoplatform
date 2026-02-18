@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE media SET name=$1, description=$2, public=$3 WHERE id=$4;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Jsonb",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "479af27bfb4fd6f0214e562edcb224b40c3d70d571becea5ee3177f775685d40"
+}
