@@ -2,7 +2,7 @@
 struct Comment {
     id: i64,
     user: String,
-    text: String,
+    text: serde_json::Value,
     time: i64,
 }
 
@@ -57,6 +57,21 @@ struct CommentForm {
     text: String,
 }
 
+async fn comment_delta(
+    Extension(pool): Extension<PgPool>,
+    Path(comment_id): Path<i64>,
+) -> Json<serde_json::Value> {
+    let row = sqlx::query!(
+        r#"SELECT text FROM comments WHERE id=$1;"#,
+        comment_id
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("Database error");
+
+    Json(row.text)
+}
+
 #[derive(Template)]
 #[template(path = "pages/hx-comment-single.html", escape = "none")]
 struct HXCommentSingleTemplate {
@@ -78,12 +93,15 @@ async fn hx_add_comment(
 
     let user = user.unwrap();
 
+    let delta: serde_json::Value =
+        serde_json::from_str(&form.text).unwrap_or_default();
+
     let comment = sqlx::query_as!(
         Comment,
         r#"INSERT INTO comments (media, "user", text) VALUES ($1, $2, $3) RETURNING id, "user", text, time;"#,
         mediumid,
         user.login,
-        form.text
+        delta
     )
     .fetch_one(&pool)
     .await

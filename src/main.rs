@@ -71,6 +71,7 @@ async fn main() {
         )
         .route("/hx/comments/{mediumid}", get(hx_comments))
         .route("/hx/comments/{mediumid}/add", post(hx_add_comment))
+        .route("/hx/comment/{commentid}/delta.json", get(comment_delta))
         .route("/hx/reccomended/{mediumid}", get(hx_recommended))
         .route("/hx/new_view/{mediumid}", get(hx_new_view))
         .route("/hx/like/{mediumid}", get(hx_like))
