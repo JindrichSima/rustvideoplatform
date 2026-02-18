@@ -15,7 +15,7 @@ CREATE TABLE public."comments" (
 	id bigserial NOT NULL,
 	media varchar NOT NULL,
 	"user" varchar NOT NULL,
-	"text" text NOT NULL,
+	"text" jsonb NOT NULL,
 	"time" int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
 	CONSTRAINT comments_pk PRIMARY KEY (id)
 );

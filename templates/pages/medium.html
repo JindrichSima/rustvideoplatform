@@ -276,11 +276,16 @@
                         ><b class="text-secondary">
                             views, uploaded: {{ medium_upload }}</b
                         >
-                        <div
-                            id="medium_description_view"
-                            style="max-height: 450px; min-height: 5em; overflow-y: scroll;"
-                            class="mt-3"
-                        ></div>
+                        <div id="description_wrapper" class="mt-3 description-wrapper description-collapsed">
+                            <div id="medium_description_view" class="description-content"></div>
+                            <div id="description_fade" class="description-fade"></div>
+                        </div>
+                        <button
+                            id="description_toggle"
+                            class="btn btn-sm text-secondary mt-1 px-0 d-none"
+                            type="button"
+                            style="font-weight: 700;"
+                        >Show more</button>
                         <script>
                             document.addEventListener("DOMContentLoaded", function () {
                                 if (typeof hljs !== 'undefined') {
@@ -299,6 +304,37 @@
                                         });
                                     });
 
+                                    const wrapper = document.getElementById("description_wrapper");
+                                    const toggle = document.getElementById("description_toggle");
+                                    const fade = document.getElementById("description_fade");
+                                    const descView = document.getElementById("medium_description_view");
+
+                                    function checkOverflow() {
+                                        const contentHeight = descView.scrollHeight;
+                                        const collapsedMax = 6 * 1.5 * 16; /* ~6 lines */
+                                        if (contentHeight > collapsedMax + 10) {
+                                            toggle.classList.remove("d-none");
+                                            fade.style.display = "";
+                                        } else {
+                                            toggle.classList.add("d-none");
+                                            fade.style.display = "none";
+                                            wrapper.classList.remove("description-collapsed");
+                                        }
+                                    }
+
+                                    toggle.addEventListener("click", function () {
+                                        const isCollapsed = wrapper.classList.contains("description-collapsed");
+                                        if (isCollapsed) {
+                                            wrapper.classList.remove("description-collapsed");
+                                            fade.style.display = "none";
+                                            toggle.textContent = "Show less";
+                                        } else {
+                                            wrapper.classList.add("description-collapsed");
+                                            fade.style.display = "";
+                                            toggle.textContent = "Show more";
+                                        }
+                                    });
+
                                     // Fetch the description JSON
                                     const jsonUrl = "/m/{{ medium_id }}/description.json";
 
@@ -309,10 +345,13 @@
                                         })
                                         .then((data) => {
                                             quillView.setContents(data);
+                                            // Check after content loads and renders
+                                            setTimeout(checkOverflow, 100);
                                         })
                                         .catch((err) => {
                                             console.error(err);
                                             quillView.setText("Failed to load description.");
+                                            setTimeout(checkOverflow, 100);
                                         });
 
                                 } else {
@@ -327,6 +366,25 @@
                     style="min-height: 30vh"
                 >
                     <h3 class="my-2">Comments</h3>
+                    <script>
+                        function initCommentDeltas(container) {
+                            container.querySelectorAll("[data-comment-delta]").forEach(function (el) {
+                                if (el.dataset.commentInit) return;
+                                el.dataset.commentInit = "1";
+                                try {
+                                    var delta = JSON.parse(el.getAttribute("data-comment-delta"));
+                                    var q = new Quill(el, {
+                                        theme: "snow",
+                                        readOnly: true,
+                                        modules: { toolbar: false },
+                                    });
+                                    q.setContents(delta);
+                                } catch (e) {
+                                    console.error("Failed to render comment delta", e);
+                                }
+                            });
+                        }
+                    </script>
                     <hr />
                     {% if is_logged_in %}
                     <div class="mb-3">
@@ -360,9 +418,9 @@
                                 const text = commentQuill.getText().trim();
                                 if (text.length === 0) return;
 
-                                const html = commentQuill.getSemanticHTML();
+                                const delta = JSON.stringify(commentQuill.getContents());
                                 const formData = new FormData();
-                                formData.append("text", html);
+                                formData.append("text", delta);
 
                                 submitBtn.disabled = true;
                                 fetch("/hx/comments/{{ medium_id }}/add", {
@@ -376,6 +434,7 @@
                                     .then((html) => {
                                         const commentsList = document.getElementById("comments-list");
                                         commentsList.insertAdjacentHTML("afterbegin", html);
+                                        initCommentDeltas(commentsList);
                                         commentQuill.setText("");
                                         submitBtn.disabled = false;
                                     })

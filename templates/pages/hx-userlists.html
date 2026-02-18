@@ -1,3 +1,4 @@
+<div class="row">
 {% for list in lists %}
 <div class="col-xl-3 col-lg-4 col-6 my-3">
     <a href="/list/{{ list.id }}" class="text-decoration-none" preload="mouseover">
@@ -8,6 +9,7 @@
     </a>
 </div>
 {% endfor %}
+</div>
 {% if lists.is_empty() %}
 <p class="text-secondary text-center">No public lists.</p>
 {% endif %}

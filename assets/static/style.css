@@ -15877,3 +15877,32 @@ fieldset:disabled .btn {
 .bg-hover:hover {
     background-color: var(--bs-primary);
 }
+
+/* Expandable description */
+.description-wrapper {
+    position: relative;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.description-wrapper.description-collapsed {
+    max-height: calc(6 * 1.5 * 1rem); /* ~6 lines */
+}
+
+.description-wrapper .description-content {
+    min-height: 2em;
+}
+
+.description-fade {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3rem;
+    background: linear-gradient(to bottom, transparent, var(--bs-dark));
+    pointer-events: none;
+}
+
+#description_toggle:hover {
+    text-decoration: underline;
+}
