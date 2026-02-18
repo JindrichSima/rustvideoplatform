@@ -1,8 +1,8 @@
 {% for medium in media %}
-<div class="col-xl-2 col-lg-4 col-6 my-3 d-flex justify-content-center">
+<div class="col-xl-2 col-lg-4 col-6 d-flex justify-content-center">
     <a
         href="/studio/edit/{{ medium.id }}"
-        class="text-decoration-none"
+        class="text-decoration-none p-3 bg-hover rounded"
         preload="mouseover"
     >
         <table>
@@ -29,7 +29,7 @@
                         <i class="fa-solid fa-image fa-sm ms-1"></i>
                         {% endif %}
                     </p>
-                    <span class="text-secondary" style="font-size: 0.8em;">
+                    <span class="text-secondary m-0" style="font-size: 0.8em;">
                         <i class="fa-solid fa-pen-to-square fa-sm"></i> Edit
                     </span>
                 </td>

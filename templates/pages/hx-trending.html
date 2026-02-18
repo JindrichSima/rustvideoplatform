@@ -1,5 +1,5 @@
 {% for item in reccomendations %}
-<div class="col-xl-2 col-lg-4 col-6 my-3 d-flex justify-content-center">
+<div class="col-xl-2 col-lg-4 col-6 d-flex justify-content-center">
     <a
         href="/m/{{ item.medium.id }}"
         class="text-decoration-none p-3 bg-hover rounded"
@@ -48,7 +48,7 @@
                     <b class="text-white font-weight-bold"
                         >{{ item.medium.name }}</b
                     >
-                    <p class="text-secondary">
+                    <p class="text-secondary m-0">
                         {{ item.medium.owner }}<br />{{ item.medium.views }}
                         views {% if item.medium.type == "video" %}
                         <i class="fa-solid fa-video fa-sm ms-1"></i>

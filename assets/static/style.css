@@ -14412,19 +14412,24 @@ fieldset:disabled .btn {
         box-shadow 0.15s ease-in-out;
 }
 
-.dropdown:hover .dropdown-content {
-    display: block;
-    border-radius: var(--bs-border-radius);
-    background-color: var(--bs-dark);
-}
-
 .dropdown-content {
-    display: none;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.2s ease-out;
+
     position: absolute;
     z-index: 5;
     color: var(--bs-white);
+    background-color: var(--bs-dark);
     border-radius: var(--bs-border-radius);
     border-color: var(--bs-primary);
+}
+
+.dropdown:hover .dropdown-content {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .dropdown-content a {
@@ -14434,6 +14439,7 @@ fieldset:disabled .btn {
     padding: 12px 16px;
     text-decoration: none;
     border-radius: var(--bs-border-radius);
+    color: inherit;
 }
 
 .dropdown-content a:hover {
@@ -15872,6 +15878,10 @@ fieldset:disabled .btn {
     border-radius: 0.5rem;
     display: block;
     padding: 0.25rem;
+}
+
+.bg-hover {
+    transition: background-color 0.3s ease-in-out;
 }
 
 .bg-hover:hover {
