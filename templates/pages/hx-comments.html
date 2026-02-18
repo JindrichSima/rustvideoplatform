@@ -5,9 +5,10 @@
             <h6 class="mb-0 text-white">{{ comment.user }}</h6>
         </a>
     </div>
-    <div class="comment-content ql-editor p-0" style="min-height: auto;">{{ comment.text }}</div>
+    <div class="comment-content ql-editor p-0" style="min-height: auto;" data-comment-delta='{{ comment.text }}'></div>
 </div>
 {% endfor %}
+<script>initCommentDeltas(document.getElementById("comments-list"));</script>
 {% match next_page %}
 {% when Some with (page) %}
 <div

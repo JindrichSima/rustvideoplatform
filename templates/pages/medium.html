@@ -366,6 +366,25 @@
                     style="min-height: 30vh"
                 >
                     <h3 class="my-2">Comments</h3>
+                    <script>
+                        function initCommentDeltas(container) {
+                            container.querySelectorAll("[data-comment-delta]").forEach(function (el) {
+                                if (el.dataset.commentInit) return;
+                                el.dataset.commentInit = "1";
+                                try {
+                                    var delta = JSON.parse(el.getAttribute("data-comment-delta"));
+                                    var q = new Quill(el, {
+                                        theme: "snow",
+                                        readOnly: true,
+                                        modules: { toolbar: false },
+                                    });
+                                    q.setContents(delta);
+                                } catch (e) {
+                                    console.error("Failed to render comment delta", e);
+                                }
+                            });
+                        }
+                    </script>
                     <hr />
                     {% if is_logged_in %}
                     <div class="mb-3">
@@ -399,9 +418,9 @@
                                 const text = commentQuill.getText().trim();
                                 if (text.length === 0) return;
 
-                                const html = commentQuill.getSemanticHTML();
+                                const delta = JSON.stringify(commentQuill.getContents());
                                 const formData = new FormData();
-                                formData.append("text", html);
+                                formData.append("text", delta);
 
                                 submitBtn.disabled = true;
                                 fetch("/hx/comments/{{ medium_id }}/add", {
@@ -415,6 +434,7 @@
                                     .then((html) => {
                                         const commentsList = document.getElementById("comments-list");
                                         commentsList.insertAdjacentHTML("afterbegin", html);
+                                        initCommentDeltas(commentsList);
                                         commentQuill.setText("");
                                         submitBtn.disabled = false;
                                     })
