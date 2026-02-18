@@ -90,6 +90,8 @@ async fn main() {
         .route("/hx/usermedia/{userid}", get(hx_usermedia))
         .route("/studio", get(studio))
         .route("/hx/studio", get(hx_studio))
+        .route("/studio/edit/{mediumid}", get(studio_edit))
+        .route("/studio/edit/{mediumid}", post(studio_edit_save))
         .route("/hx/studio/delete/{mediumid}", get(hx_delete_video))
         .route("/studio/lists", get(studio_lists))
         .route("/hx/studio/lists", get(hx_studio_lists))
