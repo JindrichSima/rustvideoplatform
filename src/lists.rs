@@ -246,11 +246,11 @@ async fn hx_list_sidebar(
     let items: Vec<MediumWithShowcase> = items
         .into_iter()
         .map(|m| {
-            let has_showcase = showcase_exists(&m.id);
             MediumWithShowcase {
                 medium: m,
-                showcase_exists: has_showcase,
             }
+
+
         })
         .collect();
 

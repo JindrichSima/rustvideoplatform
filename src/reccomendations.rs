@@ -1,16 +1,11 @@
 struct MediumWithShowcase {
-    medium: Medium,
-    showcase_exists: bool,
+    medium: Medium
 }
 
 #[derive(Template)]
 #[template(path = "pages/hx-reccomended.html", escape = "none")]
 struct HXReccomendedTemplate {
     recommendations: Vec<MediumWithShowcase>,
-}
-
-fn showcase_exists(medium_id: &str) -> bool {
-    std::path::Path::new(&format!("source/{}/showcase.avif", medium_id)).exists()
 }
 
 async fn hx_recommended(
@@ -34,10 +29,8 @@ async fn hx_recommended(
     let recommendations: Vec<MediumWithShowcase> = recommendations
         .into_iter()
         .map(|m| {
-            let has_showcase = showcase_exists(&m.id);
             MediumWithShowcase {
-                medium: m,
-                showcase_exists: has_showcase,
+                medium: m
             }
         })
         .collect();

@@ -36,10 +36,8 @@ async fn hx_trending(Extension(pool): Extension<PgPool>) -> axum::response::Html
     let reccomendations: Vec<MediumWithShowcase> = media
         .into_iter()
         .map(|m| {
-            let has_showcase = showcase_exists(&m.id);
             MediumWithShowcase {
-                medium: m,
-                showcase_exists: has_showcase,
+                medium: m
             }
         })
         .collect();

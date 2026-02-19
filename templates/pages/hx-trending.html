@@ -14,7 +14,7 @@
                     >
                         <img
                             src="/source/{{ item.medium.id }}/thumbnail.avif"
-                            class="mx-2 rounded thumbnail-static"
+                            class="mx-2 rounded {% if item.medium.type == "video" %}thumbnail-static{% endif %}"
                             style="
                                 position: absolute;
                                 top: 0;
@@ -24,7 +24,7 @@
                             width="176"
                             height="99"
                         />
-                        {% if item.showcase_exists %}
+                        {% if item.medium.type == "video" %}
                         <img
                             src="/source/{{ item.medium.id }}/showcase.avif"
                             class="mx-2 rounded thumbnail-animated"
