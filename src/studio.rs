@@ -127,6 +127,7 @@ struct MediumEdit {
     id: String,
     name: String,
     public: bool,
+    medium_type: String,
 }
 #[derive(Template)]
 #[template(path = "pages/studio-edit.html", escape = "none")]
@@ -152,7 +153,7 @@ async fn studio_edit(
     let user_info = user_info.unwrap();
 
     let medium = sqlx::query!(
-        "SELECT id,name,owner,public FROM media WHERE id=$1;",
+        "SELECT id,name,owner,public,type FROM media WHERE id=$1;",
         mediumid
     )
     .fetch_one(&pool)
@@ -174,6 +175,7 @@ async fn studio_edit(
                     id: record.id,
                     name: record.name,
                     public: record.public,
+                    medium_type: record.r#type,
                 },
                 common_headers,
             };

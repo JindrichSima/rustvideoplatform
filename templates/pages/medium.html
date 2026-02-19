@@ -146,6 +146,13 @@
                             autoplay
                         >
                             <media-provider>
+                                {% if medium_chapters_exist %}
+                                <track
+                                    src="/source/{{ medium_id }}/chapters.vtt"
+                                    kind="chapters"
+                                    default
+                                />
+                                {% endif %}
                                 <media-poster
                                     class="vds-poster"
                                     src="/source/{{ medium_id }}/thumbnail.avif"

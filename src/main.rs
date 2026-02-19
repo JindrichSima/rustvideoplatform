@@ -92,6 +92,8 @@ async fn main() {
         .route("/hx/studio", get(hx_studio))
         .route("/studio/edit/{mediumid}", get(studio_edit))
         .route("/studio/edit/{mediumid}", post(studio_edit_save))
+        .route("/studio/edit/{mediumid}/chapters.json", get(studio_chapters_get))
+        .route("/studio/edit/{mediumid}/chapters", post(studio_chapters_save))
         .route("/hx/studio/delete/{mediumid}", get(hx_delete_video))
         .route("/studio/lists", get(studio_lists))
         .route("/hx/studio/lists", get(hx_studio_lists))
@@ -138,6 +140,7 @@ include!("home.rs");
 include!("search.rs");
 include!("channel.rs");
 include!("studio.rs");
+include!("chapters.rs");
 include!("upload.rs");
 include!("concept.rs");
 include!("serve.rs");
