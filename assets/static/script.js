@@ -1,11 +1,21 @@
 function toggleSidebar() {
-    const sidebar = document.getElementById("sidebar");
-    const displayStyle = sidebar.style.display === "none" ? 'flex' : 'none';
-    sidebar.style.setProperty('display', displayStyle, 'important');
-    document.getElementById("sidebarbackground").style.display = displayStyle;
+    var isMobile = window.matchMedia("(max-width: 1000px)").matches;
+    if (isMobile) {
+        document.getElementById("sidebar").classList.toggle("sidebar-open");
+        document.getElementById("sidebarbackground").classList.toggle("sidebar-open");
+    } else {
+        document.body.classList.toggle("sidebar-collapsed");
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById("sidebarbackground").addEventListener("click", function () {
+        if (window.matchMedia("(max-width: 1000px)").matches) {
+            document.getElementById("sidebar").classList.remove("sidebar-open");
+            this.classList.remove("sidebar-open");
+        }
+    });
+
     const searchInput = document.getElementById('searchInput');
     const suggestionsList = document.getElementById('suggestions');
 
