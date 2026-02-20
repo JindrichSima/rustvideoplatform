@@ -90,6 +90,7 @@
                     <div class="d-flex justify-content-center player-container">
                         {% if medium_type == "video" %}
                         <media-player
+                            id="vds-player"
                             viewType="video"
                             src="/source/{{ medium_id }}/video/video.mpd"
                             aspectRatio="16/9"
@@ -133,6 +134,17 @@
                                 %}
                             ></media-video-layout>
                         </media-player>
+                        <script>
+                            document.addEventListener("DOMContentLoaded", function () {
+                                var player = document.getElementById("vds-player");
+                                player.addEventListener("audio-track-change", function () {
+                                    var ct = player.currentTime;
+                                    if (ct > 0) {
+                                        player.currentTime = ct;
+                                    }
+                                });
+                            });
+                        </script>
                         {% else if medium_type == "audio" %}
                         <media-player
                             src="/source/{{ medium_id }}/audio.ogg"
