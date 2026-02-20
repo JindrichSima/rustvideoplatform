@@ -14313,13 +14313,30 @@ fieldset:disabled .btn {
     }
 }
 
+body:has(> .sidebar) {
+    padding-left: 15%;
+    min-height: 100vh;
+    transition: padding-left 0.3s ease;
+}
+
+body:has(> .sidebar).sidebar-collapsed {
+    padding-left: 0;
+}
+
 .sidebar {
     width: 15%;
-    position: sticky;
-    position: -webkit-sticky;
+    position: fixed;
     top: 0;
-    float: left;
-    z-index: 1;
+    left: 0;
+    height: 100vh;
+    z-index: 101;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: transform 0.3s ease;
+}
+
+body.sidebar-collapsed .sidebar {
+    transform: translateX(-100%);
 }
 
 .sidebarbackground {
@@ -14327,10 +14344,15 @@ fieldset:disabled .btn {
     height: 100vh;
     position: fixed;
     top: 0;
-    float: left;
-    z-index: -1;
+    left: 0;
+    z-index: 100;
     background-color: var(--bs-dark);
     box-shadow: 0 0 5px var(--bs-shadow-color);
+    transition: transform 0.3s ease;
+}
+
+body.sidebar-collapsed .sidebarbackground {
+    transform: translateX(-100%);
 }
 
 .searchinput {
@@ -14346,18 +14368,46 @@ fieldset:disabled .btn {
 }
 
 @media screen and (max-width: 1000px) {
+    body:has(> .sidebar) {
+        padding-left: 0;
+    }
+
+    body:has(> .sidebar).sidebar-collapsed {
+        padding-left: 0;
+    }
+
     .sidebar {
-        display: none !important;
-        position: absolute;
-        z-index: 2;
-        width: 40%;
+        width: 70%;
+        z-index: 1001;
+        transform: translateX(-100%);
+    }
+
+    .sidebar.sidebar-open {
+        transform: translateX(0);
+    }
+
+    body.sidebar-collapsed .sidebar {
+        transform: translateX(-100%);
     }
 
     .sidebarbackground {
-        display: none;
-        position: absolute;
-        z-index: 1;
-        width: 40%;
+        width: 100%;
+        z-index: 1000;
+        background-color: rgba(0, 0, 0, 0.5);
+        box-shadow: none;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+
+    .sidebarbackground.sidebar-open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    body.sidebar-collapsed .sidebarbackground {
+        transform: none;
+        opacity: 0;
     }
 
     .maincontentrow {
@@ -15841,11 +15891,7 @@ fieldset:disabled .btn {
     contain: layout style;
 }
 
-/* Prevent sidebar from shifting main content during HTMX load */
-.sidebar {
-    contain: layout style;
-    overflow: hidden;
-}
+/* Sidebar overflow handled in main .sidebar rule above */
 
 /* List modal overlay */
 .list-modal-overlay {
