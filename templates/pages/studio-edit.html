@@ -304,6 +304,167 @@
                     });
                     </script>
                     {% endif %}
+                    {% if medium.medium_type == "video" || medium.medium_type == "audio" %}
+                    <hr />
+                    <div class="mx-3">
+                        <h5><i class="fa-solid fa-closed-captioning"></i>&nbsp;Subtitles</h5>
+                        <p class="text-secondary">Upload WebVTT (.vtt) subtitle files. Each subtitle track needs a label (e.g. "English", "Spanish").</p>
+                        <div id="subtitles-editor">
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover" id="subtitles-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Label</th>
+                                            <th style="width: 80px"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="subtitles-tbody">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-secondary" id="no-subtitles-msg">No subtitles yet. Use the form below to add a subtitle track.</p>
+                            <div class="card p-3 mt-3" style="background-color: var(--bs-dark)">
+                                <h6>Add Subtitle Track</h6>
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-sm-4">
+                                        <label for="subtitle-label-input" class="form-label">Label</label>
+                                        <input type="text" class="form-control form-control-sm" id="subtitle-label-input" placeholder="e.g. English" />
+                                    </div>
+                                    <div class="col-sm-5">
+                                        <label for="subtitle-file-input" class="form-label">VTT File</label>
+                                        <input type="file" class="form-control form-control-sm" id="subtitle-file-input" accept=".vtt" />
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <button type="button" class="btn btn-primary btn-sm w-100" id="upload-subtitle-btn">
+                                            <i class="fa-solid fa-upload"></i>&nbsp;Upload
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="subtitles-status" class="mt-2"></div>
+                        </div>
+                    </div>
+                    <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        var subtitles = [];
+
+                        function renderSubtitles() {
+                            var tbody = document.getElementById('subtitles-tbody');
+                            var noMsg = document.getElementById('no-subtitles-msg');
+                            tbody.innerHTML = '';
+
+                            if (subtitles.length === 0) {
+                                noMsg.style.display = '';
+                                document.getElementById('subtitles-table').style.display = 'none';
+                                return;
+                            }
+                            noMsg.style.display = 'none';
+                            document.getElementById('subtitles-table').style.display = '';
+
+                            subtitles.forEach(function(sub) {
+                                var tr = document.createElement('tr');
+
+                                var tdLabel = document.createElement('td');
+                                tdLabel.textContent = sub.label;
+                                tr.appendChild(tdLabel);
+
+                                var tdActions = document.createElement('td');
+                                var btnDelete = document.createElement('button');
+                                btnDelete.type = 'button';
+                                btnDelete.className = 'btn btn-sm btn-outline-danger';
+                                btnDelete.title = 'Remove subtitle';
+                                btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                                (function(label) {
+                                    btnDelete.addEventListener('click', function() {
+                                        if (!confirm('Delete subtitle track "' + label + '"?')) return;
+                                        fetch('/studio/edit/{{ medium.id }}/subtitles/delete', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ label: label })
+                                        })
+                                        .then(function(r) { return r.json(); })
+                                        .then(function(data) {
+                                            if (data.ok) {
+                                                subtitles = subtitles.filter(function(s) { return s.label !== label; });
+                                                renderSubtitles();
+                                                showSubStatus('success', 'Subtitle track deleted.');
+                                            } else {
+                                                showSubStatus('danger', data.error || 'Failed to delete.');
+                                            }
+                                        })
+                                        .catch(function() { showSubStatus('danger', 'Failed to delete subtitle.'); });
+                                    });
+                                })(sub.label);
+                                tdActions.appendChild(btnDelete);
+                                tr.appendChild(tdActions);
+
+                                tbody.appendChild(tr);
+                            });
+                        }
+
+                        function showSubStatus(type, msg) {
+                            var el = document.getElementById('subtitles-status');
+                            var icon = type === 'success' ? 'fa-check' : 'fa-xmark';
+                            el.innerHTML = '<span class="text-' + type + '"><i class="fa-solid ' + icon + '"></i> ' + msg + '</span>';
+                            setTimeout(function() { el.innerHTML = ''; }, 4000);
+                        }
+
+                        fetch('/studio/edit/{{ medium.id }}/subtitles.json')
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                subtitles = data;
+                                renderSubtitles();
+                            })
+                            .catch(function(err) { console.error('Failed to load subtitles:', err); });
+
+                        document.getElementById('upload-subtitle-btn').addEventListener('click', function() {
+                            var btn = this;
+                            var labelInput = document.getElementById('subtitle-label-input');
+                            var fileInput = document.getElementById('subtitle-file-input');
+                            var label = labelInput.value.trim();
+
+                            if (!label) {
+                                showSubStatus('danger', 'Please enter a label.');
+                                return;
+                            }
+                            if (!fileInput.files || fileInput.files.length === 0) {
+                                showSubStatus('danger', 'Please select a VTT file.');
+                                return;
+                            }
+
+                            var formData = new FormData();
+                            formData.append('label', label);
+                            formData.append('file', fileInput.files[0]);
+
+                            btn.disabled = true;
+                            fetch('/studio/edit/{{ medium.id }}/subtitles/add', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                btn.disabled = false;
+                                if (data.ok) {
+                                    var exists = subtitles.some(function(s) { return s.label === label; });
+                                    if (!exists) {
+                                        subtitles.push({ label: label });
+                                    }
+                                    renderSubtitles();
+                                    labelInput.value = '';
+                                    fileInput.value = '';
+                                    showSubStatus('success', 'Subtitle track uploaded!');
+                                } else {
+                                    showSubStatus('danger', data.error || 'Upload failed.');
+                                }
+                            })
+                            .catch(function() {
+                                btn.disabled = false;
+                                showSubStatus('danger', 'Upload failed.');
+                            });
+                        });
+                    });
+                    </script>
+                    {% endif %}
                     <hr />
                     <div class="mx-3">
                         <h5 class="text-danger">Danger Zone</h5>
