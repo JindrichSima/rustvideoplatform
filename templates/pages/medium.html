@@ -146,7 +146,16 @@
                             autoplay
                         >
                             <media-provider>
-                                {% if medium_chapters_exist %}
+                                {% if medium_captions_exist %} {% for
+                                caption_name in medium_captions_list %}
+                                <track
+                                    src="/source/{{ medium_id }}/captions/{{ caption_name }}.vtt"
+                                    kind="subtitles"
+                                    label="{{ caption_name }}"
+                                    lang="{{caption_name}}"
+                                />
+                                {% endfor %} {% endif %} {% if
+                                medium_chapters_exist %}
                                 <track
                                     src="/source/{{ medium_id }}/chapters.vtt"
                                     kind="chapters"
