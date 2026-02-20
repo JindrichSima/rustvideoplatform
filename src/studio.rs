@@ -253,10 +253,10 @@ async fn hx_delete_video(
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
-) -> axum::response::Html<String> {
+) -> impl IntoResponse {
     let user_info = get_user_login(headers.clone(), &pool, session_store).await;
     if !is_logged(user_info.clone()).await {
-        return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
+        return ([("HX-Redirect", "/login")], "");
     }
     let user_info = user_info.unwrap();
 
@@ -267,13 +267,11 @@ async fn hx_delete_video(
     match media_owner {
         Ok(record) => {
             if record.owner != user_info.login {
-                let result = "<b class=\"text-sucess\">MEDIA REMOVAL SUCESS</b><script>window.location.replace(\"/studio\");</script>".to_string();
-                return Html(result);
+                return ([("HX-Redirect", "/studio")], "");
             }
         }
         Err(_) => {
-            let result = "<b class=\"text-sucess\">MEDIA REMOVAL FAILED</b><script>window.location.replace(\"/studio\");</script>".to_string();
-            return Html(result);
+            return ([("HX-Redirect", "/studio")], "");
         }
     }
 
@@ -293,14 +291,12 @@ async fn hx_delete_video(
         .await;
 
     if delete_result.is_err() {
-        let result = "<b class=\"text-sucess\">MEDIA REMOVAL FAILED</b><script>window.location.replace(\"/studio\");</script>".to_string();
-        return Html(result);
+        return ([("HX-Redirect", "/studio")], "");
     }
 
     // Delete the source directory
     let source_path = format!("source/{}", mediumid);
     let _ = fs::remove_dir_all(&source_path).await;
 
-    let result = "<b class=\"text-sucess\">MEDIA REMOVAL SUCESS</b><script>window.location.replace(\"/studio\");</script>".to_string();
-    return Html(result);
+    ([("HX-Redirect", "/studio")], "")
 }
