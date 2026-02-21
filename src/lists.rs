@@ -47,7 +47,7 @@ struct HXListItemsTemplate {
 #[derive(Template)]
 #[template(path = "pages/hx-listsidebar.html", escape = "none")]
 struct HXListSidebarTemplate {
-    items: Vec<MediumWithShowcase>,
+    items: Vec<Medium>,
     list_id: String,
     current_medium_id: String,
     list_name: String,
@@ -242,17 +242,6 @@ async fn hx_list_sidebar(
     .fetch_all(&pool)
     .await
     .expect("Database error");
-
-    let items: Vec<MediumWithShowcase> = items
-        .into_iter()
-        .map(|m| {
-            MediumWithShowcase {
-                medium: m,
-            }
-
-
-        })
-        .collect();
 
     let template = HXListSidebarTemplate {
         items,

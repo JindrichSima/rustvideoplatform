@@ -4400,12 +4400,10 @@ fieldset:disabled .btn {
     --bs-nav-tabs-border-width: var(--bs-border-width);
     --bs-nav-tabs-border-color: var(--bs-border-color);
     --bs-nav-tabs-border-radius: var(--bs-border-radius);
-    --bs-nav-tabs-link-hover-border-color: var(--bs-secondary-bg)
-        var(--bs-secondary-bg) var(--bs-border-color);
+    --bs-nav-tabs-link-hover-border-color: var(--bs-secondary);
     --bs-nav-tabs-link-active-color: var(--bs-emphasis-color);
     --bs-nav-tabs-link-active-bg: var(--bs-body-bg);
-    --bs-nav-tabs-link-active-border-color: var(--bs-border-color)
-        var(--bs-border-color) var(--bs-body-bg);
+    --bs-nav-tabs-link-active-border-color: var(--bs-primary);
     border-bottom: var(--bs-nav-tabs-border-width) solid
         var(--bs-nav-tabs-border-color);
 }
@@ -4415,12 +4413,14 @@ fieldset:disabled .btn {
     border: var(--bs-nav-tabs-border-width) solid transparent;
     border-top-left-radius: var(--bs-nav-tabs-border-radius);
     border-top-right-radius: var(--bs-nav-tabs-border-radius);
+    border-bottom-color: transparent;
 }
 
 .nav-tabs .nav-link:hover,
 .nav-tabs .nav-link:focus {
     isolation: isolate;
     border-color: var(--bs-nav-tabs-link-hover-border-color);
+    border-bottom-color: transparent;
 }
 
 .nav-tabs .nav-link.active,
@@ -4428,6 +4428,7 @@ fieldset:disabled .btn {
     color: var(--bs-nav-tabs-link-active-color);
     background-color: var(--bs-nav-tabs-link-active-bg);
     border-color: var(--bs-nav-tabs-link-active-border-color);
+    border-bottom-color: var(--bs-card-bg);
 }
 
 .nav-tabs .dropdown-menu {

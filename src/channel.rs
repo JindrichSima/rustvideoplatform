@@ -60,21 +60,16 @@ WHERE
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Template)]
-#[template(path = "pages/hx-usermedia.html", escape = "none")]
-struct HXUserMediaTemplate {
-    usermedia: Vec<Medium>,
-}
 async fn hx_usermedia(
     Extension(pool): Extension<PgPool>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let usermedia = sqlx::query_as!(Medium,
+    let media = sqlx::query_as!(Medium,
         "SELECT id,name,owner,views,type FROM media WHERE public=true AND owner=$1 ORDER BY upload DESC;",userid
     )
     .fetch_all(&pool)
     .await
     .expect("Database error");
-    let template = HXUserMediaTemplate { usermedia };
+    let template = HXMediumCardTemplate { media };
     Html(minifi_html(template.render().unwrap()))
 }

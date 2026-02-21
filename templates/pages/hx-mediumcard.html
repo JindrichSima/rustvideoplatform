@@ -1,10 +1,10 @@
-{% for item in reccomendations %}
+{% for item in media %}
 <div class="col-xl-2 col-lg-4 col-6 d-flex justify-content-center">
     <a
-        href="/m/{{ item.medium.id }}"
+        href="/m/{{ item.id }}"
         class="text-decoration-none p-3 bg-hover rounded"
         preload="mouseover"
-        title="{{ item.medium.name }}"
+        title="{{ item.name }}"
     >
         <table>
             <tr>
@@ -14,23 +14,23 @@
                         style="position: relative; width: 176px; height: 99px"
                     >
                         <img
-                            src="/source/{{ item.medium.id }}/thumbnail.avif"
-                            class="rounded {% if item.medium.type == "video" %}thumbnail-static{% endif %}"
+                            src="/source/{{ item.id }}/thumbnail.avif"
+                            class="rounded {% if item.type == "video" %}thumbnail-static{% endif %}"
                             width="176"
                             height="99"
                         />
                         <div class="search-card-type-badge">
-                            {% if item.medium.type == "video" %}
+                            {% if item.type == "video" %}
                             <i class="fa-solid fa-video"></i>
-                            {% else if item.medium.type == "audio" %}
+                            {% else if item.type == "audio" %}
                             <i class="fa-solid fa-music"></i>
-                            {% else if item.medium.type == "picture" %}
+                            {% else if item.type == "picture" %}
                             <i class="fa-solid fa-image"></i>
                             {% endif %}
                         </div>
-                        {% if item.medium.type == "video" %}
+                        {% if item.type == "video" %}
                         <img
-                            src="/source/{{ item.medium.id }}/showcase.avif"
+                            src="/source/{{ item.id }}/showcase.avif"
                             class="rounded thumbnail-animated"
                             width="176"
                             height="99"
@@ -42,9 +42,9 @@
             </tr>
             <tr>
                 <td class="text-center">
-                    <b class="text-white font-weight-bold medium-name">{{ item.medium.name }}</b>
+                    <b class="text-white font-weight-bold medium-name">{{ item.name }}</b>
                     <p class="text-secondary m-0">
-                        {{ item.medium.owner }}<br />{{ item.medium.views }}
+                        {{ item.owner }}<br />{{ item.views }}
                         views
                     </p>
                 </td>

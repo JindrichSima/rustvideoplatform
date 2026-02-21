@@ -1,11 +1,7 @@
-struct MediumWithShowcase {
-    medium: Medium
-}
-
 #[derive(Template)]
 #[template(path = "pages/hx-reccomended.html", escape = "none")]
 struct HXReccomendedTemplate {
-    recommendations: Vec<MediumWithShowcase>,
+    recommendations: Vec<Medium>,
 }
 
 async fn hx_recommended(
@@ -25,15 +21,6 @@ async fn hx_recommended(
             .body("Failed to fetch recommendations".into())
             .unwrap()
     })?;
-
-    let recommendations: Vec<MediumWithShowcase> = recommendations
-        .into_iter()
-        .map(|m| {
-            MediumWithShowcase {
-                medium: m
-            }
-        })
-        .collect();
 
     let template = HXReccomendedTemplate { recommendations };
     match template.render() {

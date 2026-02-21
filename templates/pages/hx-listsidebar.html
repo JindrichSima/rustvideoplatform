@@ -4,8 +4,8 @@
 </h5>
 {% for item in items %}
 <a
-    href="/l/{{ list_id }}/{{ item.medium.id }}"
-    class="text-decoration-none {% if item.medium.id == current_medium_id %}list-sidebar-active{% endif %}"
+    href="/l/{{ list_id }}/{{ item.id }}"
+    class="text-decoration-none {% if item.id == current_medium_id %}list-sidebar-active{% endif %}"
     preload="mouseover"
 >
     <table class="my-3">
@@ -16,8 +16,8 @@
                     style="position: relative; width: 176px; height: 99px"
                 >
                     <img
-                        src="/source/{{ item.medium.id }}/thumbnail.avif"
-                        class="mx-2 rounded {% if item.medium.type == "video" %}thumbnail-static{% endif %}"
+                        src="/source/{{ item.id }}/thumbnail.avif"
+                        class="mx-2 rounded {% if item.type == "video" %}thumbnail-static{% endif %}"
                         style="
                             position: absolute;
                             top: 0;
@@ -27,9 +27,9 @@
                         width="176"
                         height="99"
                     />
-                    {% if item.medium.type == "video" %}
+                    {% if item.type == "video" %}
                     <img
-                        src="/source/{{ item.medium.id }}/showcase.avif"
+                        src="/source/{{ item.id }}/showcase.avif"
                         class="mx-2 rounded thumbnail-animated"
                         style="
                             position: absolute;
@@ -45,14 +45,14 @@
                 </div>
             </td>
             <td>
-                <b class="text-white font-weight-bold">{{ item.medium.name }}</b>
+                <b class="text-white font-weight-bold">{{ item.name }}</b>
                 <p class="text-secondary">
-                    {{ item.medium.owner }}<br />{{ item.medium.views }} views
-                    {% if item.medium.type == "video" %}
+                    {{ item.owner }}<br />{{ item.views }} views
+                    {% if item.type == "video" %}
                     <i class="fa-solid fa-video fa-sm ms-1"></i>
-                    {% else if item.medium.type == "audio" %}
+                    {% else if item.type == "audio" %}
                     <i class="fa-solid fa-music fa-sm ms-1"></i>
-                    {% else if item.medium.type == "picture" %}
+                    {% else if item.type == "picture" %}
                     <i class="fa-solid fa-image fa-sm ms-1"></i>
                     {% endif %}
                 </p>

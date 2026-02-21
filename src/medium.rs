@@ -165,3 +165,9 @@ async fn medium_description_prepare(
         .unwrap_or_default(),
     )
 }
+
+#[derive(Template)]
+#[template(path = "pages/hx-mediumcard.html", escape = "none")]
+struct HXMediumCardTemplate {
+    media: Vec<Medium>,
+}

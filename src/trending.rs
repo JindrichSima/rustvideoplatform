@@ -19,12 +19,6 @@ async fn trending(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Template)]
-#[template(path = "pages/hx-trending.html", escape = "none")]
-struct HXTrendingTemplate {
-    reccomendations: Vec<MediumWithShowcase>,
-}
-
 async fn hx_trending(Extension(pool): Extension<PgPool>) -> axum::response::Html<Vec<u8>> {
     let media = sqlx::query_as!(Medium,
         "SELECT id,name,owner,views,type FROM media WHERE public=true ORDER BY likes DESC LIMIT 100;"
@@ -33,15 +27,6 @@ async fn hx_trending(Extension(pool): Extension<PgPool>) -> axum::response::Html
     .await
     .expect("Database error");
 
-    let reccomendations: Vec<MediumWithShowcase> = media
-        .into_iter()
-        .map(|m| {
-            MediumWithShowcase {
-                medium: m
-            }
-        })
-        .collect();
-
-    let template = HXTrendingTemplate { reccomendations };
+    let template = HXMediumCardTemplate { media };
     Html(minifi_html(template.render().unwrap()))
 }

@@ -20,12 +20,6 @@ async fn subscriptions(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Template)]
-#[template(path = "pages/hx-subscriptions.html", escape = "none")]
-struct HXSubscriptionsTemplate {
-    reccomendations: Vec<MediumWithShowcase>,
-}
-
 async fn hx_subscriptions(
     headers: HeaderMap,
     Extension(pool): Extension<PgPool>,
@@ -56,16 +50,7 @@ async fn hx_subscriptions(
     .await
     .expect("Database error");
 
-    let reccomendations: Vec<MediumWithShowcase> = media
-        .into_iter()
-        .map(|m| {
-            MediumWithShowcase {
-                medium: m
-            }
-        })
-        .collect();
-
-    let template = HXSubscriptionsTemplate { reccomendations };
+    let template = HXMediumCardTemplate { media };
     Html(minifi_html(template.render().unwrap()))
 }
 
