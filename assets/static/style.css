@@ -16356,3 +16356,33 @@ body.sidebar-collapsed .sidebarbackground {
         height: 45px;
     }
 }
+
+.thumbnail-animated {
+    position: absolute;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.thumbnail-static {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: opacity 0.3s;
+}
+
+.thumbnail-container:hover .thumbnail-static {
+    opacity: 0 !important;
+}
+.thumbnail-container:hover .thumbnail-animated {
+    opacity: 1 !important;
+}
+
+.medium-name {
+      max-height: 3rem;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+}
