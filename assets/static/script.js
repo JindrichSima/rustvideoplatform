@@ -9,34 +9,39 @@ function toggleSidebar() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById("sidebarbackground").addEventListener("click", function () {
-        if (window.matchMedia("(max-width: 1000px)").matches) {
-            document.getElementById("sidebar").classList.remove("sidebar-open");
-            this.classList.remove("sidebar-open");
-        }
-    });
+    const sidebarBg = document.getElementById("sidebarbackground");
+    if (sidebarBg) {
+        sidebarBg.addEventListener("click", function () {
+            if (window.matchMedia("(max-width: 1000px)").matches) {
+                document.getElementById("sidebar").classList.remove("sidebar-open");
+                this.classList.remove("sidebar-open");
+            }
+        });
+    }
 
     const searchInput = document.getElementById('searchInput');
     const suggestionsList = document.getElementById('suggestions');
 
-    document.getElementById('suggestions').addEventListener('click', (e) => {
-        if (e.target.tagName === 'LI') {
-            searchInput.value = e.target.textContent;
-            suggestionsList.innerHTML = '';
-        }
-    });
+    if (searchInput && suggestionsList) {
+        suggestionsList.addEventListener('click', (e) => {
+            if (e.target.tagName === 'LI') {
+                searchInput.value = e.target.textContent;
+                suggestionsList.innerHTML = '';
+            }
+        });
 
-    searchInput.addEventListener('focus', () => {
-        if (suggestionsList.children.length > 0) {
-            suggestionsList.style.display = '';
-        }
-    });
+        searchInput.addEventListener('focus', () => {
+            if (suggestionsList.children.length > 0) {
+                suggestionsList.style.display = '';
+            }
+        });
 
-    searchInput.addEventListener('blur', () => {
-        setTimeout(() => {
-            suggestionsList.style.display = 'none';
-        }, 200);
-    });
+        searchInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                suggestionsList.style.display = 'none';
+            }, 200);
+        });
+    }
 
     document.body.addEventListener('htmx:afterSwap', (event) => {
         const target = event.detail.target;
