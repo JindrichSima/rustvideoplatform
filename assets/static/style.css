@@ -15901,7 +15901,6 @@ body.sidebar-collapsed .sidebarbackground {
 
 .list-modal-content {
     background-color: var(--bs-dark);
-    border: 1px solid var(--bs-secondary);
     border-radius: var(--bs-border-radius);
     padding: 1.5rem;
     width: 90%;

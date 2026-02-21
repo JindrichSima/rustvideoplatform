@@ -87,12 +87,6 @@ async fn list_page(
         .map(|u| u.login == list.owner)
         .unwrap_or(false);
 
-    if !list.public && !is_owner {
-        return Html(minifi_html(
-            "<script>window.location.replace(\"/\");</script>".to_owned(),
-        ));
-    }
-
     let sidebar = generate_sidebar(&config, "list".to_owned());
     let template = ListPageTemplate {
         sidebar,
@@ -132,12 +126,6 @@ async fn medium_in_list(
         .map(|u| u.login == list.owner)
         .unwrap_or(false);
     let is_logged_in = user_info.is_some();
-
-    if !list.public && !is_owner {
-        return Html(minifi_html(
-            "<script>window.location.replace(\"/\");</script>".to_owned(),
-        ));
-    }
 
     let common_headers = extract_common_headers(&headers).unwrap();
     let medium = sqlx::query!(

@@ -1,7 +1,7 @@
 {% for item in media %}
 <a
     href="/m/{{ item.id }}"
-    class="text-decoration-none {% if item.id == current_medium_id %}list-sidebar-active{% endif %}"
+    class="text-decoration-none rounded {% if item.id == current_medium_id %}list-sidebar-active{% endif %}"
     preload="mouseover"
     title="{{ item.name }}"
 >
