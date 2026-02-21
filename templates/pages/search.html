@@ -4,7 +4,7 @@
 <head>
     {% include "component-dependencies.html" %}
 
-    <title>Search</title>
+    <title>Search - {{ config.instancename }}</title>
 
     <meta property="og:title" content="{{ config.instancename }} Search" />
     <meta property="og:type" content="website" />
@@ -15,18 +15,129 @@
     {{ sidebar }}
     {% include "component-navbar.html" %}
     <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
-        <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+        <div class="col-12">
             <div class="card py-3 px-3 text-white" style="min-height: 80vh;">
-                <h3 class="my-2 mx-3">Search</h3>
-                <hr>
-                <form class="d-flex justify-content-center">
-                    <input class="form-control searchinput" id="search" name="search" hx-post="/hx/search/0" hx-target="#searchresults" hx-trigger="keyup changed delay:400ms" style="width:50vw;background-color:var(--bs-primary)" />
-                </form>
-                <ul id="searchresults" class="row mb-3 px-3 list-unstyled">
-                </ul>
+
+                <div class="search-header">
+                    <h3><i class="fa-solid fa-magnifying-glass me-2"></i>Search</h3>
+                    <div class="search-bar-wrapper">
+                        <form id="searchForm" hx-post="/hx/search/0" hx-target="#searchresults" hx-trigger="submit"
+                            hx-indicator="#search-loading">
+                            <div class="search-input-group">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input class="search-main-input" id="searchMainInput" name="search"
+                                    placeholder="Search for videos, audio, pictures..."
+                                    value="{{ initial_query }}" autocomplete="off" />
+                                <button type="submit" class="search-submit-btn">
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                            </div>
+
+                            <div class="search-filters">
+                                <div class="filter-group">
+                                    <label class="filter-label"><i class="fa-solid fa-photo-film me-1"></i>Type</label>
+                                    <div class="filter-chips" id="typeFilter">
+                                        <button type="button" class="filter-chip active" data-value="">All</button>
+                                        <button type="button" class="filter-chip" data-value="video"><i class="fa-solid fa-video me-1"></i>Video</button>
+                                        <button type="button" class="filter-chip" data-value="audio"><i class="fa-solid fa-music me-1"></i>Audio</button>
+                                        <button type="button" class="filter-chip" data-value="picture"><i class="fa-solid fa-image me-1"></i>Picture</button>
+                                    </div>
+                                    <input type="hidden" name="media_type" id="mediaTypeInput" value="" />
+                                </div>
+
+                                <div class="filter-group">
+                                    <label class="filter-label"><i class="fa-solid fa-arrow-down-wide-short me-1"></i>Sort by</label>
+                                    <div class="filter-chips" id="sortFilter">
+                                        <button type="button" class="filter-chip active" data-value=""><i class="fa-solid fa-star me-1"></i>Relevance</button>
+                                        <button type="button" class="filter-chip" data-value="newest"><i class="fa-solid fa-clock me-1"></i>Newest</button>
+                                        <button type="button" class="filter-chip" data-value="oldest"><i class="fa-solid fa-clock-rotate-left me-1"></i>Oldest</button>
+                                        <button type="button" class="filter-chip" data-value="views"><i class="fa-solid fa-eye me-1"></i>Most viewed</button>
+                                        <button type="button" class="filter-chip" data-value="likes"><i class="fa-solid fa-heart me-1"></i>Most liked</button>
+                                    </div>
+                                    <input type="hidden" name="sort_by" id="sortByInput" value="" />
+                                </div>
+
+                                <div class="filter-group">
+                                    <label class="filter-label"><i class="fa-solid fa-calendar me-1"></i>Upload date</label>
+                                    <div class="filter-chips" id="dateFilter">
+                                        <button type="button" class="filter-chip active" data-value="">Any time</button>
+                                        <button type="button" class="filter-chip" data-value="today">Today</button>
+                                        <button type="button" class="filter-chip" data-value="week">This week</button>
+                                        <button type="button" class="filter-chip" data-value="month">This month</button>
+                                        <button type="button" class="filter-chip" data-value="year">This year</button>
+                                    </div>
+                                    <input type="hidden" name="date_range" id="dateRangeInput" value="" />
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="search-loading" class="search-loading htmx-indicator">
+                    <div class="search-loading-bar"></div>
+                </div>
+
+                <div id="searchresults" class="search-results-grid">
+                </div>
+
             </div>
         </div>
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Filter chip click handlers
+        document.querySelectorAll('.filter-chips').forEach(function(group) {
+            group.querySelectorAll('.filter-chip').forEach(function(chip) {
+                chip.addEventListener('click', function() {
+                    group.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
+                    chip.classList.add('active');
+
+                    // Update the hidden input
+                    var hiddenInput = group.nextElementSibling;
+                    if (hiddenInput) {
+                        hiddenInput.value = chip.getAttribute('data-value');
+                    }
+
+                    // Auto-submit if there's a search query
+                    var searchInput = document.getElementById('searchMainInput');
+                    if (searchInput && searchInput.value.trim().length > 0) {
+                        htmx.trigger('#searchForm', 'submit');
+                    }
+                });
+            });
+        });
+
+        // Submit on Enter key in search input
+        var searchInput = document.getElementById('searchMainInput');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    htmx.trigger('#searchForm', 'submit');
+                }
+            });
+
+            // Auto-search on typing with debounce
+            var debounceTimer;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function() {
+                    if (searchInput.value.trim().length > 0) {
+                        htmx.trigger('#searchForm', 'submit');
+                    }
+                }, 400);
+            });
+
+            // Auto-trigger search if initial query present
+            if (searchInput.value.trim().length > 0) {
+                setTimeout(function() { htmx.trigger('#searchForm', 'submit'); }, 100);
+            }
+
+            searchInput.focus();
+        }
+    });
+    </script>
 </body>
 
 </html>

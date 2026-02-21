@@ -1,25 +1,29 @@
 {% for medium in suggestions %}
-<a href="/m/{{ medium.id }}" class="suggestionitem p-1 m-1 px-3" preload="mouseover">
+<a href="/m/{{ medium.id }}" class="suggestionitem" preload="mouseover">
     <li>
-        <table class="my-3">
-            <tr>
-                <td>
-                    <img src="/source/{{ medium.id }}/thumbnail.avif" width="176" height="99" class="mx-2 rounded">
-                </td>
-                <td>
-                    <b class="text-white font-weight-bold">{{ medium.name }}</b>
-                    <p class="text-secondary">{{ medium.owner }}<br>{{ medium.views }} views
-                        {% if medium.type == "video" %}
-                        <i class="fa-solid fa-video fa-sm ms-1"></i>
-                        {% else if medium.type == "audio" %}
-                        <i class="fa-solid fa-music fa-sm ms-1"></i>
-                        {% else if medium.type == "picture" %}
-                        <i class="fa-solid fa-image fa-sm ms-1"></i>
-                        {% endif %}
-                    </p>
-                </td>
-            </tr>
-        </table>
+        <div class="suggestion-row">
+            <img src="/source/{{ medium.id }}/thumbnail.avif" class="suggestion-thumb" loading="lazy" />
+            <div class="suggestion-info">
+                <span class="suggestion-name">{{ medium.name }}</span>
+                <span class="suggestion-meta">
+                    {{ medium.owner }}
+                    <span class="suggestion-sep">&middot;</span>
+                    {{ medium.views }} views
+                    {% if medium.type == "video" %}
+                    <i class="fa-solid fa-video fa-sm ms-1"></i>
+                    {% else if medium.type == "audio" %}
+                    <i class="fa-solid fa-music fa-sm ms-1"></i>
+                    {% else if medium.type == "picture" %}
+                    <i class="fa-solid fa-image fa-sm ms-1"></i>
+                    {% endif %}
+                </span>
+            </div>
+        </div>
     </li>
 </a>
 {% endfor %}
+<a href="/search?q={{ query }}" class="suggestionitem suggestion-viewall">
+    <li>
+        <i class="fa-solid fa-magnifying-glass me-2"></i>View all results for "<b>{{ query }}</b>"
+    </li>
+</a>

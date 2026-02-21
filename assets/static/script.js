@@ -8,6 +8,15 @@ function toggleSidebar() {
     }
 }
 
+function navbarSearch(event) {
+    event.preventDefault();
+    var input = document.getElementById('searchInput');
+    if (input && input.value.trim().length > 0) {
+        window.location.href = '/search?q=' + encodeURIComponent(input.value.trim());
+    }
+    return false;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const sidebarBg = document.getElementById("sidebarbackground");
     if (sidebarBg) {
@@ -23,13 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const suggestionsList = document.getElementById('suggestions');
 
     if (searchInput && suggestionsList) {
-        suggestionsList.addEventListener('click', (e) => {
-            if (e.target.tagName === 'LI') {
-                searchInput.value = e.target.textContent;
-                suggestionsList.innerHTML = '';
-            }
-        });
-
         searchInput.addEventListener('focus', () => {
             if (suggestionsList.children.length > 0) {
                 suggestionsList.style.display = '';
@@ -39,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('blur', () => {
             setTimeout(() => {
                 suggestionsList.style.display = 'none';
-            }, 200);
+            }, 250);
         });
     }
 

@@ -1,31 +1,39 @@
-{% for medium in search_results %}
-<a href="/m/{{ medium.id }}" class="suggestionitem p-1 m-1 px-3" preload="mouseover">
-    <li>
-        <table class="my-3">
-            <tr>
-                <td>
-                    <img src="/source/{{ medium.id }}/thumbnail.avif" width="176" height="99" class="mx-2 rounded">
-                </td>
-                <td>
-                    <b class="text-white font-weight-bold">{{ medium.name }}</b>
-                    <p class="text-secondary">{{ medium.owner }}<br>{{ medium.views }} views
-                        {% if medium.type == "video" %}
-                        <i class="fa-solid fa-video fa-sm ms-1"></i>
-                        {% else if medium.type == "audio" %}
-                        <i class="fa-solid fa-music fa-sm ms-1"></i>
-                        {% else if medium.type == "picture" %}
-                        <i class="fa-solid fa-image fa-sm ms-1"></i>
-                        {% endif %}
-                    </p>
-                </td>
-            </tr>
-        </table>
-    </li>
+{% if is_first_page %}
+<div class="search-meta">
+    <span class="search-meta-count"><i class="fa-solid fa-hashtag me-1"></i>{{ total_hits }} results</span>
+    <span class="search-meta-time"><i class="fa-solid fa-bolt me-1"></i>{{ query_time_ms }}ms</span>
+</div>
+{% endif %}
+{% for hit in search_results %}
+<a href="/m/{{ hit.id }}" class="search-result-card" preload="mouseover">
+    <div class="search-card-thumbnail">
+        <img src="/source/{{ hit.id }}/thumbnail.avif" alt="{{ hit.name }}" loading="lazy" />
+        <div class="search-card-type-badge">
+            {% if hit.type == "video" %}
+            <i class="fa-solid fa-video"></i>
+            {% else if hit.type == "audio" %}
+            <i class="fa-solid fa-music"></i>
+            {% else if hit.type == "picture" %}
+            <i class="fa-solid fa-image"></i>
+            {% endif %}
+        </div>
+    </div>
+    <div class="search-card-info">
+        <h5 class="search-card-title">{{ hit.highlighted_name }}</h5>
+        <div class="search-card-meta">
+            <span class="search-card-owner"><i class="fa-solid fa-user me-1"></i>{{ hit.owner }}</span>
+            <span class="search-card-views"><i class="fa-solid fa-eye me-1"></i>{{ hit.views }} views</span>
+            <span class="search-card-likes"><i class="fa-solid fa-heart me-1"></i>{{ hit.likes }}</span>
+        </div>
+    </div>
 </a>
 {% endfor %}
 <form hx-post="/hx/search/{{ next_page }}" hx-trigger="revealed" hx-swap="outerHTML">
-    <input type="hidden" id="search" name="search" value="{{ search_term }}" />
+    <input type="hidden" name="search" value="{{ search_term }}" />
+    <input type="hidden" name="media_type" value="{{ media_type }}" />
+    <input type="hidden" name="sort_by" value="{{ sort_by }}" />
+    <input type="hidden" name="date_range" value="{{ date_range }}" />
     <div class="text-center my-4">
-        <i class="fa-solid fa-spinner fa-spin-pulse fa-8x"></i>
+        <i class="fa-solid fa-spinner fa-spin-pulse fa-3x"></i>
     </div>
 </form>
