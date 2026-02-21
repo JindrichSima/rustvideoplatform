@@ -1,5 +1,6 @@
 // Meilisearch document structure - must match the index schema
 // The indexer module should index documents with these exact fields
+// Fields use serde(default) where they may be omitted by with_attributes_to_retrieve
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct MeiliMedia {
     id: String,
@@ -7,9 +8,11 @@ struct MeiliMedia {
     owner: String,
     views: i64,
     likes: i64,
+    #[serde(default)]
     dislikes: i64,
     r#type: String,
     upload: i64,
+    #[serde(default)]
     public: bool,
 }
 
@@ -71,10 +74,13 @@ async fn hx_search_suggestions(
             };
             Html(template.render().unwrap())
         }
-        Err(_) => Html(
-            "<li class=\"suggestion-empty\"><i class=\"fa-solid fa-triangle-exclamation me-2\"></i>Search unavailable</li>"
-                .to_owned(),
-        ),
+        Err(e) => {
+            eprintln!("Meilisearch search suggestion error: {:?}", e);
+            Html(
+                "<li class=\"suggestion-empty\"><i class=\"fa-solid fa-triangle-exclamation me-2\"></i>Search unavailable</li>"
+                    .to_owned(),
+            )
+        }
     }
 }
 
@@ -241,10 +247,13 @@ async fn hx_search(
             };
             Html(template.render().unwrap())
         }
-        Err(_) => Html(
-            "<div class=\"search-empty\"><i class=\"fa-solid fa-triangle-exclamation fa-3x mb-3\"></i><h4>Search unavailable</h4><p class=\"text-secondary\">Please try again later</p></div>"
-                .to_owned(),
-        ),
+        Err(e) => {
+            eprintln!("Meilisearch search error: {:?}", e);
+            Html(
+                "<div class=\"search-empty\"><i class=\"fa-solid fa-triangle-exclamation fa-3x mb-3\"></i><h4>Search unavailable</h4><p class=\"text-secondary\">Please try again later</p></div>"
+                    .to_owned(),
+            )
+        }
     }
 }
 

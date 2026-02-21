@@ -60,6 +60,37 @@ async fn main() {
     )
     .unwrap();
 
+    // Verify Meilisearch connectivity at startup
+    match meilisearch_client.health().await {
+        Ok(health) => {
+            println!(
+                "Meilisearch connected: url={}, status={}",
+                &config.meilisearch_url, health.status
+            );
+        }
+        Err(e) => {
+            eprintln!(
+                "WARNING: Meilisearch health check failed (url={}): {:?}",
+                &config.meilisearch_url, e
+            );
+            eprintln!("Search functionality will be unavailable until Meilisearch is reachable.");
+        }
+    }
+
+    // Verify the 'media' index exists
+    match meilisearch_client.get_index("media").await {
+        Ok(index) => {
+            println!("Meilisearch 'media' index found: uid={}", index.uid);
+        }
+        Err(e) => {
+            eprintln!(
+                "WARNING: Meilisearch 'media' index not accessible: {:?}",
+                e
+            );
+            eprintln!("Ensure the 'media' index is created and populated by the indexer.");
+        }
+    }
+
     let memory_router = MemoryServe::new(load_assets!("assets/static")).into_router();
 
     let session_store: Arc<Mutex<AHashMap<String, String>>> =
