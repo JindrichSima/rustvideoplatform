@@ -291,12 +291,12 @@ async fn hx_delete_video(
         .await;
 
     if delete_result.is_err() {
-        return ([("HX-Redirect", "/studio")], "");
+        return ([("Redirect", "/studio")], "");
     }
 
     // Delete the source directory
     let source_path = format!("source/{}", mediumid);
     let _ = fs::remove_dir_all(&source_path).await;
 
-    ([("HX-Redirect", "/studio")], "")
+    ([("Redirect", "/studio")], "")
 }
