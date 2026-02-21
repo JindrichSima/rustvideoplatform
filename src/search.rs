@@ -1,6 +1,3 @@
-// Meilisearch document structure - must match the index schema
-// The indexer module should index documents with these exact fields
-// Fields use serde(default) where they may be omitted by with_attributes_to_retrieve
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct MeiliMedia {
     id: String,
@@ -16,18 +13,23 @@ struct MeiliMedia {
     public: bool,
 }
 
+impl From<MeiliMedia> for Medium {
+    fn from(media: MeiliMedia) -> Self {
+        Medium {
+            id: media.id,
+            name: media.name,
+            owner: media.owner,
+            views: media.views,
+            r#type: media.r#type,
+        }
+    }
+}
+
 // --- Search suggestions (navbar autocomplete) ---
 
 #[derive(Serialize, Deserialize)]
 struct HXSearch {
     search: String,
-}
-
-#[derive(Template)]
-#[template(path = "pages/hx-searchsuggestion.html", escape = "none")]
-struct HXSearchSuggestions {
-    suggestions: Vec<MeiliMedia>,
-    query: String,
 }
 
 async fn hx_search_suggestions(
@@ -55,22 +57,22 @@ async fn hx_search_suggestions(
 
     match results {
         Ok(search_results) => {
-            let suggestions: Vec<MeiliMedia> = search_results
+            let media: Vec<Medium> = search_results
                 .hits
                 .into_iter()
-                .map(|hit| hit.result)
+                .map(|hit| hit.result.into())
                 .collect();
 
-            if suggestions.is_empty() {
+            if media.is_empty() {
                 return Html(
                     "<li class=\"suggestion-empty\"><i class=\"fa-solid fa-circle-info me-2\"></i>No results found</li>"
                         .to_owned(),
                 );
             }
 
-            let template = HXSearchSuggestions {
-                suggestions,
-                query: form.search,
+            let template = HXMediumListTemplate {
+                current_medium_id: String::new(),
+                media
             };
             Html(template.render().unwrap())
         }

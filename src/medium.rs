@@ -18,6 +18,7 @@ struct MediumTemplate {
     common_headers: CommonHeaders,
     is_logged_in: bool,
     list_id: String,
+    list_name: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -90,6 +91,7 @@ async fn medium(
         common_headers,
         is_logged_in,
         list_id: String::new(),
+        list_name: String::new(),
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -169,5 +171,12 @@ async fn medium_description_prepare(
 #[derive(Template)]
 #[template(path = "pages/hx-mediumcard.html", escape = "none")]
 struct HXMediumCardTemplate {
+    media: Vec<Medium>,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-mediumlist.html", escape = "none")]
+struct HXMediumListTemplate {
+    current_medium_id: String,
     media: Vec<Medium>,
 }

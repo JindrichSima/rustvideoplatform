@@ -1,17 +1,10 @@
-#[derive(Template)]
-#[template(path = "pages/hx-reccomended.html", escape = "none")]
-struct HXReccomendedTemplate {
-    recommendations: Vec<Medium>,
-}
-
 async fn hx_recommended(
     Extension(pool): Extension<PgPool>,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
-    let recommendations: Vec<Medium> = sqlx::query_as!(
+    let media: Vec<Medium> = sqlx::query_as!(
         Medium,
-        "SELECT id, name, owner, views, type FROM media WHERE public = true AND id != $1 LIMIT 20;",
-        mediumid
+        "SELECT id, name, owner, views, type FROM media WHERE public = true LIMIT 20;"
     )
     .fetch_all(&pool)
     .await
@@ -22,7 +15,10 @@ async fn hx_recommended(
             .unwrap()
     })?;
 
-    let template = HXReccomendedTemplate { recommendations };
+    let template = HXMediumListTemplate {
+        current_medium_id: mediumid,
+        media,
+    };
     match template.render() {
         Ok(rendered) => Ok(Html(minifi_html(rendered))),
         Err(_) => Err(axum::response::Response::builder()

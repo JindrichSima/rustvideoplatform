@@ -481,6 +481,10 @@
                         class="hx-placeholder"
                     ></div>
                     {% else %}
+                    <h5 class="text-white text-center mb-3">
+                        <i class="fa-solid fa-list me-1"></i>
+                        <a href="/list/{{ list_id }}" class="text-white text-decoration-none">{{ list_name }}</a>
+                    </h5>
                     <div
                         hx-get="/hx/listsidebar/{{ list_id }}/{{ medium_id }}"
                         hx-trigger="load"

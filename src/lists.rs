@@ -45,15 +45,6 @@ struct HXListItemsTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "pages/hx-listsidebar.html", escape = "none")]
-struct HXListSidebarTemplate {
-    items: Vec<Medium>,
-    list_id: String,
-    current_medium_id: String,
-    list_name: String,
-}
-
-#[derive(Template)]
 #[template(path = "pages/hx-listmodal.html", escape = "none")]
 struct HXListModalTemplate {
     lists: Vec<ListModalEntry>,
@@ -120,7 +111,7 @@ async fn medium_in_list(
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
     let list = sqlx::query!(
-        "SELECT id, public, owner FROM lists WHERE id=$1;",
+        "SELECT id, public, owner, name FROM lists WHERE id=$1;",
         listid
     )
     .fetch_one(&pool)
@@ -201,6 +192,7 @@ async fn medium_in_list(
         common_headers,
         is_logged_in,
         list_id: listid,
+        list_name: list.name,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -229,12 +221,7 @@ async fn hx_list_sidebar(
     Extension(pool): Extension<PgPool>,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let list = sqlx::query!("SELECT name FROM lists WHERE id=$1;", listid)
-        .fetch_one(&pool)
-        .await
-        .expect("Database error");
-
-    let items: Vec<Medium> = sqlx::query_as!(
+    let media: Vec<Medium> = sqlx::query_as!(
         Medium,
         "SELECT m.id, m.name, m.owner, m.views, m.type FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC;",
         listid
@@ -243,11 +230,9 @@ async fn hx_list_sidebar(
     .await
     .expect("Database error");
 
-    let template = HXListSidebarTemplate {
-        items,
-        list_id: listid,
+    let template = HXMediumListTemplate {
+        media,
         current_medium_id: mediumid,
-        list_name: list.name,
     };
     Html(minifi_html(template.render().unwrap()))
 }
