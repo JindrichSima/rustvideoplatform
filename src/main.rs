@@ -24,6 +24,7 @@ use axum::{
 use chrono::{DateTime, Datelike, Local, Timelike};
 use memory_serve::{load_assets, MemoryServe};
 use rand::{rng, Rng};
+use meilisearch_sdk::client::Client as MeilisearchClient;
 use serde::Deserialize;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
@@ -39,6 +40,8 @@ struct Config {
     instancename: String,
     welcome: String,
     custom_session_domain: Option<String>,
+    meilisearch_url: String,
+    meilisearch_key: Option<String>,
 }
 #[tokio::main]
 async fn main() {
@@ -50,6 +53,12 @@ async fn main() {
         .connect(&config.dbconnection)
         .await
         .unwrap();
+
+    let meilisearch_client = MeilisearchClient::new(
+        &config.meilisearch_url,
+        config.meilisearch_key.as_deref(),
+    )
+    .unwrap();
 
     let memory_router = MemoryServe::new(load_assets!("assets/static")).into_router();
 
@@ -120,6 +129,7 @@ async fn main() {
         .layer(Extension(pool))
         .layer(Extension(config))
         .layer(Extension(session_store))
+        .layer(Extension(Arc::new(meilisearch_client)))
         .layer(DefaultBodyLimit::disable())
         .merge(memory_router);
 
