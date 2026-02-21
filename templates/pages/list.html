@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
     <head>
-        {% include "component-dependencies.html" %}
+
         <title>{{ list.name }}</title>
         <meta property="og:title" content="{{ list.name }}" />
         <meta property="og:site_name" content="{{ config.instancename }}" />
@@ -9,7 +9,7 @@
     <body hx-ext="preload">
         {{ sidebar }}
         {% include "component-navbar.html" %}
-        <div class="row maincontentrow g-3 py-2 ps-2" style="max-width: 99%;">
+        <div class="row maincontentrow g-3 py-2 ps-2 w-100">
             <div class="col-12">
                 <div class="card py-3 px-3 text-white" style="min-height:30vh;">
                     <div class="d-flex justify-content-between align-items-center">
