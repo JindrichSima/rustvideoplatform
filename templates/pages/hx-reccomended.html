@@ -3,6 +3,7 @@
     href="/m/{{ item.medium.id }}"
     class="text-decoration-none"
     preload="mouseover"
+    title="{{ item.medium.name }}"
 >
     <table class="my-3">
         <tr>
@@ -13,7 +14,7 @@
                 >
                     <img
                         src="/source/{{ item.medium.id }}/thumbnail.avif"
-                        class="mx-2 rounded {% if item.medium.type == "video" %}thumbnail-static{% endif %}"
+                        class="rounded {% if item.medium.type == "video" %}thumbnail-static{% endif %}"
                         style="
                             position: absolute;
                             top: 0;
@@ -23,10 +24,19 @@
                         width="176"
                         height="99"
                     />
+                    <div class="search-card-type-badge">
+                        {% if item.medium.type == "video" %}
+                        <i class="fa-solid fa-video"></i>
+                        {% else if item.medium.type == "audio" %}
+                        <i class="fa-solid fa-music"></i>
+                        {% else if item.medium.type == "picture" %}
+                        <i class="fa-solid fa-image"></i>
+                        {% endif %}
+                    </div>
                     {% if item.medium.type == "video" %}
                     <img
                         src="/source/{{ item.medium.id }}/showcase.avif"
-                        class="mx-2 rounded thumbnail-animated"
+                        class="rounded thumbnail-animated"
                         style="
                             position: absolute;
                             top: 0;
@@ -41,18 +51,11 @@
                 </div>
             </td>
             <td>
-                <b class="text-white font-weight-bold"
+                <b class="text-white font-weight-bold medium-name"
                     >{{ item.medium.name }}</b
                 >
                 <p class="text-secondary">
                     {{ item.medium.owner }}<br />{{ item.medium.views }} views
-                    {% if item.medium.type == "video" %}
-                    <i class="fa-solid fa-video fa-sm ms-1"></i>
-                    {% else if item.medium.type == "audio" %}
-                    <i class="fa-solid fa-music fa-sm ms-1"></i>
-                    {% else if item.medium.type == "picture" %}
-                    <i class="fa-solid fa-image fa-sm ms-1"></i>
-                    {% endif %}
                 </p>
             </td>
         </tr>
