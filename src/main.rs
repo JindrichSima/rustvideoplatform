@@ -42,6 +42,7 @@ struct Config {
     custom_session_domain: Option<String>,
     meilisearch_url: String,
     meilisearch_key: Option<String>,
+    source_server_url: String,
 }
 #[tokio::main]
 async fn main() {

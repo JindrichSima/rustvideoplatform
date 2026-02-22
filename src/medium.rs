@@ -172,6 +172,7 @@ async fn medium_description_prepare(
 #[template(path = "pages/hx-mediumcard.html", escape = "none")]
 struct HXMediumCardTemplate {
     media: Vec<Medium>,
+    config: Config,
 }
 
 #[derive(Template)]
@@ -179,4 +180,5 @@ struct HXMediumCardTemplate {
 struct HXMediumListTemplate {
     current_medium_id: String,
     media: Vec<Medium>,
+    config: Config,
 }

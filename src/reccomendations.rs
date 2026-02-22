@@ -1,4 +1,5 @@
 async fn hx_recommended(
+    Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
@@ -18,6 +19,7 @@ async fn hx_recommended(
     let template = HXMediumListTemplate {
         current_medium_id: mediumid,
         media,
+        config
     };
     match template.render() {
         Ok(rendered) => Ok(Html(minifi_html(rendered))),

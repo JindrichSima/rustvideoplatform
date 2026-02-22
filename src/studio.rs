@@ -39,8 +39,10 @@ struct MediumStudio {
 #[template(path = "pages/hx-studio.html", escape = "none")]
 struct HXStudioTemplate {
     media: Vec<MediumStudio>,
+    config: Config,
 }
 async fn hx_studio(
+    Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
     headers: HeaderMap,
@@ -60,7 +62,7 @@ async fn hx_studio(
     .fetch_all(&pool)
     .await
     .expect("Database error");
-    let template = HXStudioTemplate { media };
+    let template = HXStudioTemplate { media, config };
     Html(minifi_html(template.render().unwrap()))
 }
 

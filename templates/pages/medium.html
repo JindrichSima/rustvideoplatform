@@ -72,11 +72,11 @@
         <meta property="og:type" content="image" />
         <meta
             property="og:image"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/picture.avif"
+            content="https://{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
         />
         <meta
             property="og:image:secure_url"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/picture.avif"
+            content="https://{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
         />
         <meta property="og:image:type" content="image/avif" />
         {% endif %}
@@ -91,7 +91,7 @@
                         {% if medium_type == "video" %}
                         <media-player
                             view-type="video"
-                            src="/source/{{ medium_id }}/video/video.mpd"
+                            src="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.mpd"
                             aspect-ratio="16/9"
                             load="eager"
                             posterLoad="eager"
@@ -104,7 +104,7 @@
                                 {% if medium_captions_exist %} {% for
                                 caption_name in medium_captions_list %}
                                 <track
-                                    src="/source/{{ medium_id }}/captions/{{ caption_name }}.vtt"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption_name }}.vtt"
                                     kind="subtitles"
                                     label="{{ caption_name }}"
                                     lang="{{caption_name}}"
@@ -112,14 +112,14 @@
                                 {% endfor %} {% endif %} {% if
                                 medium_chapters_exist %}
                                 <track
-                                    src="/source/{{ medium_id }}/chapters.vtt"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/chapters.vtt"
                                     kind="chapters"
                                     default
                                 />
                                 {% endif %}
                                 <media-poster
                                     class="vds-poster"
-                                    src="/source/{{ medium_id }}/thumbnail.avif"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/thumbnail.avif"
                                     alt="Cover Image"
                                 ></media-poster>
                             </media-provider>
@@ -135,7 +135,7 @@
                         </media-player>
                         {% else if medium_type == "audio" %}
                         <media-player
-                            src="/source/{{ medium_id }}/audio.ogg"
+                            src="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg"
                             view-type="video"
                             aspect-ratio="16/9"
                             load="eager"
@@ -149,7 +149,7 @@
                                 {% if medium_captions_exist %} {% for
                                 caption_name in medium_captions_list %}
                                 <track
-                                    src="/source/{{ medium_id }}/captions/{{ caption_name }}.vtt"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption_name }}.vtt"
                                     kind="subtitles"
                                     label="{{ caption_name }}"
                                     lang="{{caption_name}}"
@@ -157,14 +157,14 @@
                                 {% endfor %} {% endif %} {% if
                                 medium_chapters_exist %}
                                 <track
-                                    src="/source/{{ medium_id }}/chapters.vtt"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/chapters.vtt"
                                     kind="chapters"
                                     default
                                 />
                                 {% endif %}
                                 <media-poster
                                     class="vds-poster"
-                                    src="/source/{{ medium_id }}/thumbnail.avif"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/thumbnail.avif"
                                     alt="Cover Image"
                                 ></media-poster>
                             </media-provider>
@@ -172,7 +172,7 @@
                         </media-player>
                         {% else if medium_type == "picture" %}
                         <img
-                            src="/source/{{ medium_id }}/picture.avif"
+                            src="{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
                             class="medium-picture"
                         />
                         {% endif %}
@@ -249,21 +249,21 @@
                             <li class="mx-4">
                                 {% if medium_type == "video" %}
                                 <a
-                                    href="/source/{{ medium_id }}/video/video.webm"
+                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.webm"
                                     class="text-white text-decoration-none"
                                     download="{{ medium_id }}.webm"
                                     ><i class="fa-solid fa-download fa-xl"></i
                                 ></a>
                                 {% else if medium_type == "audio" %}
                                 <a
-                                    href="/source/{{ medium_id }}/audio.ogg"
+                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg"
                                     class="text-white text-decoration-none"
                                     download="{{ medium_id }}.ogg"
                                     ><i class="fa-solid fa-download fa-xl"></i
                                 ></a>
                                 {% else if medium_type == "picture" %}
                                 <a
-                                    href="/source/{{ medium_id }}/picture.avif"
+                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
                                     class="text-white text-decoration-none"
                                     download="{{ medium_id }}.avif"
                                     ><i class="fa-solid fa-download fa-xl"></i

@@ -14,7 +14,7 @@
                         style="position: relative; width: 176px; height: 99px"
                     >
                         <img
-                            src="/source/{{ item.id }}/thumbnail.avif"
+                            src="{{ config.source_server_url }}/source/{{ item.id }}/thumbnail.avif"
                             class="rounded {% if item.type == "video" %}thumbnail-static{% endif %}"
                             width="176"
                             height="99"
@@ -30,7 +30,7 @@
                         </div>
                         {% if item.type == "video" %}
                         <img
-                            src="/source/{{ item.id }}/showcase.avif"
+                            src="{{ config.source_server_url }}/source/{{ item.id }}/showcase.avif"
                             class="rounded thumbnail-animated"
                             width="176"
                             height="99"

@@ -21,6 +21,7 @@ async fn subscriptions(
 }
 
 async fn hx_subscriptions(
+    Extension(config): Extension<Config>,
     headers: HeaderMap,
     Extension(pool): Extension<PgPool>,
     Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
@@ -50,7 +51,7 @@ async fn hx_subscriptions(
     .await
     .expect("Database error");
 
-    let template = HXMediumCardTemplate { media };
+    let template = HXMediumCardTemplate { media, config };
     Html(minifi_html(template.render().unwrap()))
 }
 

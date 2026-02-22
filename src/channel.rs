@@ -61,6 +61,7 @@ WHERE
 }
 
 async fn hx_usermedia(
+    Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
@@ -70,6 +71,6 @@ async fn hx_usermedia(
     .fetch_all(&pool)
     .await
     .expect("Database error");
-    let template = HXMediumCardTemplate { media };
+    let template = HXMediumCardTemplate { media, config };
     Html(minifi_html(template.render().unwrap()))
 }

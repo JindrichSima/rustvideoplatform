@@ -33,6 +33,7 @@ struct HXSearch {
 }
 
 async fn hx_search_suggestions(
+    Extension(config): Extension<Config>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     Form(form): Form<HXSearch>,
 ) -> axum::response::Html<String> {
@@ -72,7 +73,8 @@ async fn hx_search_suggestions(
 
             let template = HXMediumListTemplate {
                 current_medium_id: String::new(),
-                media
+                media,
+                config
             };
             Html(template.render().unwrap())
         }
@@ -111,6 +113,7 @@ struct HXSearchTemplate {
     total_hits: usize,
     query_time_ms: usize,
     is_first_page: bool,
+    config: Config,
 }
 
 #[derive(Debug, Clone)]
@@ -127,6 +130,7 @@ struct MeiliSearchHit {
 }
 
 async fn hx_search(
+    Extension(config): Extension<Config>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     Path(pageid): Path<usize>,
     Form(form): Form<HXSearchForm>,
@@ -246,6 +250,7 @@ async fn hx_search(
                 total_hits,
                 query_time_ms,
                 is_first_page: pageid == 0,
+                config
             };
             Html(template.render().unwrap())
         }

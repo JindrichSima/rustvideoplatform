@@ -42,6 +42,7 @@ struct ListPageTemplate {
 struct HXListItemsTemplate {
     items: Vec<Medium>,
     list_id: String,
+    config: Config,
 }
 
 #[derive(Template)]
@@ -121,10 +122,6 @@ async fn medium_in_list(
     };
 
     let user_info = get_user_login(headers.clone(), &pool, session_store).await;
-    let is_owner = user_info
-        .as_ref()
-        .map(|u| u.login == list.owner)
-        .unwrap_or(false);
     let is_logged_in = user_info.is_some();
 
     let common_headers = extract_common_headers(&headers).unwrap();
@@ -186,6 +183,7 @@ async fn medium_in_list(
 }
 
 async fn hx_list_items(
+    Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Path(listid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
@@ -201,11 +199,13 @@ async fn hx_list_items(
     let template = HXListItemsTemplate {
         items,
         list_id: listid,
+        config
     };
     Html(minifi_html(template.render().unwrap()))
 }
 
 async fn hx_list_sidebar(
+    Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
@@ -221,6 +221,7 @@ async fn hx_list_sidebar(
     let template = HXMediumListTemplate {
         media,
         current_medium_id: mediumid,
+        config
     };
     Html(minifi_html(template.render().unwrap()))
 }
