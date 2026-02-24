@@ -154,21 +154,104 @@ fn generate_medium_id() -> String {
 }
 
 fn detect_medium_type_mime(mime: String) -> String {
-    let result;
     let mime_type = mime.to_ascii_lowercase();
-    if mime_type.contains("video") {
-        result = "video";
+
+    // --- Video ---
+    if mime_type.contains("video")
+        || matches!(
+            mime_type.as_str(),
+            "application/x-matroska"
+                | "application/ogg"  // .ogv
+        )
+    {
+        return "video".to_owned();
     }
-    else if mime_type.contains("audio") {
-        result = "audio"
+
+    // --- Audio ---
+    if mime_type.contains("audio")
+        || matches!(
+            mime_type.as_str(),
+            "application/ogg"        // .ogg / .oga
+                | "application/x-ogg"
+                | "application/flac"
+                | "application/x-flac"
+                | "application/mp4"  // audio-only mp4
+        )
+    {
+        return "audio".to_owned();
     }
-    else if mime_type.contains("image") {
-        result = "picture"
+
+    // --- Picture ---
+    if mime_type.contains("image")
+        || matches!(
+            mime_type.as_str(),
+            "application/dicom"      // medical imaging
+        )
+    {
+        return "picture".to_owned();
     }
-    else {
-        result = "other"
+
+    // --- Document: PDF ---
+    if mime_type == "application/pdf" {
+        return "document_pdf".to_owned();
     }
-    result.to_owned()
+
+    // --- Document: Writer (word processors) ---
+    if matches!(
+        mime_type.as_str(),
+        // OpenDocument
+        "application/vnd.oasis.opendocument.text"
+            | "application/vnd.oasis.opendocument.text-template"
+            // Legacy MS Word
+            | "application/msword"
+            // Modern MS Word
+            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            | "application/vnd.openxmlformats-officedocument.wordprocessingml.template"
+            // Apple Pages
+            | "application/vnd.apple.pages"
+            // Rich Text / plain text variants
+            | "application/rtf"
+            | "text/rtf"
+    ) {
+        return "document_writer".to_owned();
+    }
+
+    // --- Document: Spreadsheet ---
+    if matches!(
+        mime_type.as_str(),
+        // OpenDocument
+        "application/vnd.oasis.opendocument.spreadsheet"
+            | "application/vnd.oasis.opendocument.spreadsheet-template"
+            // Legacy MS Excel
+            | "application/vnd.ms-excel"
+            // Modern MS Excel
+            | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            | "application/vnd.openxmlformats-officedocument.spreadsheetml.template"
+            // Apple Numbers
+            | "application/vnd.apple.numbers"
+    ) {
+        return "document_spreadsheet".to_owned();
+    }
+
+    // --- Document: Presentation ---
+    if matches!(
+        mime_type.as_str(),
+        // OpenDocument
+        "application/vnd.oasis.opendocument.presentation"
+            | "application/vnd.oasis.opendocument.presentation-template"
+            // Legacy MS PowerPoint
+            | "application/vnd.ms-powerpoint"
+            // Modern MS PowerPoint
+            | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            | "application/vnd.openxmlformats-officedocument.presentationml.template"
+            | "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
+            // Apple Keynote
+            | "application/vnd.apple.keynote"
+    ) {
+        return "document_presentation".to_owned();
+    }
+
+    "other".to_owned()
 }
 
 async fn copy_dir(src: &str, dest: &str) -> io::Result<()> {
