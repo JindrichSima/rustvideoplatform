@@ -17,41 +17,7 @@
             type="module"
             defer
         ></script>
-        {% endif %}
-        {% include "component-dependencies.html" %}
-
-        {% if medium_type == "video" %}
-        <script>
-        async function preloadPreviewAssets(vttUrl) {
-          const res = await fetch(vttUrl, { mode: 'cors' });
-          const text = await res.text();
-
-          const spriteUrls = new Set();
-
-          text.split('\n').forEach(line => {
-            if (line.includes('.avif')) {
-              const url = line.split('#')[0].trim();
-              spriteUrls.add(new URL(url, vttUrl).href);
-            }
-          });
-
-          spriteUrls.forEach(url => {
-            const img = new Image();
-            img.src = url;
-          });
-        }
-
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(() => {
-            preloadPreviewAssets('/m/{{ medium_id }}/previews.vtt');
-          });
-        } else {
-          setTimeout(() => {
-            preloadPreviewAssets('/m/{{ medium_id }}/previews.vtt');
-          }, 2000);
-        }
-        </script>
-        {% endif %}
+        {% endif %} {% include "component-dependencies.html" %}
 
         <title>{{ medium_name }}</title>
 
