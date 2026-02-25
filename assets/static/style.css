@@ -15893,8 +15893,8 @@ body.sidebar-collapsed .sidebarbackground {
 
 .pdf-fullscreen-btn {
     position: absolute;
-    top: 12px;
-    right: 12px;
+    top: 90%;
+    right: 4%;
     background: rgba(0, 0, 0, 0.6);
     color: #fff;
     border: none;
