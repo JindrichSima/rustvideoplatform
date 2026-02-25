@@ -63,3 +63,45 @@ function closeListModal(event) {
         event.target.style.display = 'none';
     }
 }
+
+function togglePdfFullscreen() {
+    var wrapper = document.getElementById('pdfViewerWrapper');
+    var icon = document.getElementById('pdfFullscreenIcon');
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (wrapper.requestFullscreen) {
+            wrapper.requestFullscreen();
+        } else if (wrapper.webkitRequestFullscreen) {
+            wrapper.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+document.addEventListener('fullscreenchange', function () {
+    var icon = document.getElementById('pdfFullscreenIcon');
+    if (!icon) return;
+    if (document.fullscreenElement) {
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    } else {
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+    }
+});
+
+document.addEventListener('webkitfullscreenchange', function () {
+    var icon = document.getElementById('pdfFullscreenIcon');
+    if (!icon) return;
+    if (document.webkitFullscreenElement) {
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    } else {
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+    }
+});

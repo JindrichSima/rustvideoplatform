@@ -79,6 +79,8 @@
             content="https://{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
         />
         <meta property="og:image:type" content="image/avif" />
+        {% else if medium_type == "document_pdf" %}
+        <meta property="og:type" content="article" />
         {% endif %}
     </head>
 
@@ -175,6 +177,21 @@
                             src="{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
                             class="medium-picture"
                         />
+                        {% else if medium_type == "document_pdf" %}
+                        <div class="pdf-viewer-wrapper" id="pdfViewerWrapper">
+                            <embed
+                                src="{{ config.source_server_url }}/source/{{ medium_id }}/document.pdf"
+                                type="application/pdf"
+                                class="medium-pdf"
+                            />
+                            <button
+                                class="pdf-fullscreen-btn"
+                                onclick="togglePdfFullscreen()"
+                                title="Toggle fullscreen"
+                            >
+                                <i class="fa-solid fa-expand" id="pdfFullscreenIcon"></i>
+                            </button>
+                        </div>
                         {% endif %}
                     </div>
                     <div>
@@ -191,6 +208,8 @@
                                     <i class="fa-solid fa-music fa-sm ms-4"></i>
                                     {% else if medium_type == "picture" %}
                                     <i class="fa-solid fa-image fa-sm ms-4"></i>
+                                    {% else if medium_type == "document_pdf" %}
+                                    <i class="fa-solid fa-file-pdf fa-sm ms-4"></i>
                                     {% endif %}
                                 </h1>
                             </li>
@@ -266,6 +285,13 @@
                                     href="{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
                                     class="text-white text-decoration-none"
                                     download="{{ medium_id }}.avif"
+                                    ><i class="fa-solid fa-download fa-xl"></i
+                                ></a>
+                                {% else if medium_type == "document_pdf" %}
+                                <a
+                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/document.pdf"
+                                    class="text-white text-decoration-none"
+                                    download="{{ medium_id }}.pdf"
                                     ><i class="fa-solid fa-download fa-xl"></i
                                 ></a>
                                 {% endif %}
