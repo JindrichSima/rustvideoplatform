@@ -1,0 +1,26 @@
+{% for group in groups %}
+<div class="col-xl-4 col-lg-6 col-12 my-3">
+    <div class="bg-hover rounded border p-3" style="min-height: 80px;">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <b class="text-white"><i class="fa-solid fa-users me-2"></i>{{ group.name }}</b>
+                <p class="text-secondary mb-0">{{ group.member_count.unwrap_or(0) }} members</p>
+            </div>
+            <div class="d-flex gap-2">
+                <span hx-get="/hx/group/{{ group.id }}/members" hx-target="#group-members-panel" class="text-primary" style="cursor:pointer;" title="Manage members">
+                    <i class="fa-solid fa-user-gear"></i>
+                </span>
+                <span hx-get="/hx/deletegroup/{{ group.id }}" hx-target="#groups-list" hx-confirm="Are you sure you want to delete this group? Media and lists restricted to this group will become hidden." class="text-secondary" style="cursor:pointer;" title="Delete group">
+                    <i class="fa-solid fa-trash"></i>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% if groups.is_empty() %}
+<p class="text-secondary text-center">No groups yet. Create one above to restrict media and lists to specific users.</p>
+{% endif %}
+<div class="col-12">
+    <div id="group-members-panel"></div>
+</div>

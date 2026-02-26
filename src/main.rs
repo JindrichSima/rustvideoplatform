@@ -157,6 +157,15 @@ async fn main() {
         .route("/hx/removefromlist/{listid}/{mediumid}", get(hx_remove_from_list))
         .route("/hx/deletelist/{listid}", get(hx_delete_list))
         .route("/hx/userlists/{userid}", get(hx_user_lists))
+        // Group management routes
+        .route("/studio/groups", get(studio_groups))
+        .route("/hx/studio/groups", get(hx_studio_groups))
+        .route("/hx/creategroup", post(hx_create_group))
+        .route("/hx/deletegroup/{groupid}", get(hx_delete_group))
+        .route("/hx/group/{groupid}/members", get(hx_group_members))
+        .route("/hx/group/{groupid}/addmember", post(hx_add_group_member))
+        .route("/hx/group/{groupid}/removemember/{login}", get(hx_remove_group_member))
+        .route("/hx/usergroups.json", get(hx_user_groups_json))
         .nest("/source", static_router("source"))
         .layer(Extension(pool))
         .layer(Extension(config))
@@ -191,3 +200,4 @@ include!("upload.rs");
 include!("concept.rs");
 include!("serve.rs");
 include!("lists.rs");
+include!("groups.rs");

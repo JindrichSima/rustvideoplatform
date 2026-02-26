@@ -8,8 +8,10 @@
             <span hx-get="/hx/deletelist/{{ list.id }}" hx-confirm="Are you sure you want to delete this list?" class="text-secondary" style="cursor:pointer;" title="Delete list"><i class="fa-solid fa-trash"></i></span>
         </div>
         <p class="text-secondary mb-0">{{ list.item_count.unwrap_or(0) }} items
-            {% if list.public %}
+            {% if list.visibility == "public" %}
             <i class="fa-solid fa-globe ms-1" title="Public"></i>
+            {% else if list.visibility == "restricted" %}
+            <i class="fa-solid fa-users ms-1" title="Restricted to Group"></i>
             {% else %}
             <i class="fa-solid fa-lock ms-1" title="Private"></i>
             {% endif %}

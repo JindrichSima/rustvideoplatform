@@ -1,0 +1,53 @@
+<div class="card border p-3 mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="text-white m-0"><i class="fa-solid fa-users me-2"></i>{{ group.name }} - Members</h5>
+    </div>
+    <hr class="mt-0">
+    {% if is_owner %}
+    <form hx-post="/hx/group/{{ group.id }}/addmember" hx-target="#group-members-panel" class="mb-3">
+        <div class="input-group" style="max-width:400px;">
+            <input type="text" name="user_login" class="form-control" placeholder="Username to add..." required>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-user-plus"></i>&nbsp;Add
+            </button>
+        </div>
+    </form>
+    {% endif %}
+    {% if members.is_empty() %}
+    <p class="text-secondary">No members yet. Add users by their username above.</p>
+    {% else %}
+    <div class="table-responsive">
+        <table class="table table-dark table-hover">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    {% if is_owner %}
+                    <th style="width:80px;"></th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for member in members %}
+                <tr>
+                    <td>
+                        <a href="/channel/{{ member.user_login }}" class="text-white text-decoration-none">
+                            <i class="fa-solid fa-user me-1"></i>{{ member.user_login }}
+                        </a>
+                    </td>
+                    {% if is_owner %}
+                    <td>
+                        <a hx-get="/hx/group/{{ group.id }}/removemember/{{ member.user_login }}"
+                           hx-target="#group-members-panel"
+                           hx-confirm="Remove {{ member.user_login }} from this group?"
+                           class="btn btn-sm btn-outline-danger" title="Remove member">
+                            <i class="fa-solid fa-user-minus"></i>
+                        </a>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>

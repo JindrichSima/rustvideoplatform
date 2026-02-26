@@ -37,16 +37,25 @@ async fn hx_subscriptions(
         }
     };
 
-    let media = sqlx::query_as!(
-        Medium,
+    let media: Vec<Medium> = sqlx::query(
         "SELECT m.id, m.name, m.owner, m.views, m.type
          FROM media m
          INNER JOIN subscriptions s ON m.owner = s.target
-         WHERE s.subscriber = $1 AND m.public = true
+         WHERE s.subscriber = $1 AND (m.visibility = 'public' OR (m.visibility = 'restricted' AND m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)))
          ORDER BY m.upload DESC
-         LIMIT 100;",
-        user.login
+         LIMIT 100;"
     )
+    .bind(&user.login)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        Medium {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            views: row.get("views"),
+            r#type: row.get("type"),
+        }
+    })
     .fetch_all(&pool)
     .await
     .expect("Database error");

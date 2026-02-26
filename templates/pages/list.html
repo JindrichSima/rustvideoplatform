@@ -24,8 +24,10 @@
                     </div>
                     <p class="text-secondary">
                         by <a href="/channel/{{ list.owner }}" class="text-secondary text-decoration-none">{{ list.owner }}</a>
-                        {% if list.public %}
+                        {% if list.visibility == "public" %}
                         <i class="fa-solid fa-globe fa-sm ms-2"></i> Public
+                        {% else if list.visibility == "restricted" %}
+                        <i class="fa-solid fa-users fa-sm ms-2"></i> Restricted
                         {% else %}
                         <i class="fa-solid fa-lock fa-sm ms-2"></i> Private
                         {% endif %}

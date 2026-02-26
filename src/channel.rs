@@ -63,14 +63,32 @@ WHERE
 async fn hx_usermedia(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
+    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let media = sqlx::query_as!(Medium,
-        "SELECT id,name,owner,views,type FROM media WHERE public=true AND owner=$1 ORDER BY upload DESC;",userid
+    let user = get_user_login(headers, &pool, session_store).await;
+    let user_login = user.map(|u| u.login).unwrap_or_default();
+
+    let media: Vec<Medium> = sqlx::query(
+        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY upload DESC;"
     )
+    .bind(&userid)
+    .bind(&user_login)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        Medium {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            views: row.get("views"),
+            r#type: row.get("type"),
+        }
+    })
     .fetch_all(&pool)
     .await
     .expect("Database error");
+
     let template = HXMediumCardTemplate { media, config };
     Html(minifi_html(template.render().unwrap()))
 }

@@ -112,11 +112,21 @@ async fn hx_studio_lists(
         ));
     }
     let user_info = user_info.unwrap();
-    let lists = sqlx::query_as!(
-        ListWithCount,
-        "SELECT l.id, l.name, l.owner, l.public, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;",
-        user_info.login
+    let lists: Vec<ListWithCount> = sqlx::query(
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;"
     )
+    .bind(&user_info.login)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        ListWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            visibility: row.get("visibility"),
+            restricted_to_group: row.get("restricted_to_group"),
+            item_count: row.get("item_count"),
+        }
+    })
     .fetch_all(&pool)
     .await
     .expect("Database error");
@@ -128,7 +138,8 @@ async fn hx_studio_lists(
 struct MediumEdit {
     id: String,
     name: String,
-    public: bool,
+    visibility: String,
+    restricted_to_group: String,
     medium_type: String,
 }
 #[derive(Template)]
@@ -138,6 +149,7 @@ struct StudioEditTemplate {
     config: Config,
     medium: MediumEdit,
     common_headers: CommonHeaders,
+    owner_groups: Vec<UserGroup>,
 }
 async fn studio_edit(
     Extension(config): Extension<Config>,
@@ -154,32 +166,51 @@ async fn studio_edit(
     }
     let user_info = user_info.unwrap();
 
-    let medium = sqlx::query!(
-        "SELECT id,name,owner,public,type FROM media WHERE id=$1;",
-        mediumid
+    let medium = sqlx::query(
+        "SELECT id,name,owner,visibility,restricted_to_group,type FROM media WHERE id=$1;"
     )
+    .bind(&mediumid)
     .fetch_one(&pool)
     .await;
 
     match medium {
         Ok(record) => {
-            if record.owner != user_info.login {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
                 return Html(minifi_html(
                     "<script>window.location.replace(\"/studio\");</script>".to_owned(),
                 ));
             }
+
+            // Fetch user's groups for the dropdown
+            let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+                .bind(&user_info.login)
+                .map(|row: sqlx::postgres::PgRow| {
+                    UserGroup {
+                        id: row.get("id"),
+                        name: row.get("name"),
+                        owner: row.get("owner"),
+                    }
+                })
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default();
+
             let sidebar = generate_sidebar(&config, "studio".to_owned());
             let common_headers = extract_common_headers(&headers).unwrap();
             let template = StudioEditTemplate {
                 sidebar,
                 config,
                 medium: MediumEdit {
-                    id: record.id,
-                    name: record.name,
-                    public: record.public,
-                    medium_type: record.r#type,
+                    id: record.get("id"),
+                    name: record.get("name"),
+                    visibility: record.get("visibility"),
+                    restricted_to_group: record.get::<Option<String>, _>("restricted_to_group").unwrap_or_default(),
+                    medium_type: record.get("type"),
                 },
                 common_headers,
+                owner_groups,
             };
             Html(minifi_html(template.render().unwrap()))
         }
@@ -194,6 +225,7 @@ struct EditForm {
     medium_name: String,
     medium_description: String,
     medium_visibility: String,
+    medium_restricted_group: Option<String>,
 }
 async fn studio_edit_save(
     Extension(pool): Extension<PgPool>,
@@ -223,17 +255,28 @@ async fn studio_edit_save(
         }
     }
 
-    let ispublic = form.medium_visibility == "public";
+    let visibility = match form.medium_visibility.as_str() {
+        "public" | "hidden" | "restricted" => form.medium_visibility.clone(),
+        _ => "hidden".to_owned(),
+    };
+    let ispublic = visibility == "public";
+    let restricted_to_group = if visibility == "restricted" {
+        form.medium_restricted_group.clone().filter(|g| !g.is_empty())
+    } else {
+        None
+    };
     let description: serde_json::Value =
         serde_json::from_str(&form.medium_description).unwrap_or(serde_json::Value::Null);
 
-    let update_result = sqlx::query!(
-        "UPDATE media SET name=$1, description=$2, public=$3 WHERE id=$4;",
-        form.medium_name,
-        description,
-        ispublic,
-        mediumid
+    let update_result = sqlx::query(
+        "UPDATE media SET name=$1, description=$2, public=$3, visibility=$4, restricted_to_group=$5 WHERE id=$6;"
     )
+    .bind(&form.medium_name)
+    .bind(&description)
+    .bind(ispublic)
+    .bind(&visibility)
+    .bind(&restricted_to_group)
+    .bind(&mediumid)
     .execute(&pool)
     .await;
 
