@@ -96,14 +96,16 @@ fn extract_common_headers(headers: &HeaderMap) -> Result<CommonHeaders, &'static
 async fn get_user_login(
     headers: HeaderMap,
     pool: &PgPool,
-    session_store: Arc<Mutex<AHashMap<String, String>>>,
+    mut redis: RedisConn,
 ) -> Option<User> {
     let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
         .get("session")?
         .to_owned();
 
-    let session_store_guard = session_store.lock().await;
-    let login = session_store_guard.get(&session_cookie)?;
+    let login: String = redis
+        .get(format!("session:{}", session_cookie))
+        .await
+        .ok()?;
 
     let name = sqlx::query!("SELECT name FROM users WHERE login=$1;", login)
         .fetch_one(pool)
@@ -112,7 +114,7 @@ async fn get_user_login(
         .name;
 
     Some(User {
-        login: login.to_owned(),
+        login,
         name,
     })
 }
@@ -287,18 +289,34 @@ async fn move_dir(src: &str, dest: &str) -> io::Result<()> {
     Ok(())
 }
 
-async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str) -> bool {
-    sqlx::query("SELECT 1 FROM user_group_members WHERE group_id = $1 AND user_login = $2")
+async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
+    let redis_key = format!("group:{}:members", group_id);
+
+    // Check if membership set is cached in Redis
+    let key_exists: bool = redis.exists(&redis_key).await.unwrap_or(false);
+
+    if key_exists {
+        return redis.sismember(&redis_key, user_login).await.unwrap_or(false);
+    }
+
+    // Cache miss - load all members from DB and cache in Redis
+    let members: Vec<String> = sqlx::query_scalar("SELECT user_login FROM user_group_members WHERE group_id = $1")
         .bind(group_id)
-        .bind(user_login)
-        .fetch_optional(pool)
+        .fetch_all(pool)
         .await
-        .ok()
-        .flatten()
-        .is_some()
+        .unwrap_or_default();
+
+    let is_member = members.contains(&user_login.to_owned());
+
+    if !members.is_empty() {
+        let _: Result<(), _> = redis.sadd(&redis_key, &members).await;
+        let _: Result<(), _> = redis.expire(&redis_key, 3600).await;
+    }
+
+    is_member
 }
 
-async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>) -> bool {
+async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
     match visibility {
         "public" => true,
         "restricted" => {
@@ -307,7 +325,7 @@ async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_gr
                     return true;
                 }
                 if let Some(group_id) = restricted_to_group {
-                    return is_group_member(pool, group_id, &u.login).await;
+                    return is_group_member(pool, group_id, &u.login, redis).await;
                 }
             }
             false

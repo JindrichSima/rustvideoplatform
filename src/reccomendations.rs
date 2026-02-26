@@ -1,11 +1,11 @@
 async fn hx_recommended(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
-    let user = get_user_login(headers, &pool, session_store).await;
+    let user = get_user_login(headers, &pool, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
 
     let media: Vec<Medium> = sqlx::query(

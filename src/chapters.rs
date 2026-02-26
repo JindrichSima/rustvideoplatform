@@ -6,11 +6,11 @@ struct ChapterData {
 
 async fn studio_chapters_get(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::Value::Array(vec![]));
     }
@@ -43,12 +43,12 @@ async fn studio_chapters_get(
 
 async fn studio_chapters_save(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(chapters): Json<Vec<ChapterData>>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)

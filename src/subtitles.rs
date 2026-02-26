@@ -1,10 +1,10 @@
 async fn studio_subtitles_get(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::Value::Array(vec![]));
     }
@@ -40,12 +40,12 @@ async fn studio_subtitles_get(
 
 async fn studio_subtitles_add(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     mut multipart: Multipart,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -175,12 +175,12 @@ struct SubtitleDeleteForm {
 
 async fn studio_subtitles_delete(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(form): Json<SubtitleDeleteForm>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)

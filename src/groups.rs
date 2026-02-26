@@ -39,10 +39,10 @@ struct StudioGroupsTemplate {
 async fn studio_groups(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, session_store).await).await {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -66,10 +66,10 @@ struct HXStudioGroupsTemplate {
 
 async fn hx_studio_groups(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -100,11 +100,11 @@ async fn hx_studio_groups(
 
 async fn hx_create_group(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Form(form): Form<CreateGroupForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -144,11 +144,11 @@ async fn hx_create_group(
 
 async fn hx_delete_group(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(groupid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -197,6 +197,9 @@ async fn hx_delete_group(
         .await
         .expect("Database error");
 
+    // Invalidate Redis group membership cache
+    let _: Result<(), _> = redis.clone().del(format!("group:{}:members", groupid)).await;
+
     // Return updated groups list
     let groups: Vec<UserGroupWithCount> = sqlx::query(
         "SELECT g.id, g.name, g.owner, (SELECT COUNT(*) FROM user_group_members gm WHERE gm.group_id = g.id) AS member_count FROM user_groups g WHERE g.owner = $1 ORDER BY g.created DESC;"
@@ -229,11 +232,11 @@ struct HXGroupMembersTemplate {
 
 async fn hx_group_members(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(groupid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -281,12 +284,12 @@ async fn hx_group_members(
 
 async fn hx_add_group_member(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(groupid): Path<String>,
     Form(form): Form<AddMemberForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -329,6 +332,9 @@ async fn hx_add_group_member(
             .bind(&form.user_login)
             .execute(&pool)
             .await;
+
+        // Invalidate Redis group membership cache
+        let _: Result<(), _> = redis.clone().del(format!("group:{}:members", groupid)).await;
     }
 
     // Return updated members list
@@ -354,11 +360,11 @@ async fn hx_add_group_member(
 
 async fn hx_remove_group_member(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((groupid, login)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -394,6 +400,9 @@ async fn hx_remove_group_member(
         .await
         .expect("Database error");
 
+    // Invalidate Redis group membership cache
+    let _: Result<(), _> = redis.clone().del(format!("group:{}:members", groupid)).await;
+
     // Return updated members list
     let members: Vec<GroupMember> = sqlx::query("SELECT user_login FROM user_group_members WHERE group_id = $1 ORDER BY user_login;")
         .bind(&groupid)
@@ -417,10 +426,10 @@ async fn hx_remove_group_member(
 
 async fn hx_user_groups_json(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> Json<Vec<UserGroup>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(vec![]);
     }

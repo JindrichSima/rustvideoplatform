@@ -24,9 +24,9 @@ async fn hx_subscriptions(
     Extension(config): Extension<Config>,
     headers: HeaderMap,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = match get_user_login(headers, &pool, session_store).await {
+    let user = match get_user_login(headers, &pool, redis.clone()).await {
         Some(user) => user,
         None => {
             return Html(
@@ -67,10 +67,10 @@ async fn hx_subscriptions(
 async fn hx_subscribe(
     headers: HeaderMap,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<String> {
-    let user = get_user_login(headers, &pool, session_store).await.unwrap();
+    let user = get_user_login(headers, &pool, redis.clone()).await.unwrap();
     sqlx::query!(
         "INSERT INTO subscriptions (subscriber, target) VALUES ($1,$2);",
         user.login,
@@ -84,10 +84,10 @@ async fn hx_subscribe(
 async fn hx_unsubscribe(
     headers: HeaderMap,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<String> {
-    let user = get_user_login(headers, &pool, session_store).await.unwrap();
+    let user = get_user_login(headers, &pool, redis.clone()).await.unwrap();
     sqlx::query!(
         "DELETE FROM subscriptions WHERE subscriber=$1 AND target=$2;",
         user.login,
@@ -101,10 +101,10 @@ async fn hx_unsubscribe(
 async fn hx_subscribebutton(
     headers: HeaderMap,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<String> {
-    if let Some(user) = get_user_login(headers, &pool, session_store).await {
+    if let Some(user) = get_user_login(headers, &pool, redis.clone()).await {
         let issubscribed = sqlx::query!(
             "SELECT EXISTS(SELECT FROM subscriptions WHERE subscriber=$1 AND target=$2) AS issubscribed;",
             user.login,

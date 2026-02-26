@@ -25,18 +25,22 @@ use chrono::{DateTime, Datelike, Local, Timelike};
 use memory_serve::{load_assets, MemoryServe};
 use rand::{rng, Rng};
 use meilisearch_sdk::client::Client as MeilisearchClient;
+use redis::AsyncCommands;
 use serde::Deserialize;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::io::BufRead;
 use std::sync::Arc;
-use tokio::{fs, io, io::AsyncWriteExt, sync::Mutex};
+use tokio::{fs, io, io::AsyncWriteExt};
 use tower_http::services::ServeDir;
+
+type RedisConn = redis::aio::ConnectionManager;
 
 #[derive(Deserialize, Clone)]
 struct Config {
     dbconnection: String,
+    redis_url: String,
     instancename: String,
     welcome: String,
     custom_session_domain: Option<String>,
@@ -92,10 +96,11 @@ async fn main() {
         }
     }
 
-    let memory_router = MemoryServe::new(load_assets!("assets/static")).into_router();
+    let redis_client = redis::Client::open(config.redis_url.as_str()).unwrap();
+    let redis_conn = redis_client.get_connection_manager().await.unwrap();
+    println!("Redis connected: url={}", &config.redis_url);
 
-    let session_store: Arc<Mutex<AHashMap<String, String>>> =
-        Arc::new(Mutex::new(AHashMap::default()));
+    let memory_router = MemoryServe::new(load_assets!("assets/static")).into_router();
 
     let app = Router::new()
         .route("/", get(home))
@@ -169,7 +174,7 @@ async fn main() {
         .nest("/source", static_router("source"))
         .layer(Extension(pool))
         .layer(Extension(config))
-        .layer(Extension(session_store))
+        .layer(Extension(redis_conn))
         .layer(Extension(Arc::new(meilisearch_client)))
         .layer(DefaultBodyLimit::disable())
         .merge(memory_router);

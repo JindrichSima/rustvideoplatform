@@ -18,12 +18,12 @@ struct HXSidebarTemplate {
     active_item: String,
 }
 async fn hx_sidebar(
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     Extension(pool): Extension<PgPool>,
     Path(active_item): Path<String>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers, &pool, session_store).await;
+    let user = get_user_login(headers, &pool, redis.clone()).await;
     if user.is_some() {
         let template = HXSidebarTemplate {
             active_item,
