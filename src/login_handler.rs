@@ -23,7 +23,7 @@ struct User {
 async fn hx_login(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(mut redis): Extension<RedisConn>,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
     let password_hash_get = sqlx::query!(
@@ -58,10 +58,10 @@ async fn hx_login(
             session_restriction = "Path=/".to_owned()
         }
         let session_cookie_set = format!("session={}; {}", session_cookie_value, session_restriction);
-        session_store
-            .lock()
+        let _: () = redis
+            .set(format!("session:{}", session_cookie_value), &form.login)
             .await
-            .insert(session_cookie_value.clone(), form.login);
+            .unwrap();
 
         let mut response_headers = HeaderMap::new();
         response_headers.insert("Set-Cookie", session_cookie_set.parse().unwrap());
@@ -77,12 +77,12 @@ async fn hx_login(
 
 async fn hx_logout(
     headers: HeaderMap,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(mut redis): Extension<RedisConn>,
 ) -> axum::response::Html<String> {
     let session_cookie = parse_cookie_header(headers.get("Cookie").unwrap().to_str().unwrap())
         .get("session")
         .unwrap()
         .to_owned();
-    session_store.lock().await.remove_entry(&session_cookie);
+    let _: () = redis.del(format!("session:{}", session_cookie)).await.unwrap();
     Html("<h1>LOGOUT SUCESS</h1><script>window.location.replace(\"/\");</script>".to_owned())
 }

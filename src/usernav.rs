@@ -5,10 +5,10 @@ struct HXUsernavTemplate {
 }
 async fn hx_usernav(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let try_user = get_user_login(headers, &pool, session_store).await;
+    let try_user = get_user_login(headers, &pool, redis.clone()).await;
     if try_user.is_some() {
         let user = try_user.unwrap();
         let template = HXUsernavTemplate { user };

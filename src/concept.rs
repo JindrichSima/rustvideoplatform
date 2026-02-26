@@ -16,10 +16,10 @@ struct ConceptsTemplate {
 async fn concepts(
     Extension(pool): Extension<PgPool>,
     Extension(config): Extension<Config>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, session_store).await).await {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -42,10 +42,10 @@ struct HXConceptsTemplate {
 }
 async fn hx_concepts(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let userinfo = get_user_login(headers, &pool, session_store).await.unwrap();
+    let userinfo = get_user_login(headers, &pool, redis.clone()).await.unwrap();
 
     let concepts = sqlx::query_as!(
         MediumConcept,
@@ -71,11 +71,11 @@ struct ConceptTemplate {
 async fn concept(
     Extension(pool): Extension<PgPool>,
     Extension(config): Extension<Config>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     Path(conceptid): Path<String>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -127,12 +127,12 @@ struct PublishForm {
 }
 async fn publish(
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(conceptid): Path<String>,
     Form(form): Form<PublishForm>,
 ) -> axum::response::Html<String> {
-    let user_info = get_user_login(headers.clone(), &pool, session_store).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }

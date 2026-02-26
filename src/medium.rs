@@ -33,11 +33,11 @@ struct Medium {
 async fn medium(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
-    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers.clone(), &pool, session_store).await;
+    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
     let is_logged_in = user.is_some();
 
     // Fetch media with visibility info
@@ -63,7 +63,7 @@ async fn medium(
     let owner: String = medium.get("owner");
 
     // Access control for restricted content
-    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user).await {
+    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/\");</script>".to_owned(),
         ));
