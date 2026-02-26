@@ -38,9 +38,18 @@
                     <i class="fa-solid fa-plus"></i> Create
                 </button>
             </div>
-            <div class="form-check mx-2">
-                <input type="checkbox" name="public" class="form-check-input" id="listPublicCheck">
-                <label class="form-check-label text-secondary" for="listPublicCheck">Public</label>
+            <div class="d-flex align-items-center gap-2 mx-2">
+                <select name="visibility" class="form-select form-select-sm" style="width:auto;" id="listmodal-visibility" onchange="document.getElementById('listmodal-group-select').style.display = this.value === 'restricted' ? '' : 'none'">
+                    <option value="hidden">Private</option>
+                    <option value="public">Public</option>
+                    <option value="restricted">Restricted to Group</option>
+                </select>
+                <select name="restricted_group" class="form-select form-select-sm" style="width:auto;display:none;" id="listmodal-group-select">
+                    <option value="">-- Group --</option>
+                    {% for group in owner_groups %}
+                    <option value="{{ group.id }}">{{ group.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </form>
     </div>

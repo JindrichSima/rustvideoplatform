@@ -3,7 +3,11 @@
     <a href="/list/{{ list.id }}" class="text-decoration-none" preload="mouseover">
         <div class="bg-hover rounded border p-3" style="min-height: 80px;">
             <b class="text-white"><i class="fa-solid fa-list me-2"></i>{{ list.name }}</b>
-            <p class="text-secondary mb-0">{{ list.item_count.unwrap_or(0) }} items</p>
+            <p class="text-secondary mb-0">{{ list.item_count.unwrap_or(0) }} items
+                {% if list.visibility == "restricted" %}
+                <i class="fa-solid fa-users ms-1" title="Restricted"></i>
+                {% endif %}
+            </p>
         </div>
     </a>
 </div>

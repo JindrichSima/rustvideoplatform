@@ -286,3 +286,32 @@ async fn move_dir(src: &str, dest: &str) -> io::Result<()> {
     fs::remove_dir_all(src).await?;
     Ok(())
 }
+
+async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str) -> bool {
+    sqlx::query("SELECT 1 FROM user_group_members WHERE group_id = $1 AND user_login = $2")
+        .bind(group_id)
+        .bind(user_login)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+}
+
+async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>) -> bool {
+    match visibility {
+        "public" => true,
+        "restricted" => {
+            if let Some(u) = user {
+                if u.login == owner {
+                    return true;
+                }
+                if let Some(group_id) = restricted_to_group {
+                    return is_group_member(pool, group_id, &u.login).await;
+                }
+            }
+            false
+        }
+        _ => true // "hidden" - accessible via direct link (existing behavior)
+    }
+}

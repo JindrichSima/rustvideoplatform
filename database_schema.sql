@@ -8,6 +8,8 @@ CREATE TABLE public.media (
 	dislikes int8 DEFAULT 0 NOT NULL,
 	"views" int8 DEFAULT 0 NOT NULL,
 	public bool DEFAULT false NOT NULL,
+	visibility varchar DEFAULT 'hidden' NOT NULL,
+	restricted_to_group varchar,
 	"type" varchar NOT NULL,
 	CONSTRAINT videos_pk PRIMARY KEY (id)
 );
@@ -44,6 +46,8 @@ CREATE TABLE public.lists (
 	"name" varchar NOT NULL,
 	"owner" varchar(40) NOT NULL,
 	public bool DEFAULT false NOT NULL,
+	visibility varchar DEFAULT 'hidden' NOT NULL,
+	restricted_to_group varchar,
 	created int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
 	CONSTRAINT lists_pk PRIMARY KEY (id)
 );
@@ -53,3 +57,19 @@ CREATE TABLE public.list_items (
 	"position" int4 DEFAULT 0 NOT NULL,
 	added int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL
 );
+CREATE TABLE public.user_groups (
+	id varchar NOT NULL,
+	"name" varchar NOT NULL,
+	"owner" varchar(40) NOT NULL,
+	created int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
+	CONSTRAINT user_groups_pk PRIMARY KEY (id)
+);
+CREATE TABLE public.user_group_members (
+	group_id varchar NOT NULL,
+	user_login varchar(40) NOT NULL,
+	CONSTRAINT user_group_members_pk PRIMARY KEY (group_id, user_login)
+);
+
+-- Migration for existing data:
+-- UPDATE public.media SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
+-- UPDATE public.lists SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;

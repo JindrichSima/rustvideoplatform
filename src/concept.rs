@@ -66,6 +66,7 @@ struct ConceptTemplate {
     config: Config,
     concept: MediumConcept,
     common_headers: CommonHeaders,
+    owner_groups: Vec<UserGroup>,
 }
 async fn concept(
     Extension(pool): Extension<PgPool>,
@@ -89,6 +90,21 @@ async fn concept(
     .await
     .expect("Database error");
 
+    // Fetch user's groups for the dropdown
+    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+        .bind(&user_info.login)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        })
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
     let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ConceptTemplate {
@@ -96,6 +112,7 @@ async fn concept(
         config,
         concept,
         common_headers,
+        owner_groups,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -106,6 +123,7 @@ struct PublishForm {
     medium_name: String,
     medium_description: String,
     medium_visibility: String,
+    medium_restricted_group: Option<String>,
 }
 async fn publish(
     Extension(pool): Extension<PgPool>,
@@ -133,23 +151,29 @@ async fn publish(
     )
     .await;
     if concept_move.is_ok() {
-        let ispublic: bool;
-        if form.medium_visibility == "public".to_owned() {
-            ispublic = true;
+        let visibility = match form.medium_visibility.as_str() {
+            "public" | "hidden" | "restricted" => form.medium_visibility.clone(),
+            _ => "hidden".to_owned(),
+        };
+        let ispublic = visibility == "public";
+        let restricted_to_group = if visibility == "restricted" {
+            form.medium_restricted_group.clone().filter(|g| !g.is_empty())
         } else {
-            ispublic = false;
-        }
+            None
+        };
         let description: serde_json::Value =
             serde_json::from_str(&form.medium_description).unwrap();
-        let _ = sqlx::query!(
-            "INSERT INTO media (id,name,description,owner,public,type) VALUES ($1,$2,$3,$4,$5,$6);",
-            form.medium_id.to_ascii_lowercase(),
-            form.medium_name,
-            description,
-            user_info.login,
-            ispublic,
-            concept.r#type
+        let _ = sqlx::query(
+            "INSERT INTO media (id,name,description,owner,public,visibility,restricted_to_group,type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);"
         )
+        .bind(form.medium_id.to_ascii_lowercase())
+        .bind(&form.medium_name)
+        .bind(&description)
+        .bind(&user_info.login)
+        .bind(ispublic)
+        .bind(&visibility)
+        .bind(&restricted_to_group)
+        .bind(&concept.r#type)
         .execute(&pool)
         .await;
         let _ = sqlx::query!("DELETE FROM media_concepts WHERE id=$1;", concept.id)

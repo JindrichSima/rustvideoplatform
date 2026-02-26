@@ -37,21 +37,46 @@ async fn medium(
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let is_logged_in = is_logged(get_user_login(headers.clone(), &pool, session_store).await).await;
-    let common_headers = extract_common_headers(&headers).unwrap();
-    let medium = sqlx::query!(
-        "SELECT id,name,description,upload,owner,likes,dislikes,views,type FROM media WHERE id=$1;",
-        mediumid.to_ascii_lowercase()
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    let user = get_user_login(headers.clone(), &pool, session_store).await;
+    let is_logged_in = user.is_some();
 
+    // Fetch media with visibility info
+    let medium_row = sqlx::query(
+        "SELECT id,name,description,upload,owner,likes,dislikes,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
+    )
+    .bind(mediumid.to_ascii_lowercase())
+    .fetch_one(&pool)
+    .await;
+
+    let medium = match medium_row {
+        Ok(row) => row,
+        Err(_) => {
+            return Html(minifi_html(
+                "<script>window.location.replace(\"/\");</script>".to_owned(),
+            ));
+        }
+    };
+
+    use sqlx::Row;
+    let visibility: String = medium.get("visibility");
+    let restricted_to_group: Option<String> = medium.get("restricted_to_group");
+    let owner: String = medium.get("owner");
+
+    // Access control for restricted content
+    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/\");</script>".to_owned(),
+        ));
+    }
+
+    let common_headers = extract_common_headers(&headers).unwrap();
+
+    let medium_id: String = medium.get("id");
     let medium_captions_exist: bool;
     let mut medium_captions_list: Vec<String> = Vec::new();
-    if std::path::Path::new(&format!("source/{}/captions/list.txt", medium.id)).exists() {
+    if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
         medium_captions_exist = true;
-        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium.id)) {
+        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium_id)) {
             medium_captions_list.push(caption_name);
         }
     } else {
@@ -59,14 +84,14 @@ async fn medium(
     }
 
     let medium_chapters_exist: bool;
-    if std::path::Path::new(&format!("source/{}/chapters.vtt", medium.id)).exists() {
+    if std::path::Path::new(&format!("source/{}/chapters.vtt", medium_id)).exists() {
         medium_chapters_exist = true;
     } else {
         medium_chapters_exist = false;
     }
 
     let medium_previews_exist: bool;
-    if std::path::Path::new(&format!("source/{}/previews/previews.vtt", medium.id)).exists() {
+    if std::path::Path::new(&format!("source/{}/previews/previews.vtt", medium_id)).exists() {
         medium_previews_exist = true;
     } else {
         medium_previews_exist = false;
@@ -75,14 +100,14 @@ async fn medium(
     let sidebar = generate_sidebar(&config, "medium".to_owned());
     let template = MediumTemplate {
         sidebar,
-        medium_id: medium.id,
-        medium_name: medium.name,
-        medium_owner: medium.owner,
-        medium_likes: medium.likes,
-        medium_dislikes: medium.dislikes,
-        medium_upload: prettyunixtime(medium.upload).await,
-        medium_views: medium.views,
-        medium_type: medium.r#type,
+        medium_id,
+        medium_name: medium.get("name"),
+        medium_owner: medium.get("owner"),
+        medium_likes: medium.get("likes"),
+        medium_dislikes: medium.get("dislikes"),
+        medium_upload: prettyunixtime(medium.get("upload")).await,
+        medium_views: medium.get("views"),
+        medium_type: medium.get("type"),
         medium_captions_exist,
         medium_captions_list,
         medium_chapters_exist,

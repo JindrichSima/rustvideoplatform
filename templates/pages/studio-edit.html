@@ -128,15 +128,62 @@
                                     class="form-select"
                                     required
                                 >
-                                    <option value="public" {% if medium.public %}selected{% endif %}>
+                                    <option value="public" {% if medium.visibility == "public" %}selected{% endif %}>
                                         Public
                                     </option>
-                                    <option value="hidden" {% if !medium.public %}selected{% endif %}>
+                                    <option value="hidden" {% if medium.visibility == "hidden" %}selected{% endif %}>
                                         Hidden
                                     </option>
+                                    <option value="restricted" {% if medium.visibility == "restricted" %}selected{% endif %}>
+                                        Restricted to Group
+                                    </option>
                                 </select>
+                                <select
+                                    id="medium_restricted_group"
+                                    name="medium_restricted_group"
+                                    class="form-select mt-2"
+                                    style="display:none"
+                                >
+                                    <option value="">-- Select a group --</option>
+                                    {% for group in owner_groups %}
+                                    <option value="{{ group.id }}">
+                                        {{ group.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if owner_groups.is_empty() %}
+                                <small class="text-secondary mt-1" id="no-groups-hint" style="display:none">
+                                    You have no groups yet. <a href="/studio/groups" class="text-primary">Create one</a> to use restricted visibility.
+                                </small>
+                                {% endif %}
                             </div>
                         </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            var visSelect = document.getElementById('medium_visibility');
+                            var groupSelect = document.getElementById('medium_restricted_group');
+                            var noGroupsHint = document.getElementById('no-groups-hint');
+
+                            // Set initial selected group value
+                            var currentGroup = '{{ medium.restricted_to_group }}';
+                            if (currentGroup) {
+                                groupSelect.value = currentGroup;
+                            }
+
+                            // Show/hide group selector based on visibility
+                            function updateGroupVisibility() {
+                                if (visSelect.value === 'restricted') {
+                                    groupSelect.style.display = '';
+                                    if (noGroupsHint) noGroupsHint.style.display = '';
+                                } else {
+                                    groupSelect.style.display = 'none';
+                                    if (noGroupsHint) noGroupsHint.style.display = 'none';
+                                }
+                            }
+                            updateGroupVisibility();
+                            visSelect.addEventListener('change', updateGroupVisibility);
+                        });
+                        </script>
                         <div class="form-group row my-3">
                             <div class="offset-4 col-8">
                                 <button

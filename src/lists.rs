@@ -3,7 +3,8 @@ struct List {
     id: String,
     name: String,
     owner: String,
-    public: bool,
+    visibility: String,
+    restricted_to_group: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -11,7 +12,8 @@ struct ListWithCount {
     id: String,
     name: String,
     owner: String,
-    public: bool,
+    visibility: String,
+    restricted_to_group: Option<String>,
     item_count: Option<i64>,
 }
 
@@ -25,7 +27,8 @@ struct ListModalEntry {
 #[derive(Deserialize)]
 struct CreateListForm {
     name: String,
-    public: Option<String>,
+    visibility: Option<String>,
+    restricted_group: Option<String>,
 }
 
 #[derive(Template)]
@@ -50,6 +53,7 @@ struct HXListItemsTemplate {
 struct HXListModalTemplate {
     lists: Vec<ListModalEntry>,
     medium_id: String,
+    owner_groups: Vec<UserGroup>,
 }
 
 #[derive(Template)]
@@ -65,16 +69,24 @@ async fn list_page(
     headers: HeaderMap,
     Path(listid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let list = sqlx::query_as!(
-        List,
-        "SELECT id, name, owner, public FROM lists WHERE id=$1;",
-        listid
+    let list_row = sqlx::query(
+        "SELECT id, name, owner, visibility, restricted_to_group FROM lists WHERE id=$1;"
     )
+    .bind(&listid)
     .fetch_one(&pool)
     .await;
 
-    let list = match list {
-        Ok(l) => l,
+    let list = match list_row {
+        Ok(row) => {
+            use sqlx::Row;
+            List {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+                visibility: row.get("visibility"),
+                restricted_to_group: row.get("restricted_to_group"),
+            }
+        }
         Err(_) => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
@@ -87,6 +99,13 @@ async fn list_page(
         .as_ref()
         .map(|u| u.login == list.owner)
         .unwrap_or(false);
+
+    // Access control for restricted lists
+    if !is_owner && !can_access_restricted(&pool, &list.visibility, list.restricted_to_group.as_deref(), &list.owner, &user_info).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/\");</script>".to_owned(),
+        ));
+    }
 
     let sidebar = generate_sidebar(&config, "list".to_owned());
     let template = ListPageTemplate {
@@ -105,15 +124,24 @@ async fn medium_in_list(
     headers: HeaderMap,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let list = sqlx::query!(
-        "SELECT id, public, owner, name FROM lists WHERE id=$1;",
-        listid
+    let list_row = sqlx::query(
+        "SELECT id, visibility, restricted_to_group, owner, name FROM lists WHERE id=$1;"
     )
+    .bind(&listid)
     .fetch_one(&pool)
     .await;
 
-    let list = match list {
-        Ok(l) => l,
+    let list = match list_row {
+        Ok(row) => {
+            use sqlx::Row;
+            (
+                row.get::<String, _>("id"),
+                row.get::<String, _>("visibility"),
+                row.get::<Option<String>, _>("restricted_to_group"),
+                row.get::<String, _>("owner"),
+                row.get::<String, _>("name"),
+            )
+        }
         Err(_) => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
@@ -124,20 +152,50 @@ async fn medium_in_list(
     let user_info = get_user_login(headers.clone(), &pool, session_store).await;
     let is_logged_in = user_info.is_some();
 
-    let common_headers = extract_common_headers(&headers).unwrap();
-    let medium = sqlx::query!(
-        "SELECT id,name,description,upload,owner,likes,dislikes,views,type FROM media WHERE id=$1;",
-        mediumid.to_ascii_lowercase()
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    // Access control for restricted lists
+    let is_owner = user_info.as_ref().map(|u| u.login == list.3).unwrap_or(false);
+    if !is_owner && !can_access_restricted(&pool, &list.1, list.2.as_deref(), &list.3, &user_info).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/\");</script>".to_owned(),
+        ));
+    }
 
+    let common_headers = extract_common_headers(&headers).unwrap();
+
+    // Also check media access
+    let medium_row = sqlx::query(
+        "SELECT id,name,description,upload,owner,likes,dislikes,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
+    )
+    .bind(mediumid.to_ascii_lowercase())
+    .fetch_one(&pool)
+    .await;
+
+    let medium = match medium_row {
+        Ok(row) => row,
+        Err(_) => {
+            return Html(minifi_html(
+                "<script>window.location.replace(\"/\");</script>".to_owned(),
+            ));
+        }
+    };
+
+    use sqlx::Row;
+    let m_visibility: String = medium.get("visibility");
+    let m_restricted: Option<String> = medium.get("restricted_to_group");
+    let m_owner: String = medium.get("owner");
+
+    if !can_access_restricted(&pool, &m_visibility, m_restricted.as_deref(), &m_owner, &user_info).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/\");</script>".to_owned(),
+        ));
+    }
+
+    let medium_id: String = medium.get("id");
     let medium_captions_exist: bool;
     let mut medium_captions_list: Vec<String> = Vec::new();
-    if std::path::Path::new(&format!("source/{}/captions/list.txt", medium.id)).exists() {
+    if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
         medium_captions_exist = true;
-        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium.id)) {
+        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium_id)) {
             medium_captions_list.push(caption_name);
         }
     } else {
@@ -145,14 +203,14 @@ async fn medium_in_list(
     }
 
     let medium_chapters_exist: bool;
-    if std::path::Path::new(&format!("source/{}/chapters.vtt", medium.id)).exists() {
+    if std::path::Path::new(&format!("source/{}/chapters.vtt", medium_id)).exists() {
         medium_chapters_exist = true;
     } else {
         medium_chapters_exist = false;
     }
 
     let medium_previews_exist: bool;
-    if std::path::Path::new(&format!("source/{}/previews/previews.vtt", medium.id)).exists() {
+    if std::path::Path::new(&format!("source/{}/previews/previews.vtt", medium_id)).exists() {
         medium_previews_exist = true;
     } else {
         medium_previews_exist = false;
@@ -161,14 +219,14 @@ async fn medium_in_list(
     let sidebar = generate_sidebar(&config, "medium".to_owned());
     let template = MediumTemplate {
         sidebar,
-        medium_id: medium.id,
-        medium_name: medium.name,
-        medium_owner: medium.owner,
-        medium_likes: medium.likes,
-        medium_dislikes: medium.dislikes,
-        medium_upload: prettyunixtime(medium.upload).await,
-        medium_views: medium.views,
-        medium_type: medium.r#type,
+        medium_id,
+        medium_name: medium.get("name"),
+        medium_owner: medium.get("owner"),
+        medium_likes: medium.get("likes"),
+        medium_dislikes: medium.get("dislikes"),
+        medium_upload: prettyunixtime(medium.get("upload")).await,
+        medium_views: medium.get("views"),
+        medium_type: medium.get("type"),
         medium_captions_exist,
         medium_captions_list,
         medium_chapters_exist,
@@ -177,7 +235,7 @@ async fn medium_in_list(
         common_headers,
         is_logged_in,
         list_id: listid,
-        list_name: list.name,
+        list_name: list.4,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -248,9 +306,25 @@ async fn hx_list_modal(
     .await
     .expect("Database error");
 
+    // Fetch user's groups for visibility selection in create form
+    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+        .bind(&user_info.login)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        })
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
     let template = HXListModalTemplate {
         lists,
         medium_id: mediumid,
+        owner_groups,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -269,15 +343,27 @@ async fn hx_create_list(
     let user_info = user_info.unwrap();
 
     let list_id = generate_medium_id();
-    let is_public = form.public.is_some();
+    let visibility = match form.visibility.as_deref() {
+        Some("public") => "public",
+        Some("restricted") => "restricted",
+        _ => "hidden",
+    };
+    let is_public = visibility == "public";
+    let restricted_to_group = if visibility == "restricted" {
+        form.restricted_group.clone().filter(|g| !g.is_empty())
+    } else {
+        None
+    };
 
-    sqlx::query!(
-        "INSERT INTO lists (id, name, owner, public) VALUES ($1, $2, $3, $4);",
-        list_id,
-        form.name,
-        user_info.login,
-        is_public
+    sqlx::query(
+        "INSERT INTO lists (id, name, owner, public, visibility, restricted_to_group) VALUES ($1, $2, $3, $4, $5, $6);"
     )
+    .bind(&list_id)
+    .bind(&form.name)
+    .bind(&user_info.login)
+    .bind(is_public)
+    .bind(visibility)
+    .bind(&restricted_to_group)
     .execute(&pool)
     .await
     .expect("Database error");
@@ -301,9 +387,25 @@ async fn hx_create_list(
     .await
     .expect("Database error");
 
+    // Fetch user's groups for visibility selection in create form
+    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+        .bind(&user_info.login)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        })
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
     let template = HXListModalTemplate {
         lists,
         medium_id: mediumid,
+        owner_groups,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -358,9 +460,24 @@ async fn hx_add_to_list(
     .await
     .expect("Database error");
 
+    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+        .bind(&user_info.login)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        })
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
     let template = HXListModalTemplate {
         lists,
         medium_id: mediumid,
+        owner_groups,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -404,9 +521,24 @@ async fn hx_remove_from_list(
     .await
     .expect("Database error");
 
+    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+        .bind(&user_info.login)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        })
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
     let template = HXListModalTemplate {
         lists,
         medium_id: mediumid,
+        owner_groups,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -455,13 +587,29 @@ async fn hx_delete_list(
 
 async fn hx_user_lists(
     Extension(pool): Extension<PgPool>,
+    Extension(session_store): Extension<Arc<Mutex<AHashMap<String, String>>>>,
+    headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let lists = sqlx::query_as!(
-        ListWithCount,
-        "SELECT l.id, l.name, l.owner, l.public, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND l.public = true ORDER BY l.created DESC;",
-        userid
+    let user = get_user_login(headers, &pool, session_store).await;
+    let user_login = user.map(|u| u.login).unwrap_or_default();
+
+    let lists: Vec<ListWithCount> = sqlx::query(
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY l.created DESC;"
     )
+    .bind(&userid)
+    .bind(&user_login)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        ListWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            visibility: row.get("visibility"),
+            restricted_to_group: row.get("restricted_to_group"),
+            item_count: row.get("item_count"),
+        }
+    })
     .fetch_all(&pool)
     .await
     .expect("Database error");
