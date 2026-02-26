@@ -11,6 +11,10 @@ struct MeiliMedia {
     upload: i64,
     #[serde(default)]
     public: bool,
+    #[serde(default)]
+    visibility: String,
+    #[serde(default)]
+    restricted_to_group: Option<String>,
 }
 
 impl From<MeiliMedia> for Medium {
@@ -25,6 +29,40 @@ impl From<MeiliMedia> for Medium {
     }
 }
 
+// --- Visibility filter helpers ---
+
+/// Build a Meilisearch filter string that respects group-based visibility.
+/// For logged-in users, shows public media + restricted media in their groups.
+/// For anonymous users, shows only public media.
+async fn build_visibility_filter(pool: &PgPool, user: &Option<User>) -> String {
+    if let Some(u) = user {
+        let group_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT group_id FROM user_group_members WHERE user_login = $1"
+        )
+        .bind(&u.login)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        if group_ids.is_empty() {
+            return "visibility = 'public'".to_owned();
+        }
+
+        let group_list = group_ids
+            .iter()
+            .map(|g| format!("'{}'", g.replace('\'', "")))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        format!(
+            "visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN [{}])",
+            group_list
+        )
+    } else {
+        "visibility = 'public'".to_owned()
+    }
+}
+
 // --- Search suggestions (navbar autocomplete) ---
 
 #[derive(Serialize, Deserialize)]
@@ -34,18 +72,24 @@ struct HXSearch {
 
 async fn hx_search_suggestions(
     Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
+    headers: HeaderMap,
     Form(form): Form<HXSearch>,
 ) -> axum::response::Html<String> {
     if form.search.trim().is_empty() {
         return Html("".to_owned());
     }
 
+    let user = get_user_login(headers, &pool, redis).await;
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
+
     let index = meili.index("media");
     let results = index
         .search()
         .with_query(&form.search)
-        .with_filter("public = true")
+        .with_filter(&visibility_filter)
         .with_limit(6)
         .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
         .with_highlight_pre_tag("<mark>")
@@ -131,7 +175,10 @@ struct MeiliSearchHit {
 
 async fn hx_search(
     Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
+    headers: HeaderMap,
     Path(pageid): Path<usize>,
     Form(form): Form<HXSearchForm>,
 ) -> axum::response::Html<String> {
@@ -147,8 +194,10 @@ async fn hx_search(
     let sort_by = form.sort_by.clone().unwrap_or_default();
     let date_range = form.date_range.clone().unwrap_or_default();
 
-    // Build filter string
-    let mut filters: Vec<String> = vec!["public = true".to_owned()];
+    // Build filter string with visibility-aware access control
+    let user = get_user_login(headers, &pool, redis).await;
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let mut filters: Vec<String> = vec![format!("({})", visibility_filter)];
 
     // Media type filter
     match media_type.as_str() {
