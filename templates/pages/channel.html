@@ -46,8 +46,8 @@
                         <button class="nav-link text-white" hx-get="/hx/userlists/{{ user.login }}" hx-target="#tab-content" hx-swap="innerHTML" hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active')"><i class="fa-solid fa-list me-2"></i>Lists</button>
                     </li>
                 </ul>
-                <div id="tab-content" class="pt-3">
-                    <div hx-get="/hx/usermedia/{{ user.login }}" hx-trigger="load" class="mb-3 hx-placeholder row" preload="always">
+                <div id="tab-content" class="row">
+                    <div hx-get="/hx/usermedia/{{ user.login }}" hx-trigger="load" class="mb-3 hx-placeholder" preload="always">
                     </div>
                 </div>
             </div>
