@@ -28,20 +28,23 @@ Add these fields to `config.json`:
 
 Each document in the index must have the following fields:
 
-| Field       | Type    | Description                                     |
-|-------------|---------|------------------------------------------------|
-| `id`        | String  | Media ID (primary key)                          |
-| `name`      | String  | Media title/name                                |
-| `owner`     | String  | Creator's login username                        |
-| `views`     | Integer | View count                                      |
-| `likes`     | Integer | Like count                                      |
-| `dislikes`  | Integer | Dislike count                                   |
-| `type`      | String  | Media type: `"video"`, `"audio"`, or `"picture"`|
-| `upload`    | Integer | Upload timestamp (Unix epoch seconds)           |
-| `public`    | Boolean | Whether the media is publicly visible           |
+| Field                | Type           | Description                                          |
+|----------------------|----------------|------------------------------------------------------|
+| `id`                 | String         | Media ID (primary key)                               |
+| `name`               | String         | Media title/name                                     |
+| `owner`              | String         | Creator's login username                             |
+| `views`              | Integer        | View count                                           |
+| `likes`              | Integer        | Like count                                           |
+| `dislikes`           | Integer        | Dislike count                                        |
+| `type`               | String         | Media type: `"video"`, `"audio"`, or `"picture"`     |
+| `upload`             | Integer        | Upload timestamp (Unix epoch seconds)                |
+| `public`             | Boolean        | Whether the media is publicly visible (legacy)       |
+| `visibility`         | String         | Visibility state: `"public"`, `"hidden"`, `"restricted"` |
+| `restricted_to_group`| String or null | Group ID if visibility is `"restricted"`, else null  |
 
-### Example Document
+### Example Documents
 
+Public media:
 ```json
 {
     "id": "abc1234xyz",
@@ -52,7 +55,26 @@ Each document in the index must have the following fields:
     "dislikes": 3,
     "type": "video",
     "upload": 1708531200,
-    "public": true
+    "public": true,
+    "visibility": "public",
+    "restricted_to_group": null
+}
+```
+
+Group-restricted media:
+```json
+{
+    "id": "def5678uvw",
+    "name": "Members Only Tutorial",
+    "owner": "johndoe",
+    "views": 120,
+    "likes": 15,
+    "dislikes": 0,
+    "type": "video",
+    "upload": 1708617600,
+    "public": false,
+    "visibility": "restricted",
+    "restricted_to_group": "grp_abc123"
 }
 ```
 
@@ -71,15 +93,17 @@ The indexer must configure these settings on the `media` index:
 ### Filterable Attributes
 
 ```json
-["public", "type", "upload", "views", "likes"]
+["public", "type", "upload", "views", "likes", "visibility", "restricted_to_group"]
 ```
 
 These are used by the search filters:
-- `public` - Always filtered to `true` in search queries
+- `public` - Legacy boolean visibility flag
 - `type` - Filter by media type (video/audio/picture)
 - `upload` - Filter by upload date range (timestamp comparisons)
 - `views` - Used for sorting by most viewed
 - `likes` - Used for sorting by most liked
+- `visibility` - Filter by visibility state (`public`, `hidden`, `restricted`)
+- `restricted_to_group` - Filter restricted media by group ID membership
 
 ### Sortable Attributes
 
@@ -116,7 +140,7 @@ The indexer should:
 ### SQL Query for Full Sync
 
 ```sql
-SELECT id, name, owner, views, likes, dislikes, type, upload, public
+SELECT id, name, owner, views, likes, dislikes, type, upload, public, visibility, restricted_to_group
 FROM media;
 ```
 
@@ -134,6 +158,8 @@ struct MeiliMedia {
     r#type: String,
     upload: i64,
     public: bool,
+    visibility: String,
+    restricted_to_group: Option<String>,
 }
 ```
 
@@ -152,7 +178,7 @@ async fn setup_media_index(client: &Client) {
     media.set_searchable_attributes(["name", "owner"]).await.unwrap();
 
     // Configure filterable attributes
-    media.set_filterable_attributes(["public", "type", "upload", "views", "likes"]).await.unwrap();
+    media.set_filterable_attributes(["public", "type", "upload", "views", "likes", "visibility", "restricted_to_group"]).await.unwrap();
 
     // Configure sortable attributes
     media.set_sortable_attributes(["upload", "views", "likes"]).await.unwrap();
