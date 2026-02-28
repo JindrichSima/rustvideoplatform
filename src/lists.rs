@@ -228,8 +228,6 @@ async fn medium_in_list(
         medium_id,
         medium_name: medium.get("name"),
         medium_owner: medium.get("owner"),
-        medium_likes: medium.get("likes"),
-        medium_dislikes: medium.get("dislikes"),
         medium_upload: prettyunixtime(medium.get("upload")).await,
         medium_views: medium.get("views"),
         medium_type: medium.get("type"),
