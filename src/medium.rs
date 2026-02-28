@@ -5,8 +5,6 @@ struct MediumTemplate {
     medium_id: String,
     medium_name: String,
     medium_owner: String,
-    medium_likes: i64,
-    medium_dislikes: i64,
     medium_upload: String,
     medium_views: i64,
     medium_type: String,
@@ -42,7 +40,7 @@ async fn medium(
 
     // Fetch media with visibility info
     let medium_row = sqlx::query(
-        "SELECT id,name,description,upload,owner,likes,dislikes,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
+        "SELECT id,name,description,upload,owner,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
     )
     .bind(mediumid.to_ascii_lowercase())
     .fetch_one(&pool)
@@ -103,8 +101,6 @@ async fn medium(
         medium_id,
         medium_name: medium.get("name"),
         medium_owner: medium.get("owner"),
-        medium_likes: medium.get("likes"),
-        medium_dislikes: medium.get("dislikes"),
         medium_upload: prettyunixtime(medium.get("upload")).await,
         medium_views: medium.get("views"),
         medium_type: medium.get("type"),
