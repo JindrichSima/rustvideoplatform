@@ -37,8 +37,8 @@
         </table>
     </a>
 </div>
-{% if loop.index == 20 && has_more %}
-<div class="col-12" style="height:0;overflow:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-st-{{ page }}" hx-swap="outerHTML" hx-on::after-request="this.remove()"></div>
+{% if loop.index == 15 && has_more %}
+<div style="position:absolute;height:0;width:0;overflow:hidden;visibility:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-st-{{ page }}" hx-swap="outerHTML" hx-on::after-request="this.remove()"></div>
 {% endif %}
 {% endfor %}
 {% if has_more %}

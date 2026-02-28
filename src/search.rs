@@ -187,8 +187,8 @@ async fn hx_search(
         return Html("".to_owned());
     }
 
-    let hits_per_page: usize = 31;
-    let offset = pageid * 30;
+    let hits_per_page: usize = 41;
+    let offset = pageid * 40;
     let next_page = pageid + 1;
 
     let media_type = form.media_type.clone().unwrap_or_default();
@@ -279,9 +279,9 @@ async fn hx_search(
                 })
                 .collect();
 
-            let has_more = hits.len() == 31;
+            let has_more = hits.len() == 41;
             if has_more {
-                hits.truncate(30);
+                hits.truncate(40);
             }
 
             if hits.is_empty() && pageid == 0 {

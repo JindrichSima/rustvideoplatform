@@ -90,10 +90,10 @@ async fn hx_usermedia_inner(
 ) -> axum::response::Html<Vec<u8>> {
     let user = get_user_login(headers, &pool, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
-    let offset = page * 30;
+    let offset = page * 40;
 
     let mut media: Vec<Medium> = sqlx::query(
-        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY upload DESC LIMIT 31 OFFSET $3;"
+        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY upload DESC LIMIT 41 OFFSET $3;"
     )
     .bind(&userid)
     .bind(&user_login)
@@ -112,9 +112,9 @@ async fn hx_usermedia_inner(
     .await
     .expect("Database error");
 
-    let has_more = media.len() == 31;
+    let has_more = media.len() == 41;
     if has_more {
-        media.truncate(30);
+        media.truncate(40);
     }
     let next_page = page + 1;
     let next_url = format!("/hx/usermedia/{}/{}", userid, next_page);

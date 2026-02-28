@@ -79,10 +79,10 @@ async fn hx_studio_inner(
         ));
     }
     let user_info = user_info.unwrap();
-    let offset = page * 30;
+    let offset = page * 40;
 
     let mut media: Vec<MediumStudio> = sqlx::query(
-        "SELECT id,name,description,views,type FROM media WHERE owner=$1 ORDER BY upload DESC LIMIT 31 OFFSET $2;"
+        "SELECT id,name,description,views,type FROM media WHERE owner=$1 ORDER BY upload DESC LIMIT 41 OFFSET $2;"
     )
     .bind(&user_info.login)
     .bind(offset)
@@ -100,9 +100,9 @@ async fn hx_studio_inner(
     .await
     .expect("Database error");
 
-    let has_more = media.len() == 31;
+    let has_more = media.len() == 41;
     if has_more {
-        media.truncate(30);
+        media.truncate(40);
     }
     let next_page = page + 1;
     let next_url = format!("/hx/studio/{}", next_page);
@@ -172,10 +172,10 @@ async fn hx_studio_lists_inner(
         ));
     }
     let user_info = user_info.unwrap();
-    let offset = page * 30;
+    let offset = page * 40;
 
     let mut lists: Vec<ListWithCount> = sqlx::query(
-        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC LIMIT 31 OFFSET $2;"
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC LIMIT 41 OFFSET $2;"
     )
     .bind(&user_info.login)
     .bind(offset)
@@ -194,9 +194,9 @@ async fn hx_studio_lists_inner(
     .await
     .expect("Database error");
 
-    let has_more = lists.len() == 31;
+    let has_more = lists.len() == 41;
     if has_more {
-        lists.truncate(30);
+        lists.truncate(40);
     }
     let next_page = page + 1;
     let next_url = format!("/hx/studio/lists/{}", next_page);

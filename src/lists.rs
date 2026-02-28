@@ -266,10 +266,10 @@ async fn hx_list_items_inner(
     listid: String,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let offset = page * 30;
+    let offset = page * 40;
 
     let mut items: Vec<Medium> = sqlx::query(
-        "SELECT m.id, m.name, m.owner, m.views, m.type FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC LIMIT 31 OFFSET $2;"
+        "SELECT m.id, m.name, m.owner, m.views, m.type FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC LIMIT 41 OFFSET $2;"
     )
     .bind(&listid)
     .bind(offset)
@@ -287,9 +287,9 @@ async fn hx_list_items_inner(
     .await
     .expect("Database error");
 
-    let has_more = items.len() == 31;
+    let has_more = items.len() == 41;
     if has_more {
-        items.truncate(30);
+        items.truncate(40);
     }
     let next_page = page + 1;
     let next_url = format!("/hx/listitems/{}/{}", listid, next_page);
@@ -655,10 +655,10 @@ async fn hx_user_lists_inner(
 ) -> axum::response::Html<Vec<u8>> {
     let user = get_user_login(headers, &pool, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
-    let offset = page * 30;
+    let offset = page * 40;
 
     let mut lists: Vec<ListWithCount> = sqlx::query(
-        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY l.created DESC LIMIT 31 OFFSET $3;"
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY l.created DESC LIMIT 41 OFFSET $3;"
     )
     .bind(&userid)
     .bind(&user_login)
@@ -678,9 +678,9 @@ async fn hx_user_lists_inner(
     .await
     .expect("Database error");
 
-    let has_more = lists.len() == 31;
+    let has_more = lists.len() == 41;
     if has_more {
-        lists.truncate(30);
+        lists.truncate(40);
     }
     let next_page = page + 1;
     let next_url = format!("/hx/userlists/{}/{}", userid, next_page);
