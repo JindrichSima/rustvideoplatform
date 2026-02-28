@@ -194,47 +194,43 @@
                         </div>
                         {% endif %}
                     </div>
-                    <div class="mt-2">
-                        <!-- Line 1: medium name, font scales to always fit one line -->
-                        <div class="medium-title-wrapper" style="min-width: 0; overflow: hidden;">
-                            <h1 id="medium-title" class="mb-0 fw-bold" style="white-space: nowrap; overflow: hidden; font-size: 2rem;">
-                                {{ medium_name }}
-                                {% if medium_type == "video" %}
-                                <i class="fa-solid fa-video fa-sm ms-4"></i>
-                                {% else if medium_type == "audio" %}
-                                <i class="fa-solid fa-music fa-sm ms-4"></i>
-                                {% else if medium_type == "picture" %}
-                                <i class="fa-solid fa-image fa-sm ms-4"></i>
-                                {% else if medium_type == "document_pdf" %}
-                                <i class="fa-solid fa-file-pdf fa-sm ms-4"></i>
-                                {% endif %}
-                            </h1>
-                        </div>
-                        <script>
-                            (function () {
-                                function fitMediumTitle() {
-                                    var el = document.getElementById("medium-title");
-                                    if (!el) return;
-                                    var container = el.parentElement;
-                                    var maxFs = 32;
-                                    var minFs = 12;
-                                    el.style.fontSize = maxFs + "px";
-                                    while (el.scrollWidth > container.clientWidth && maxFs > minFs) {
-                                        maxFs -= 1;
-                                        el.style.fontSize = maxFs + "px";
-                                    }
-                                }
-                                if (document.readyState === "loading") {
-                                    document.addEventListener("DOMContentLoaded", fitMediumTitle);
-                                } else {
-                                    fitMediumTitle();
-                                }
-                                window.addEventListener("resize", fitMediumTitle);
-                            })();
-                        </script>
-                        <!-- Line 2: channel + subscribe on the left, engagement bar on the right -->
-                        <div class="d-flex align-items-center justify-content-between flex-wrap mt-1 gap-2">
-                            <div class="d-flex align-items-center">
+                    <style>
+                        /* Mobile: title wraps to at most 2 lines */
+                        #medium-title {
+                            overflow: hidden;
+                            display: -webkit-box;
+                            -webkit-line-clamp: 2;
+                            -webkit-box-orient: vertical;
+                            white-space: normal;
+                            font-size: 2rem;
+                        }
+                        /* Desktop (lg+): title is always one line, JS scales font */
+                        @media (min-width: 992px) {
+                            #medium-title {
+                                display: block;
+                                white-space: nowrap;
+                            }
+                        }
+                    </style>
+                    <!-- Outer flex: left column (title + channel/subscribe) and right column (bar) -->
+                    <div class="d-flex flex-wrap align-items-stretch gap-2 mt-2">
+                        <!-- Left: title on top, channel + subscribe below -->
+                        <div class="flex-grow-1" style="min-width: 0;">
+                            <div style="min-width: 0; overflow: hidden;">
+                                <h1 id="medium-title" class="mb-0 fw-bold">
+                                    {{ medium_name }}
+                                    {% if medium_type == "video" %}
+                                    <i class="fa-solid fa-video fa-sm ms-4"></i>
+                                    {% else if medium_type == "audio" %}
+                                    <i class="fa-solid fa-music fa-sm ms-4"></i>
+                                    {% else if medium_type == "picture" %}
+                                    <i class="fa-solid fa-image fa-sm ms-4"></i>
+                                    {% else if medium_type == "document_pdf" %}
+                                    <i class="fa-solid fa-file-pdf fa-sm ms-4"></i>
+                                    {% endif %}
+                                </h1>
+                            </div>
+                            <div class="d-flex align-items-center mt-1">
                                 <a
                                     href="/channel/{{ medium_owner }}"
                                     class="text-secondary text-decoration-none fs-5"
@@ -246,6 +242,9 @@
                                     class="subscribe-placeholder p-1 ms-2"
                                 ></div>
                             </div>
+                        </div>
+                        <!-- Right: engagement bar, vertically centered between the two left rows -->
+                        <div class="d-flex align-items-center">
                             <ul class="list-group list-unstyled list-group-horizontal py-2 px-2 mb-0" style="background-color: var(--bs-primary);">
                                 <li class="mx-2">
                                     <a
@@ -289,6 +288,33 @@
                             </ul>
                         </div>
                     </div>
+                    <script>
+                        (function () {
+                            function fitMediumTitle() {
+                                var el = document.getElementById("medium-title");
+                                if (!el) return;
+                                // On mobile let CSS handle wrapping, skip JS scaling
+                                if (window.innerWidth < 992) {
+                                    el.style.fontSize = "";
+                                    return;
+                                }
+                                var container = el.parentElement;
+                                var maxFs = 32;
+                                var minFs = 12;
+                                el.style.fontSize = maxFs + "px";
+                                while (el.scrollWidth > container.clientWidth && maxFs > minFs) {
+                                    maxFs -= 1;
+                                    el.style.fontSize = maxFs + "px";
+                                }
+                            }
+                            if (document.readyState === "loading") {
+                                document.addEventListener("DOMContentLoaded", fitMediumTitle);
+                            } else {
+                                fitMediumTitle();
+                            }
+                            window.addEventListener("resize", fitMediumTitle);
+                        })();
+                    </script>
                     <hr />
                     <div class="my-1">
                         <b
