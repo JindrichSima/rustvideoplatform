@@ -4,8 +4,6 @@ CREATE TABLE public.media (
 	description jsonb,
 	upload int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
 	"owner" varchar NOT NULL,
-	likes int8 DEFAULT 0 NOT NULL,
-	dislikes int8 DEFAULT 0 NOT NULL,
 	"views" int8 DEFAULT 0 NOT NULL,
 	public bool DEFAULT false NOT NULL,
 	visibility varchar DEFAULT 'hidden' NOT NULL,
@@ -80,5 +78,3 @@ CREATE TABLE public.media_likes (
 -- Migration for existing data:
 -- UPDATE public.media SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
 -- UPDATE public.lists SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
--- ALTER TABLE public.media DROP COLUMN likes;
--- ALTER TABLE public.media DROP COLUMN dislikes;
