@@ -42,12 +42,35 @@ struct MediumStudio {
 struct HXStudioTemplate {
     media: Vec<MediumStudio>,
     config: Config,
+    page: i64,
+    has_more: bool,
+    next_url: String,
 }
 async fn hx_studio(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    hx_studio_inner(config, pool, redis, headers, 0).await
+}
+
+async fn hx_studio_page(
+    Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(page): Path<i64>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_studio_inner(config, pool, redis, headers, page).await
+}
+
+async fn hx_studio_inner(
+    config: Config,
+    pool: PgPool,
+    redis: RedisConn,
+    headers: HeaderMap,
+    page: i64,
 ) -> axum::response::Html<Vec<u8>> {
     let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
@@ -56,15 +79,35 @@ async fn hx_studio(
         ));
     }
     let user_info = user_info.unwrap();
-    let media = sqlx::query_as!(
-        MediumStudio,
-        "SELECT id,name,description,views,type FROM media WHERE owner=$1 ORDER BY upload DESC;",
-        user_info.login
+    let offset = page * 30;
+
+    let mut media: Vec<MediumStudio> = sqlx::query(
+        "SELECT id,name,description,views,type FROM media WHERE owner=$1 ORDER BY upload DESC LIMIT 31 OFFSET $2;"
     )
+    .bind(&user_info.login)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        MediumStudio {
+            id: row.get("id"),
+            name: row.get("name"),
+            description: row.get("description"),
+            views: row.get("views"),
+            r#type: row.get("type"),
+        }
+    })
     .fetch_all(&pool)
     .await
     .expect("Database error");
-    let template = HXStudioTemplate { media, config };
+
+    let has_more = media.len() == 31;
+    if has_more {
+        media.truncate(30);
+    }
+    let next_page = page + 1;
+    let next_url = format!("/hx/studio/{}", next_page);
+
+    let template = HXStudioTemplate { media, config, page, has_more, next_url };
     Html(minifi_html(template.render().unwrap()))
 }
 
@@ -95,11 +138,32 @@ async fn studio_lists(
 #[template(path = "pages/hx-studio-lists.html", escape = "none")]
 struct HXStudioListsTemplate {
     lists: Vec<ListWithCount>,
+    page: i64,
+    has_more: bool,
+    next_url: String,
 }
 async fn hx_studio_lists(
     Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    hx_studio_lists_inner(pool, redis, headers, 0).await
+}
+
+async fn hx_studio_lists_page(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(page): Path<i64>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_studio_lists_inner(pool, redis, headers, page).await
+}
+
+async fn hx_studio_lists_inner(
+    pool: PgPool,
+    redis: RedisConn,
+    headers: HeaderMap,
+    page: i64,
 ) -> axum::response::Html<Vec<u8>> {
     let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
@@ -108,10 +172,13 @@ async fn hx_studio_lists(
         ));
     }
     let user_info = user_info.unwrap();
-    let lists: Vec<ListWithCount> = sqlx::query(
-        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;"
+    let offset = page * 30;
+
+    let mut lists: Vec<ListWithCount> = sqlx::query(
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC LIMIT 31 OFFSET $2;"
     )
     .bind(&user_info.login)
+    .bind(offset)
     .map(|row: sqlx::postgres::PgRow| {
         use sqlx::Row;
         ListWithCount {
@@ -126,7 +193,15 @@ async fn hx_studio_lists(
     .fetch_all(&pool)
     .await
     .expect("Database error");
-    let template = HXStudioListsTemplate { lists };
+
+    let has_more = lists.len() == 31;
+    if has_more {
+        lists.truncate(30);
+    }
+    let next_page = page + 1;
+    let next_url = format!("/hx/studio/lists/{}", next_page);
+
+    let template = HXStudioListsTemplate { lists, page, has_more, next_url };
     Html(minifi_html(template.render().unwrap()))
 }
 

@@ -28,6 +28,7 @@
     </div>
 </a>
 {% endfor %}
+{% if has_more %}
 <form hx-post="/hx/search/{{ next_page }}" hx-trigger="revealed" hx-swap="outerHTML">
     <input type="hidden" name="search" value="{{ search_term }}" />
     <input type="hidden" name="media_type" value="{{ media_type }}" />
@@ -37,3 +38,8 @@
         <i class="fa-solid fa-spinner fa-spin-pulse fa-3x"></i>
     </div>
 </form>
+{% else %}
+<div class="text-center my-4">
+    <p class="text-secondary"><i class="fa-solid fa-circle-check me-2"></i>You have reached the end.</p>
+</div>
+{% endif %}

@@ -157,6 +157,7 @@ struct HXSearchTemplate {
     total_hits: usize,
     query_time_ms: usize,
     is_first_page: bool,
+    has_more: bool,
     config: Config,
 }
 
@@ -186,8 +187,8 @@ async fn hx_search(
         return Html("".to_owned());
     }
 
-    let hits_per_page: usize = 12;
-    let offset = pageid * hits_per_page;
+    let hits_per_page: usize = 31;
+    let offset = pageid * 30;
     let next_page = pageid + 1;
 
     let media_type = form.media_type.clone().unwrap_or_default();
@@ -253,7 +254,7 @@ async fn hx_search(
             let total_hits = search_results.estimated_total_hits.unwrap_or(0);
             let query_time_ms = search_results.processing_time_ms;
 
-            let hits: Vec<MeiliSearchHit> = search_results
+            let mut hits: Vec<MeiliSearchHit> = search_results
                 .hits
                 .into_iter()
                 .map(|hit| {
@@ -278,6 +279,11 @@ async fn hx_search(
                 })
                 .collect();
 
+            let has_more = hits.len() == 31;
+            if has_more {
+                hits.truncate(30);
+            }
+
             if hits.is_empty() && pageid == 0 {
                 return Html(
                     "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords or adjust your filters</p></div>"
@@ -286,7 +292,10 @@ async fn hx_search(
             }
 
             if hits.is_empty() {
-                return Html("".to_owned());
+                return Html(
+                    "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
+                        .to_owned(),
+                );
             }
 
             let template = HXSearchTemplate {
@@ -299,6 +308,7 @@ async fn hx_search(
                 total_hits,
                 query_time_ms,
                 is_first_page: pageid == 0,
+                has_more,
                 config
             };
             Html(template.render().unwrap())

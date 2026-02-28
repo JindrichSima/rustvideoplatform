@@ -46,6 +46,9 @@ struct HXListItemsTemplate {
     items: Vec<Medium>,
     list_id: String,
     config: Config,
+    page: i64,
+    has_more: bool,
+    next_url: String,
 }
 
 #[derive(Template)]
@@ -60,6 +63,9 @@ struct HXListModalTemplate {
 #[template(path = "pages/hx-userlists.html", escape = "none")]
 struct HXUserListsTemplate {
     lists: Vec<ListWithCount>,
+    page: i64,
+    has_more: bool,
+    next_url: String,
 }
 
 async fn list_page(
@@ -245,19 +251,58 @@ async fn hx_list_items(
     Extension(pool): Extension<PgPool>,
     Path(listid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let items: Vec<Medium> = sqlx::query_as!(
-        Medium,
-        "SELECT m.id, m.name, m.owner, m.views, m.type FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC;",
-        listid
+    hx_list_items_inner(config, pool, listid, 0).await
+}
+
+async fn hx_list_items_page(
+    Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Path((listid, page)): Path<(String, i64)>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_list_items_inner(config, pool, listid, page).await
+}
+
+async fn hx_list_items_inner(
+    config: Config,
+    pool: PgPool,
+    listid: String,
+    page: i64,
+) -> axum::response::Html<Vec<u8>> {
+    let offset = page * 30;
+
+    let mut items: Vec<Medium> = sqlx::query(
+        "SELECT m.id, m.name, m.owner, m.views, m.type FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC LIMIT 31 OFFSET $2;"
     )
+    .bind(&listid)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        Medium {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            views: row.get("views"),
+            r#type: row.get("type"),
+        }
+    })
     .fetch_all(&pool)
     .await
     .expect("Database error");
 
+    let has_more = items.len() == 31;
+    if has_more {
+        items.truncate(30);
+    }
+    let next_page = page + 1;
+    let next_url = format!("/hx/listitems/{}/{}", listid, next_page);
+
     let template = HXListItemsTemplate {
         items,
         list_id: listid,
-        config
+        config,
+        page,
+        has_more,
+        next_url,
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -591,14 +636,35 @@ async fn hx_user_lists(
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
+    hx_user_lists_inner(pool, redis, headers, userid, 0).await
+}
+
+async fn hx_user_lists_page(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path((userid, page)): Path<(String, i64)>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_user_lists_inner(pool, redis, headers, userid, page).await
+}
+
+async fn hx_user_lists_inner(
+    pool: PgPool,
+    redis: RedisConn,
+    headers: HeaderMap,
+    userid: String,
+    page: i64,
+) -> axum::response::Html<Vec<u8>> {
     let user = get_user_login(headers, &pool, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
+    let offset = page * 30;
 
-    let lists: Vec<ListWithCount> = sqlx::query(
-        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY l.created DESC;"
+    let mut lists: Vec<ListWithCount> = sqlx::query(
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY l.created DESC LIMIT 31 OFFSET $3;"
     )
     .bind(&userid)
     .bind(&user_login)
+    .bind(offset)
     .map(|row: sqlx::postgres::PgRow| {
         use sqlx::Row;
         ListWithCount {
@@ -614,6 +680,13 @@ async fn hx_user_lists(
     .await
     .expect("Database error");
 
-    let template = HXUserListsTemplate { lists };
+    let has_more = lists.len() == 31;
+    if has_more {
+        lists.truncate(30);
+    }
+    let next_page = page + 1;
+    let next_url = format!("/hx/userlists/{}/{}", userid, next_page);
+
+    let template = HXUserListsTemplate { lists, page, has_more, next_url };
     Html(minifi_html(template.render().unwrap()))
 }

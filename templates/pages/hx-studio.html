@@ -37,4 +37,20 @@
         </table>
     </a>
 </div>
+{% if loop.index == 20 && has_more %}
+<div class="col-12" style="height:1px;overflow:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-st-{{ page }}" hx-swap="outerHTML"></div>
+{% endif %}
 {% endfor %}
+{% if has_more %}
+<div id="inf-scroll-st-{{ page }}" class="col-12 text-center my-4">
+    <i class="fa-solid fa-spinner fa-spin-pulse fa-3x text-secondary"></i>
+</div>
+{% else %}
+<div class="col-12 text-center my-4">
+    {% if media.is_empty() && page == 0 %}
+    <p class="text-secondary">No media uploaded yet.</p>
+    {% else %}
+    <p class="text-secondary"><i class="fa-solid fa-circle-check me-2"></i>You have reached the end.</p>
+    {% endif %}
+</div>
+{% endif %}

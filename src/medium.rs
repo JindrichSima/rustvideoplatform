@@ -198,6 +198,9 @@ async fn medium_description_prepare(
 struct HXMediumCardTemplate {
     media: Vec<Medium>,
     config: Config,
+    page: i64,
+    has_more: bool,
+    next_url: String,
 }
 
 #[derive(Template)]
