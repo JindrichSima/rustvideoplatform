@@ -1,0 +1,60 @@
+<div class="d-flex justify-content-center mt-3">
+    <div class="w-100" style="max-width: 600px">
+        <h1 class="m-3 text-center">What do you want to upload today?</h1>
+        <div id="upload-container">
+            <form
+                id="upload-form"
+                hx-encoding="multipart/form-data"
+                hx-post="/hx/upload"
+                class="m-3"
+                onsubmit="beginupload()"
+                hx-target="#upload-result"
+            >
+                <div class="d-flex flex-column align-items-center">
+                    <input
+                        class="btn btn-primary m-3"
+                        type="file"
+                        name="file"
+                        style="width: 100%; max-width: 500px;"
+                    />
+                    <br />
+                    <button
+                        class="btn btn-primary text-center m-3"
+                        id="upload-submitbutton"
+                        style="width: 150px"
+                    >
+                        Upload
+                    </button>
+                    <progress
+                        id="upload-progress"
+                        value="0"
+                        max="100"
+                        class="m-3"
+                        style="display: none; width: 100%; max-width: 500px;"
+                    ></progress>
+                </div>
+            </form>
+            <div id="upload-result"></div>
+        </div>
+    </div>
+</div>
+<script>
+    function beginupload() {
+        window.isUploading = true;
+        document.getElementById("upload-submitbutton").disabled = true;
+        document.getElementById("upload-submitbutton").style.display = "none";
+        document.getElementById("upload-progress").style.display = "inline";
+        return true;
+    }
+
+    htmx.on("#upload-form", "htmx:xhr:progress", function(evt) {
+        htmx.find("#upload-progress").setAttribute(
+            "value",
+            (evt.detail.loaded / evt.detail.total) * 100
+        );
+    });
+
+    htmx.on("#upload-form", "htmx:afterRequest", function() {
+        window.isUploading = false;
+    });
+</script>

@@ -152,6 +152,7 @@ async fn main() {
         .route("/studio/concept/{conceptid}/publish", post(publish))
         .route("/upload", get(upload))
         .route("/hx/upload", post(hx_upload))
+        .route("/hx/studio/upload", get(hx_studio_upload))
         .route("/list/{listid}", get(list_page))
         .route("/l/{listid}/{mediumid}", get(medium_in_list))
         .route("/hx/listitems/{listid}", get(hx_list_items))
