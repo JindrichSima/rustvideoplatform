@@ -63,7 +63,7 @@
     </a>
 </div>
 {% if loop.index == 20 && has_more %}
-<div class="col-12" style="height:1px;overflow:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-mc-{{ page }}" hx-swap="outerHTML"></div>
+<div class="col-12" style="height:0;overflow:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-mc-{{ page }}" hx-swap="outerHTML" hx-on::after-request="this.remove()"></div>
 {% endif %}
 {% endfor %}
 {% if has_more %}
