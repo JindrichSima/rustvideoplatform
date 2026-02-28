@@ -102,7 +102,12 @@ async fn hx_trending_inner(
             let user = get_user_login(headers, &pool, redis.clone()).await;
             let user_login = user.map(|u| u.login).unwrap_or_default();
             sqlx::query(
-                "SELECT id,name,owner,views,type FROM media WHERE visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)) ORDER BY likes DESC LIMIT 31 OFFSET $2;"
+                "SELECT m.id, m.name, m.owner, m.views, m.type \
+                 FROM media m \
+                 LEFT JOIN media_likes ml ON m.id = ml.media_id \
+                 WHERE m.visibility = 'public' OR (m.visibility = 'restricted' AND m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)) \
+                 GROUP BY m.id, m.name, m.owner, m.views, m.type \
+                 ORDER BY COUNT(*) FILTER (WHERE ml.reaction = 'like') DESC LIMIT 31 OFFSET $2;"
             )
             .bind(&user_login)
             .bind(offset)

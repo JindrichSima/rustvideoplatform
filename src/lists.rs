@@ -170,7 +170,7 @@ async fn medium_in_list(
 
     // Also check media access
     let medium_row = sqlx::query(
-        "SELECT id,name,description,upload,owner,likes,dislikes,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
+        "SELECT id,name,description,upload,owner,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
     )
     .bind(mediumid.to_ascii_lowercase())
     .fetch_one(&pool)
