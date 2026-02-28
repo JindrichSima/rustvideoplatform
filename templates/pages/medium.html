@@ -194,123 +194,72 @@
                         </div>
                         {% endif %}
                     </div>
-                    <table>
-                        <ul
-                            class="list-group list-unstyled mt-2 mb-1 mx-1"
-                            style="float: left"
-                        >
-                            <li>
-                                <h1 class="font-weight-bold">
-                                    {{ medium_name }} {% if medium_type ==
-                                    "video" %}
-                                    <i class="fa-solid fa-video fa-sm ms-4"></i>
-                                    {% else if medium_type == "audio" %}
-                                    <i class="fa-solid fa-music fa-sm ms-4"></i>
-                                    {% else if medium_type == "picture" %}
-                                    <i class="fa-solid fa-image fa-sm ms-4"></i>
-                                    {% else if medium_type == "document_pdf" %}
-                                    <i class="fa-solid fa-file-pdf fa-sm ms-4"></i>
-                                    {% endif %}
+                    <!-- Outer flex: left column (title + channel/subscribe) and right column (bar) -->
+                    <div class="d-flex flex-wrap align-items-stretch gap-2 mt-2">
+                        <!-- Left: title on top, channel + subscribe below -->
+                        <div class="flex-grow-1" style="min-width: 0;">
+                            <div style="min-width: 0; overflow: hidden;">
+                                <h1 id="medium-title" class="mb-0 fw-bold">
+                                    {{ medium_name }}
                                 </h1>
-                            </li>
-                            <li>
-                                <table>
-                                    <td>
+                            </div>
+                            <div class="d-flex align-items-center mt-1">
+                                <a
+                                    href="/channel/{{ medium_owner }}"
+                                    class="text-secondary text-decoration-none fs-5"
+                                    preload="mouseover"
+                                >{{ medium_owner }}</a>
+                                <div
+                                    hx-get="/hx/subscribebutton/{{ medium_owner }}"
+                                    hx-trigger="load"
+                                    class="subscribe-placeholder p-1 ms-2"
+                                ></div>
+                            </div>
+                        </div>
+                        <!-- Right: engagement bar, vertically centered between the two left rows -->
+                        <div class="d-flex align-items-center">
+                            <ul class="list-group list-unstyled list-group-horizontal py-2 px-2 mb-0" style="background-color: var(--bs-primary);">
+                                <li class="mx-2">
                                     <a
-                                        href="/channel/{{ medium_owner }}"
-                                        class="text-secondary text-center p-3 text-decoration-none fs-5 col-sm"
-                                        preload="mouseover"
-                                        >{{ medium_owner }}</a
-                                    >
-                                    </td>
-                                    <td>
-                                    <div
-                                        hx-get="/hx/subscribebutton/{{ medium_owner }}"
-                                        hx-trigger="load"
-                                        class="col-sm subscribe-placeholder p-1"
-                                    ></div>
-                                    </td>
-                                </table>
-                            </li>
-                        </ul>
-                        <ul
-                            class="list-group list-unstyled list-group-horizontal mt-3 py-3 px-2"
-                            style="
-                                float: right;
-                                background-color: var(--bs-primary);
-                            "
-                        >
-                            <li class="mx-2">
-                                <a
-                                    class="text-decoration-none text-white"
-                                    style="cursor: pointer"
-                                    hx-get="/hx/like/{{ medium_id }}"
-                                    hx-trigger="click once"
-                                    hx-target="#medium_likes"
-                                    ><i class="fa-solid fa-thumbs-up fa-xl"></i
-                                    >&nbsp;<b id="medium_likes"
-                                        >{{ medium_likes }}</b
-                                    ></a
-                                >
-                            </li>
-                            <li>|</li>
-                            <li class="mx-2">
-                                <a
-                                    class="text-decoration-none text-white"
-                                    style="cursor: pointer"
-                                    hx-get="/hx/dislike/{{ medium_id }}"
-                                    hx-trigger="click once"
-                                    hx-target="#medium_dislikes"
-                                    ><i
-                                        class="fa-solid fa-thumbs-down fa-xl"
-                                    ></i
-                                    >&nbsp;<b id="medium_dislikes"
-                                        >{{ medium_dislikes }}</b
-                                    ></a
-                                >
-                            </li>
-                            <li class="mx-4">
-                                {% if medium_type == "video" %}
-                                <a
-                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.webm"
-                                    class="text-white text-decoration-none"
-                                    download="{{ medium_id }}.webm"
-                                    ><i class="fa-solid fa-download fa-xl"></i
-                                ></a>
-                                {% else if medium_type == "audio" %}
-                                <a
-                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg"
-                                    class="text-white text-decoration-none"
-                                    download="{{ medium_id }}.ogg"
-                                    ><i class="fa-solid fa-download fa-xl"></i
-                                ></a>
-                                {% else if medium_type == "picture" %}
-                                <a
-                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
-                                    class="text-white text-decoration-none"
-                                    download="{{ medium_id }}.avif"
-                                    ><i class="fa-solid fa-download fa-xl"></i
-                                ></a>
-                                {% else if medium_type == "document_pdf" %}
-                                <a
-                                    href="{{ config.source_server_url }}/source/{{ medium_id }}/document.pdf"
-                                    class="text-white text-decoration-none"
-                                    download="{{ medium_id }}.pdf"
-                                    ><i class="fa-solid fa-download fa-xl"></i
-                                ></a>
+                                        class="text-decoration-none text-white"
+                                        style="cursor: pointer"
+                                        hx-get="/hx/like/{{ medium_id }}"
+                                        hx-trigger="click once"
+                                        hx-target="#medium_likes"
+                                    ><i class="fa-solid fa-thumbs-up fa-xl"></i>&nbsp;<b id="medium_likes">{{ medium_likes }}</b></a>
+                                </li>
+                                <li>|</li>
+                                <li class="mx-2">
+                                    <a
+                                        class="text-decoration-none text-white"
+                                        style="cursor: pointer"
+                                        hx-get="/hx/dislike/{{ medium_id }}"
+                                        hx-trigger="click once"
+                                        hx-target="#medium_dislikes"
+                                    ><i class="fa-solid fa-thumbs-down fa-xl"></i>&nbsp;<b id="medium_dislikes">{{ medium_dislikes }}</b></a>
+                                </li>
+                                <li class="mx-4">
+                                    {% if medium_type == "video" %}
+                                    <a href="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.webm" class="text-white text-decoration-none" download="{{ medium_id }}.webm"><i class="fa-solid fa-download fa-xl"></i></a>
+                                    {% else if medium_type == "audio" %}
+                                    <a href="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg" class="text-white text-decoration-none" download="{{ medium_id }}.ogg"><i class="fa-solid fa-download fa-xl"></i></a>
+                                    {% else if medium_type == "picture" %}
+                                    <a href="{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif" class="text-white text-decoration-none" download="{{ medium_id }}.avif"><i class="fa-solid fa-download fa-xl"></i></a>
+                                    {% else if medium_type == "document_pdf" %}
+                                    <a href="{{ config.source_server_url }}/source/{{ medium_id }}/document.pdf" class="text-white text-decoration-none" download="{{ medium_id }}.pdf"><i class="fa-solid fa-download fa-xl"></i></a>
+                                    {% endif %}
+                                </li>
+                                {% if is_logged_in %}
+                                <li class="mx-2">
+                                    <a
+                                        class="text-decoration-none text-white"
+                                        style="cursor: pointer"
+                                        onclick="document.getElementById('listModalOverlay').style.display='flex'"
+                                    ><i class="fa-solid fa-list fa-xl"></i></a>
+                                </li>
                                 {% endif %}
-                            </li>
-                            {% if is_logged_in %}
-                            <li class="mx-2">
-                                <a
-                                    class="text-decoration-none text-white"
-                                    style="cursor: pointer"
-                                    onclick="document.getElementById('listModalOverlay').style.display='flex'"
-                                    ><i class="fa-solid fa-list fa-xl"></i
-                                ></a>
-                            </li>
-                            {% endif %}
-                        </ul>
+                            </ul>
+                        </div>
                     </div>
                     <hr />
                     <div class="my-1">
