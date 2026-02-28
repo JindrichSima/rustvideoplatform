@@ -12,6 +12,7 @@
 </head>
 
 <body hx-ext="preload">
+    {% set page_title = "Search" %}
     {{ sidebar }}
     {% include "component-navbar.html" %}
     <div class="row maincontentrow g-3 py-2 ps-2 w-100">
@@ -19,7 +20,6 @@
             <div class="card py-3 px-3 text-white" style="min-height: 80vh;">
 
                 <div class="search-header">
-                    <h3><i class="fa-solid fa-magnifying-glass me-2"></i>Search</h3>
                     <div class="search-bar-wrapper">
                         <form id="searchForm" hx-post="/hx/search/0" hx-target="#searchresults" hx-trigger="submit"
                             hx-indicator="#search-loading">
