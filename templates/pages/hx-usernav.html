@@ -1,8 +1,8 @@
 <div class="dropdown">
-    <button class="btn text-white dropbtn border shadow">{{ user.login }}</button>
-    <div class="dropdown-content">
-        <a class="dropdown-item" href="/channel/{{ user.login }}" preload="mouseover">My Channel</a>
-        <a class="dropdown-item" href="/studio" preload="mouseover">Studio</a>
-        <a class="dropdown-item" href="/hx/logout">Log out</a>
+    <button class="btn">{{ user.login }}</button>
+    <div class="dropdown-content border shadow">
+        <a class="dropdown-item" href="/channel/{{ user.login }}" preload="mouseover"><i class="fa-solid fa-house-flag mx-2"></i>My Channel</a>
+        <a class="dropdown-item" href="/studio" preload="mouseover"><i class="fa-solid fa-pen-ruler mx-2"></i>Studio</a>
+        <a class="dropdown-item" href="/hx/logout"><i class="fa-solid fa-arrow-right-from-bracket mx-2"></i>Log out</a>
     </div>
 </div>
