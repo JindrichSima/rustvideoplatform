@@ -1,6 +1,6 @@
 fn like_dislike_html(mediumid: &str, likes: i64, dislikes: i64, user_reaction: Option<&str>) -> String {
-    let like_color = if user_reaction == Some("like") { "#ffd700" } else { "white" };
-    let dislike_color = if user_reaction == Some("dislike") { "#ffd700" } else { "white" };
+    let like_color = if user_reaction == Some("like") { "#ffd700" } else { "var(--bs-success)" };
+    let dislike_color = if user_reaction == Some("dislike") { "#ffd700" } else { "var(--bs-warning)" };
     format!(
         r#"<li class="d-flex align-items-center mx-2"><a class="text-decoration-none" style="cursor: pointer; color: {like_color}" hx-get="/hx/like/{mediumid}" hx-swap="outerHTML" hx-target="closest li"><i class="fa-solid fa-thumbs-up fa-xl"></i>&nbsp;<b>{likes}</b></a><span class="text-white mx-2">|</span><a class="text-decoration-none" style="cursor: pointer; color: {dislike_color}" hx-get="/hx/dislike/{mediumid}" hx-swap="outerHTML" hx-target="closest li"><i class="fa-solid fa-thumbs-down fa-xl"></i>&nbsp;<b>{dislikes}</b></a></li>"#
     )
@@ -8,7 +8,7 @@ fn like_dislike_html(mediumid: &str, likes: i64, dislikes: i64, user_reaction: O
 
 fn like_dislike_html_unauth(mediumid: &str, likes: i64, dislikes: i64) -> String {
     format!(
-        r#"<li class="d-flex align-items-center mx-2"><a class="text-decoration-none text-white" href="/login"><i class="fa-solid fa-thumbs-up fa-xl"></i>&nbsp;<b>{likes}</b></a><span class="text-white mx-2">|</span><a class="text-decoration-none text-white" href="/login"><i class="fa-solid fa-thumbs-down fa-xl"></i>&nbsp;<b>{dislikes}</b></a></li>"#
+        r#"<li class="d-flex align-items-center mx-2"><a class="text-decoration-none" style="color: var(--bs-success)" href="/login"><i class="fa-solid fa-thumbs-up fa-xl"></i>&nbsp;<b>{likes}</b></a><span class="text-white mx-2">|</span><a class="text-decoration-none" style="color: var(--bs-warning)" href="/login"><i class="fa-solid fa-thumbs-down fa-xl"></i>&nbsp;<b>{dislikes}</b></a></li>"#
     )
 }
 
