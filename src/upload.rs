@@ -1,4 +1,21 @@
 #[derive(Template)]
+#[template(path = "pages/hx-studio-upload.html", escape = "none")]
+struct HXStudioUploadTemplate {}
+async fn hx_studio_upload(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+    let template = HXStudioUploadTemplate {};
+    Html(minifi_html(template.render().unwrap()))
+}
+
+#[derive(Template)]
 #[template(path = "pages/upload.html", escape = "none")]
 struct UploadTemplate {
     sidebar: String,

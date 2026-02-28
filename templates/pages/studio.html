@@ -17,25 +17,73 @@
     <div class="row maincontentrow g-3 py-2 ps-2 w-100">
         <div class="col-12 col-sm-12 col-md-12 col-lg-12">
             <div class="card py-3 px-3 text-white" style="min-height:30vh;">
-                <div class="row justify-content-between">
-                    <h3 class="my-2 mx-3" style="width:200px;">Studio</h3>
-                    <div style="width:760px;">
-                    <a href="/upload" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
-                            class="fa-solid fa-upload"></i>&nbsp;Upload</a>
-                    <a href="/studio/concepts" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
-                            class="fa-solid fa-wand-magic-sparkles"></i>&nbsp;Concepts</a>
-                    <a href="/studio/lists" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
-                            class="fa-solid fa-list"></i>&nbsp;Lists</a>
-                    <a href="/studio/groups" class="btn btn-primary mx-3" style="width:150px;height:40px;" preload="mouseover"><i
-                            class="fa-solid fa-users"></i>&nbsp;Groups</a>
+                <h3 class="my-2 mx-1">Studio</h3>
+                <ul class="nav nav-tabs">
+                    <li class="nav-item">
+                        <button class="nav-link active text-white"
+                                hx-get="/hx/studio"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/studio"
+                                hx-on:click="if(window.isUploading){alert('Please wait for the upload to complete before switching tabs.');return;} document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');"
+                                hx-on::before-request="if(window.isUploading){event.preventDefault();}">
+                            <i class="fa-solid fa-photo-film me-2"></i>Media
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link text-white"
+                                hx-get="/hx/studio/upload"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/upload"
+                                hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                            <i class="fa-solid fa-upload me-2"></i>Upload
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link text-white"
+                                hx-get="/hx/studio/concepts"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/studio/concepts"
+                                hx-on:click="if(window.isUploading){alert('Please wait for the upload to complete before switching tabs.');return;} document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');"
+                                hx-on::before-request="if(window.isUploading){event.preventDefault();}">
+                            <i class="fa-solid fa-wand-magic-sparkles me-2"></i>Concepts
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link text-white"
+                                hx-get="/hx/studio/lists"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/studio/lists"
+                                hx-on:click="if(window.isUploading){alert('Please wait for the upload to complete before switching tabs.');return;} document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');"
+                                hx-on::before-request="if(window.isUploading){event.preventDefault();}">
+                            <i class="fa-solid fa-list me-2"></i>Lists
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link text-white"
+                                hx-get="/hx/studio/groups"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/studio/groups"
+                                hx-on:click="if(window.isUploading){alert('Please wait for the upload to complete before switching tabs.');return;} document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');"
+                                hx-on::before-request="if(window.isUploading){event.preventDefault();}">
+                            <i class="fa-solid fa-users me-2"></i>Groups
+                        </button>
+                    </li>
+                </ul>
+                <div id="tab-content" class="row">
+                    <div hx-get="/hx/studio" hx-trigger="load" class="mb-3 hx-placeholder" preload="always">
                     </div>
-                </div>
-                <hr>
-                <div hx-get="/hx/studio" hx-trigger="load" class="row mb-3 hx-placeholder" preload="always">
                 </div>
             </div>
         </div>
     </div>
+    <script>
+        window.isUploading = false;
+    </script>
 </body>
 
 </html>
