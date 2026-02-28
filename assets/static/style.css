@@ -24,7 +24,7 @@
     --bs-body-line-height: 1.5;
     --bs-border-width: 2px;
     --bs-border-style: solid;
-    --bs-border-color: var(--bs-primary);
+    --bs-border-color: var(--bs-secondary);
     --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
     --bs-border-radius: 1rem;
     --bs-border-radius-sm: 0.25rem;
@@ -65,7 +65,7 @@
     --bs-body-line-height: 1.5;
     --bs-border-width: 2px;
     --bs-border-style: solid;
-    --bs-border-color: var(--bs-primary);
+    --bs-border-color: var(--bs-secondary);
     --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
     --bs-border-radius: 1rem;
     --bs-border-radius-sm: 0.25rem;
@@ -4403,7 +4403,7 @@ fieldset:disabled .btn {
     --bs-nav-tabs-link-hover-border-color: var(--bs-secondary);
     --bs-nav-tabs-link-active-color: var(--bs-emphasis-color);
     --bs-nav-tabs-link-active-bg: var(--bs-body-bg);
-    --bs-nav-tabs-link-active-border-color: var(--bs-primary);
+    --bs-nav-tabs-link-active-border-color: var(--bs-secondary);
     border-bottom: var(--bs-nav-tabs-border-width) solid
         var(--bs-nav-tabs-border-color);
 }
