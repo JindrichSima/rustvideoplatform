@@ -16456,3 +16456,45 @@ body.sidebar-collapsed .sidebarbackground {
         font-size: clamp(0.75rem, 3.5cqw, 2rem);
     }
 }
+
+/* ==================== Medium page info grid ==================== */
+
+/* Mobile-first: single column, stacked (title → channel → engagement bar) */
+.medium-info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+}
+
+.medium-title-col {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.medium-engagement-col {
+    margin-top: 0.25rem;
+}
+
+/* Desktop (md+): 2-column grid; engagement bar right-aligned, spanning both rows */
+@media (min-width: 768px) {
+    .medium-info-grid {
+        grid-template-columns: 1fr auto;
+        column-gap: 0.5rem;
+    }
+
+    .medium-title-col {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .medium-channel-col {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .medium-engagement-col {
+        grid-column: 2;
+        grid-row: 1 / 3;
+        margin-top: 0;
+        justify-content: flex-end;
+    }
+}
