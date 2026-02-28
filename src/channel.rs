@@ -67,14 +67,37 @@ async fn hx_usermedia(
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
+    hx_usermedia_inner(config, pool, redis, headers, userid, 0).await
+}
+
+async fn hx_usermedia_page(
+    Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path((userid, page)): Path<(String, i64)>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_usermedia_inner(config, pool, redis, headers, userid, page).await
+}
+
+async fn hx_usermedia_inner(
+    config: Config,
+    pool: PgPool,
+    redis: RedisConn,
+    headers: HeaderMap,
+    userid: String,
+    page: i64,
+) -> axum::response::Html<Vec<u8>> {
     let user = get_user_login(headers, &pool, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
+    let offset = page * 30;
 
-    let media: Vec<Medium> = sqlx::query(
-        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY upload DESC;"
+    let mut media: Vec<Medium> = sqlx::query(
+        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY upload DESC LIMIT 31 OFFSET $3;"
     )
     .bind(&userid)
     .bind(&user_login)
+    .bind(offset)
     .map(|row: sqlx::postgres::PgRow| {
         use sqlx::Row;
         Medium {
@@ -89,6 +112,13 @@ async fn hx_usermedia(
     .await
     .expect("Database error");
 
-    let template = HXMediumCardTemplate { media, config };
+    let has_more = media.len() == 31;
+    if has_more {
+        media.truncate(30);
+    }
+    let next_page = page + 1;
+    let next_url = format!("/hx/usermedia/{}/{}", userid, next_page);
+
+    let template = HXMediumCardTemplate { media, config, page, has_more, next_url };
     Html(minifi_html(template.render().unwrap()))
 }

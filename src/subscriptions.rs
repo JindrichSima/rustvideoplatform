@@ -26,6 +26,26 @@ async fn hx_subscriptions(
     Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
 ) -> axum::response::Html<Vec<u8>> {
+    hx_subscriptions_inner(config, headers, pool, redis, 0).await
+}
+
+async fn hx_subscriptions_page(
+    Extension(config): Extension<Config>,
+    headers: HeaderMap,
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    Path(page): Path<i64>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_subscriptions_inner(config, headers, pool, redis, page).await
+}
+
+async fn hx_subscriptions_inner(
+    config: Config,
+    headers: HeaderMap,
+    pool: PgPool,
+    redis: RedisConn,
+    page: i64,
+) -> axum::response::Html<Vec<u8>> {
     let user = match get_user_login(headers, &pool, redis.clone()).await {
         Some(user) => user,
         None => {
@@ -37,15 +57,18 @@ async fn hx_subscriptions(
         }
     };
 
-    let media: Vec<Medium> = sqlx::query(
+    let offset = page * 30;
+
+    let mut media: Vec<Medium> = sqlx::query(
         "SELECT m.id, m.name, m.owner, m.views, m.type
          FROM media m
          INNER JOIN subscriptions s ON m.owner = s.target
          WHERE s.subscriber = $1 AND (m.visibility = 'public' OR (m.visibility = 'restricted' AND m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)))
          ORDER BY m.upload DESC
-         LIMIT 100;"
+         LIMIT 31 OFFSET $2;"
     )
     .bind(&user.login)
+    .bind(offset)
     .map(|row: sqlx::postgres::PgRow| {
         use sqlx::Row;
         Medium {
@@ -60,7 +83,14 @@ async fn hx_subscriptions(
     .await
     .expect("Database error");
 
-    let template = HXMediumCardTemplate { media, config };
+    let has_more = media.len() == 31;
+    if has_more {
+        media.truncate(30);
+    }
+    let next_page = page + 1;
+    let next_url = format!("/hx/subscriptions/{}", next_page);
+
+    let template = HXMediumCardTemplate { media, config, page, has_more, next_url };
     Html(minifi_html(template.render().unwrap()))
 }
 

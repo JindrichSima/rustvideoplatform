@@ -24,7 +24,20 @@
         </table>
     </a>
 </div>
+{% if loop.index == 20 && has_more %}
+<div class="col-12" style="height:1px;overflow:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-li-{{ page }}" hx-swap="outerHTML"></div>
+{% endif %}
 {% endfor %}
-{% if items.is_empty() %}
-<p class="text-secondary text-center">This list is empty.</p>
+{% if has_more %}
+<div id="inf-scroll-li-{{ page }}" class="col-12 text-center my-4">
+    <i class="fa-solid fa-spinner fa-spin-pulse fa-3x text-secondary"></i>
+</div>
+{% else %}
+<div class="col-12 text-center my-4">
+    {% if items.is_empty() && page == 0 %}
+    <p class="text-secondary">This list is empty.</p>
+    {% else %}
+    <p class="text-secondary"><i class="fa-solid fa-circle-check me-2"></i>You have reached the end.</p>
+    {% endif %}
+</div>
 {% endif %}
