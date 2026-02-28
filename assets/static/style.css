@@ -16432,12 +16432,9 @@ body.sidebar-collapsed .sidebarbackground {
 
 /* ==================== Medium page title ==================== */
 
-/* Mobile: at most 2 lines, normal wrap */
+/* Mobile: shrink font to always fit 2 lines (JS handles sizing) */
 #medium-title {
     overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
     white-space: normal;
     font-size: clamp(1.25rem, 5vw, 2rem);
 }
