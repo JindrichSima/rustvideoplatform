@@ -16334,17 +16334,6 @@ body.sidebar-collapsed .sidebarbackground {
     list-style: none;
 }
 
-.suggestion-viewall {
-    border-top: 1px solid var(--bs-primary);
-    margin-top: 0.25rem;
-}
-
-.suggestion-viewall li {
-    padding: 0.5rem 0;
-    font-size: 0.85rem;
-    color: var(--bs-secondary);
-}
-
 #suggestions {
     position: absolute;
     z-index: 1000;
