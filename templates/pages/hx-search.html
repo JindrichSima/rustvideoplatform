@@ -5,7 +5,7 @@
 </div>
 {% endif %}
 {% for hit in search_results %}
-<a href="/m/{{ hit.id }}" class="search-result-card" preload="mouseover">
+<a href="/m/{{ hit.id }}" class="search-result-card inf-scroll-reveal" preload="mouseover">
     <div class="search-card-thumbnail">
         <img src="{{ config.source_server_url }}/source/{{ hit.id }}/thumbnail.avif" alt="{{ hit.name }}" loading="lazy" />
         <div class="search-card-type-badge">
@@ -34,9 +34,7 @@
     <input type="hidden" name="media_type" value="{{ media_type }}" />
     <input type="hidden" name="sort_by" value="{{ sort_by }}" />
     <input type="hidden" name="date_range" value="{{ date_range }}" />
-    <div class="text-center my-4">
-        <i class="fa-solid fa-spinner fa-spin-pulse fa-3x"></i>
-    </div>
+    <div class="my-4 inf-scroll-placeholder"></div>
 </form>
 {% else %}
 <div class="text-center my-4">
