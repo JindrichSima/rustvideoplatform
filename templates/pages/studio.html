@@ -12,12 +12,12 @@
 </head>
 
 <body hx-ext="preload">
+    {% set page_title = "Studio" %}
     {{ sidebar }}
     {% include "component-navbar.html" %}
     <div class="row maincontentrow g-3 py-2 ps-2 w-100">
         <div class="col-12 col-sm-12 col-md-12 col-lg-12">
             <div class="card py-3 px-3 text-white" style="min-height:30vh;">
-                <h3 class="my-2 mx-1">Studio</h3>
                 <ul class="nav nav-tabs">
                     <li class="nav-item">
                         <button class="nav-link {% if active_tab == "media" %}active {% endif %}text-white"

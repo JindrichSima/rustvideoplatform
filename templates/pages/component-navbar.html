@@ -1,4 +1,9 @@
-<div class="d-flex justify-content-end mx-1">
+<div class="d-flex align-items-center mx-1">
+    {% if page_title is defined %}
+    <span class="ms-3 me-auto fs-5 fw-semibold text-white">{{ page_title }}</span>
+    {% else %}
+    <span class="me-auto"></span>
+    {% endif %}
     <form id="navSearchForm" onsubmit="return navbarSearch(event)">
         <div class="input-group m-2 text-white">
             <input id="searchInput" class="form-control searchinput" hx-post="/hx/searchsuggestions"
