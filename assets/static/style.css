@@ -16429,3 +16429,30 @@ body.sidebar-collapsed .sidebarbackground {
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
 }
+
+/* ==================== Medium page title ==================== */
+
+/* Mobile: at most 2 lines, normal wrap */
+#medium-title {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    font-size: clamp(1.25rem, 5vw, 2rem);
+}
+
+/* Desktop (lg+): single line, font scales with container width */
+@media (min-width: 992px) {
+    .medium-title-wrapper {
+        container-type: inline-size;
+    }
+
+    #medium-title {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: clamp(0.75rem, 3.5cqw, 2rem);
+    }
+}
