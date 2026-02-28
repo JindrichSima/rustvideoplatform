@@ -24,7 +24,7 @@
     --bs-body-line-height: 1.5;
     --bs-border-width: 2px;
     --bs-border-style: solid;
-    --bs-border-color: var(--bs-secondary);
+    --bs-border-color: var(--bs-primary);
     --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
     --bs-border-radius: 1rem;
     --bs-border-radius-sm: 0.25rem;
@@ -65,7 +65,7 @@
     --bs-body-line-height: 1.5;
     --bs-border-width: 2px;
     --bs-border-style: solid;
-    --bs-border-color: var(--bs-secondary);
+    --bs-border-color: var(--bs-primary);
     --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
     --bs-border-radius: 1rem;
     --bs-border-radius-sm: 0.25rem;
@@ -4398,7 +4398,7 @@ fieldset:disabled .btn {
 
 .nav-tabs {
     --bs-nav-tabs-border-width: var(--bs-border-width);
-    --bs-nav-tabs-border-color: var(--bs-border-color);
+    --bs-nav-tabs-border-color: var(--bs-secondary);
     --bs-nav-tabs-border-radius: var(--bs-border-radius);
     --bs-nav-tabs-link-hover-border-color: var(--bs-secondary);
     --bs-nav-tabs-link-active-color: var(--bs-emphasis-color);
