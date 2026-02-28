@@ -15,7 +15,7 @@ fn read_lines_to_vec(filepath: &str) -> Vec<String> {
         .lines()
         .filter_map(|line| line.ok())
         .collect();
-    
+
     lines
 }
 
@@ -23,15 +23,12 @@ fn generate_secure_string() -> String {
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
     const STRING_LEN: usize = 100;
 
-    let mut rng = rng();
-    let secure_string: String = (0..STRING_LEN)
+    (0..STRING_LEN)
         .map(|_| {
-            let idx = rng.random_range(0..CHARSET.len());
+            let idx = rand::random_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
-        .collect();
-
-    secure_string
+        .collect()
 }
 
 fn parse_cookie_header(header: &str) -> AHashMap<String, String> {
@@ -145,14 +142,14 @@ fn format_file_size(size_bytes: usize) -> String {
 
 fn generate_medium_id() -> String {
     let charset = b"abcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::rng();
-    let random_string: String = (0..10)
+
+    (0..10)
         .map(|_| {
-            let idx = rng.random_range(0..charset.len());
+            // No 'rng' variable needed, no trait import needed
+            let idx = rand::random_range(0..charset.len());
             charset[idx] as char
         })
-        .collect();
-    random_string
+        .collect()
 }
 
 fn detect_medium_type_mime(mime: String) -> String {

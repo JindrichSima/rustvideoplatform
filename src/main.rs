@@ -23,7 +23,6 @@ use axum::{
 };
 use chrono::{DateTime, Datelike, Local, Timelike};
 use memory_serve::{load_assets, MemoryServe};
-use rand::{rng, Rng};
 use meilisearch_sdk::client::Client as MeilisearchClient;
 use redis::AsyncCommands;
 use serde::Deserialize;
