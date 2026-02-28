@@ -122,6 +122,7 @@ async fn main() {
         .route("/hx/comment/{commentid}/delta.json", get(comment_delta))
         .route("/hx/reccomended/{mediumid}", get(hx_recommended))
         .route("/hx/new_view/{mediumid}", get(hx_new_view))
+        .route("/hx/likedislikebutton/{mediumid}", get(hx_likedislikebutton))
         .route("/hx/like/{mediumid}", get(hx_like))
         .route("/hx/dislike/{mediumid}", get(hx_dislike))
         .route("/hx/subscribe/{userid}", get(hx_subscribe))

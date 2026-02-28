@@ -70,6 +70,15 @@ CREATE TABLE public.user_group_members (
 	CONSTRAINT user_group_members_pk PRIMARY KEY (group_id, user_login)
 );
 
+CREATE TABLE public.media_likes (
+	media_id varchar NOT NULL,
+	user_login varchar(40) NOT NULL,
+	reaction varchar NOT NULL,
+	CONSTRAINT media_likes_pk PRIMARY KEY (media_id, user_login)
+);
+
 -- Migration for existing data:
 -- UPDATE public.media SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
 -- UPDATE public.lists SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
+-- ALTER TABLE public.media DROP COLUMN likes;
+-- ALTER TABLE public.media DROP COLUMN dislikes;

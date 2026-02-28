@@ -218,25 +218,11 @@
                         <!-- Engagement bar (grid col 2, rows 1-2 on desktop; stacks below on mobile) -->
                         <div class="medium-engagement-col d-flex align-items-center">
                             <ul class="list-group list-unstyled list-group-horizontal py-3 px-2 mb-0" style="background-color: var(--bs-primary);">
-                                <li class="mx-2">
-                                    <a
-                                        class="text-decoration-none text-white"
-                                        style="cursor: pointer"
-                                        hx-get="/hx/like/{{ medium_id }}"
-                                        hx-trigger="click once"
-                                        hx-target="#medium_likes"
-                                    ><i class="fa-solid fa-thumbs-up fa-xl"></i>&nbsp;<b id="medium_likes">{{ medium_likes }}</b></a>
-                                </li>
-                                <li>|</li>
-                                <li class="mx-2">
-                                    <a
-                                        class="text-decoration-none text-white"
-                                        style="cursor: pointer"
-                                        hx-get="/hx/dislike/{{ medium_id }}"
-                                        hx-trigger="click once"
-                                        hx-target="#medium_dislikes"
-                                    ><i class="fa-solid fa-thumbs-down fa-xl"></i>&nbsp;<b id="medium_dislikes">{{ medium_dislikes }}</b></a>
-                                </li>
+                                <li
+                                    hx-get="/hx/likedislikebutton/{{ medium_id }}"
+                                    hx-trigger="load"
+                                    hx-swap="outerHTML"
+                                ></li>
                                 <li class="mx-4">
                                     {% if medium_type == "video" %}
                                     <a href="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.webm" class="text-white text-decoration-none" download="{{ medium_id }}.webm"><i class="fa-solid fa-download fa-xl"></i></a>

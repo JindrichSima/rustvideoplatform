@@ -15834,6 +15834,24 @@ body.sidebar-collapsed .sidebarbackground {
     color: var(--bs-white);
 }
 
+/* ── Infinite-scroll reveal ── */
+
+/* Items fade in when HTMX swaps them into the page */
+.inf-scroll-reveal {
+    animation: infScrollFadeIn 0.25s ease forwards;
+}
+
+@keyframes infScrollFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* Invisible placeholder that reserves space while the next page loads */
+.inf-scroll-placeholder {
+    min-height: 120px;
+    visibility: hidden;
+}
+
 /* ── Layout-shift reduction ── */
 
 /* HTMX placeholder: reserves space for content loaded via hx-trigger="load" */

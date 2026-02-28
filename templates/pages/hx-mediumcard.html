@@ -1,5 +1,5 @@
 {% for item in media %}
-<div class="col-xl-2 col-lg-4 col-6 d-flex justify-content-center">
+<div class="col-xl-2 col-lg-4 col-6 d-flex justify-content-center inf-scroll-reveal">
     <a
         href="/m/{{ item.id }}"
         class="text-decoration-none p-3 bg-hover rounded"
@@ -67,9 +67,7 @@
 {% endif %}
 {% endfor %}
 {% if has_more %}
-<div id="inf-scroll-mc-{{ page }}" class="col-12 text-center my-4">
-    <i class="fa-solid fa-spinner fa-spin-pulse fa-3x text-secondary"></i>
-</div>
+<div id="inf-scroll-mc-{{ page }}" class="col-12 my-4 inf-scroll-placeholder"></div>
 {% else %}
 <div class="col-12 text-center my-4">
     {% if media.is_empty() && page == 0 %}
