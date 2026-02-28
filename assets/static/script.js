@@ -105,3 +105,33 @@ document.addEventListener('webkitfullscreenchange', function () {
         icon.classList.add('fa-expand');
     }
 });
+
+function fitMediumTitle() {
+    const title = document.getElementById('medium-title');
+    if (!title || window.matchMedia('(min-width: 992px)').matches) return;
+
+    // Reset to CSS-specified font size to measure from the top
+    title.style.fontSize = '';
+
+    const style = window.getComputedStyle(title);
+    const lineHeight = parseFloat(style.lineHeight);
+    const maxHeight = lineHeight * 2;
+
+    if (title.scrollHeight <= maxHeight + 1) return;
+
+    // Binary search for the largest font size that fits in 2 lines
+    let lo = 10, hi = parseFloat(style.fontSize);
+    while (hi - lo > 0.5) {
+        const mid = (lo + hi) / 2;
+        title.style.fontSize = mid + 'px';
+        if (title.scrollHeight <= maxHeight + 1) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    title.style.fontSize = lo + 'px';
+}
+
+document.addEventListener('DOMContentLoaded', fitMediumTitle);
+window.addEventListener('resize', fitMediumTitle);
