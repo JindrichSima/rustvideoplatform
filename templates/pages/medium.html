@@ -194,7 +194,7 @@
                         </div>
                         {% endif %}
                     </div>
-                    <div>
+                    <table>
                         <ul
                             class="list-group list-unstyled mt-2 mb-1 mx-1"
                             style="float: left"
@@ -214,19 +214,23 @@
                                 </h1>
                             </li>
                             <li>
-                                <div class="row">
+                                <table>
+                                    <td>
                                     <a
                                         href="/channel/{{ medium_owner }}"
-                                        class="text-secondary text-center my-2 text-decoration-none fs-5 col-sm"
+                                        class="text-secondary text-center p-3 text-decoration-none fs-5 col-sm"
                                         preload="mouseover"
                                         >{{ medium_owner }}</a
                                     >
+                                    </td>
+                                    <td>
                                     <div
                                         hx-get="/hx/subscribebutton/{{ medium_owner }}"
                                         hx-trigger="load"
-                                        class="col-sm subscribe-placeholder"
+                                        class="col-sm subscribe-placeholder p-1"
                                     ></div>
-                                </div>
+                                    </td>
+                                </table>
                             </li>
                         </ul>
                         <ul
