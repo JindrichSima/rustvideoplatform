@@ -15,13 +15,6 @@ async fn hx_studio_upload(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Template)]
-#[template(path = "pages/upload.html", escape = "none")]
-struct UploadTemplate {
-    sidebar: String,
-    config: Config,
-    common_headers: CommonHeaders,
-}
 async fn upload(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
@@ -36,10 +29,11 @@ async fn upload(
 
     let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
-    let template = UploadTemplate {
+    let template = StudioTemplate {
         sidebar,
         config,
         common_headers,
+        active_tab: "upload".to_owned(),
     };
     Html(minifi_html(template.render().unwrap()))
 }

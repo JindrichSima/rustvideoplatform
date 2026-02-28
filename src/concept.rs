@@ -6,13 +6,6 @@ struct MediumConcept {
     r#type: String,
 }
 
-#[derive(Template)]
-#[template(path = "pages/concepts.html", escape = "none")]
-struct ConceptsTemplate {
-    sidebar: String,
-    config: Config,
-    common_headers: CommonHeaders,
-}
 async fn concepts(
     Extension(pool): Extension<PgPool>,
     Extension(config): Extension<Config>,
@@ -27,10 +20,11 @@ async fn concepts(
 
     let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
-    let template = ConceptsTemplate {
+    let template = StudioTemplate {
         sidebar,
         config,
         common_headers,
+        active_tab: "concepts".to_owned(),
     };
     Html(minifi_html(template.render().unwrap()))
 }
