@@ -16195,7 +16195,6 @@ body.sidebar-collapsed .sidebarbackground {
 
 .search-result-card:hover {
     background: var(--bs-primary);
-    transform: translateX(4px);
 }
 
 .search-card-thumbnail {
