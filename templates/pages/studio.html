@@ -20,7 +20,7 @@
                 <h3 class="my-2 mx-1">Studio</h3>
                 <ul class="nav nav-tabs">
                     <li class="nav-item">
-                        <button class="nav-link active text-white"
+                        <button class="nav-link {% if active_tab == "media" %}active {% endif %}text-white"
                                 hx-get="/hx/studio"
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
@@ -31,7 +31,7 @@
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link text-white"
+                        <button class="nav-link {% if active_tab == "upload" %}active {% endif %}text-white"
                                 hx-get="/hx/studio/upload"
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
@@ -41,7 +41,7 @@
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link text-white"
+                        <button class="nav-link {% if active_tab == "concepts" %}active {% endif %}text-white"
                                 hx-get="/hx/studio/concepts"
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
@@ -52,7 +52,7 @@
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link text-white"
+                        <button class="nav-link {% if active_tab == "lists" %}active {% endif %}text-white"
                                 hx-get="/hx/studio/lists"
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
@@ -63,7 +63,7 @@
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link text-white"
+                        <button class="nav-link {% if active_tab == "groups" %}active {% endif %}text-white"
                                 hx-get="/hx/studio/groups"
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
@@ -75,8 +75,22 @@
                     </li>
                 </ul>
                 <div id="tab-content" class="row">
+                    {% if active_tab == "upload" %}
+                    <div hx-get="/hx/studio/upload" hx-trigger="load" class="mb-3 hx-placeholder" preload="always">
+                    </div>
+                    {% else if active_tab == "concepts" %}
+                    <div hx-get="/hx/studio/concepts" hx-trigger="load" class="mb-3 hx-placeholder" preload="always">
+                    </div>
+                    {% else if active_tab == "lists" %}
+                    <div hx-get="/hx/studio/lists" hx-trigger="load" class="mb-3 hx-placeholder" preload="always">
+                    </div>
+                    {% else if active_tab == "groups" %}
+                    <div hx-get="/hx/studio/groups" hx-trigger="load" class="mb-3 hx-placeholder" preload="always">
+                    </div>
+                    {% else %}
                     <div hx-get="/hx/studio" hx-trigger="load" class="mb-3 hx-placeholder" preload="always">
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

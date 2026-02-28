@@ -28,14 +28,6 @@ struct AddMemberForm {
     user_login: String,
 }
 
-#[derive(Template)]
-#[template(path = "pages/studio-groups.html", escape = "none")]
-struct StudioGroupsTemplate {
-    sidebar: String,
-    config: Config,
-    common_headers: CommonHeaders,
-}
-
 async fn studio_groups(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
@@ -50,10 +42,11 @@ async fn studio_groups(
 
     let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
-    let template = StudioGroupsTemplate {
+    let template = StudioTemplate {
         sidebar,
         config,
         common_headers,
+        active_tab: "groups".to_owned(),
     };
     Html(minifi_html(template.render().unwrap()))
 }

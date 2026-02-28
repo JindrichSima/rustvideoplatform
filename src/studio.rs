@@ -4,6 +4,7 @@ struct StudioTemplate {
     sidebar: String,
     config: Config,
     common_headers: CommonHeaders,
+    active_tab: String,
 }
 async fn studio(
     Extension(config): Extension<Config>,
@@ -23,6 +24,7 @@ async fn studio(
         sidebar,
         config,
         common_headers,
+        active_tab: "media".to_owned(),
     };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -66,13 +68,6 @@ async fn hx_studio(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Template)]
-#[template(path = "pages/studio-lists.html", escape = "none")]
-struct StudioListsTemplate {
-    sidebar: String,
-    config: Config,
-    common_headers: CommonHeaders,
-}
 async fn studio_lists(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
@@ -87,10 +82,11 @@ async fn studio_lists(
 
     let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
-    let template = StudioListsTemplate {
+    let template = StudioTemplate {
         sidebar,
         config,
         common_headers,
+        active_tab: "lists".to_owned(),
     };
     Html(minifi_html(template.render().unwrap()))
 }
