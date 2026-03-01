@@ -28,40 +28,47 @@ struct Medium {
     r#type: String,
 }
 
+#[derive(Deserialize)]
+struct MediaRow {
+    id: String,
+    name: String,
+    description: Option<serde_json::Value>,
+    upload: i64,
+    owner: String,
+    views: i64,
+    r#type: String,
+    visibility: String,
+    restricted_to_group: Option<String>,
+}
+
 async fn medium(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user = get_user_login(headers.clone(), &db, redis.clone()).await;
     let is_logged_in = user.is_some();
 
-    // Fetch media with visibility info
-    let medium_row = sqlx::query(
-        "SELECT id,name,description,upload,owner,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
-    )
-    .bind(mediumid.to_ascii_lowercase())
-    .fetch_one(&pool)
-    .await;
+    let mut result = db
+        .query("SELECT record::id(id) AS id, name, description, upload, owner, views, type, visibility, restricted_to_group FROM type::thing('media', $id)")
+        .bind(("id", mediumid.to_ascii_lowercase()))
+        .await
+        .expect("Database error");
 
-    let medium = match medium_row {
-        Ok(row) => row,
-        Err(_) => {
+    let medium: Option<MediaRow> = result.take(0).expect("Database error");
+
+    let medium = match medium {
+        Some(row) => row,
+        None => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
             ));
         }
     };
 
-    use sqlx::Row;
-    let visibility: String = medium.get("visibility");
-    let restricted_to_group: Option<String> = medium.get("restricted_to_group");
-    let owner: String = medium.get("owner");
-
-    // Access control for restricted content
-    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
+    if !can_access_restricted(&db, &medium.visibility, medium.restricted_to_group.as_deref(), &medium.owner, &user, redis.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/\");</script>".to_owned(),
         ));
@@ -69,7 +76,7 @@ async fn medium(
 
     let common_headers = extract_common_headers(&headers).unwrap();
 
-    let medium_id: String = medium.get("id");
+    let medium_id = medium.id.clone();
     let medium_captions_exist: bool;
     let mut medium_captions_list: Vec<String> = Vec::new();
     if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
@@ -81,29 +88,20 @@ async fn medium(
         medium_captions_exist = false;
     }
 
-    let medium_chapters_exist: bool;
-    if std::path::Path::new(&format!("source/{}/chapters.vtt", medium_id)).exists() {
-        medium_chapters_exist = true;
-    } else {
-        medium_chapters_exist = false;
-    }
-
-    let medium_previews_exist: bool;
-    if std::path::Path::new(&format!("source/{}/previews/previews.vtt", medium_id)).exists() {
-        medium_previews_exist = true;
-    } else {
-        medium_previews_exist = false;
-    }
+    let medium_chapters_exist =
+        std::path::Path::new(&format!("source/{}/chapters.vtt", medium_id)).exists();
+    let medium_previews_exist =
+        std::path::Path::new(&format!("source/{}/previews/previews.vtt", medium_id)).exists();
 
     let sidebar = generate_sidebar(&config, "medium".to_owned());
     let template = MediumTemplate {
         sidebar,
         medium_id,
-        medium_name: medium.get("name"),
-        medium_owner: medium.get("owner"),
-        medium_upload: prettyunixtime(medium.get("upload")).await,
-        medium_views: medium.get("views"),
-        medium_type: medium.get("type"),
+        medium_name: medium.name,
+        medium_owner: medium.owner,
+        medium_upload: prettyunixtime(medium.upload).await,
+        medium_views: medium.views,
+        medium_type: medium.r#type,
         medium_captions_exist,
         medium_captions_list,
         medium_chapters_exist,
@@ -137,12 +135,10 @@ async fn medium_previews_prepare(Path(mediumid): Path<String>) -> Response<Body>
 
 fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
     let base_path = format!("/source/{}/previews/", mediumid);
-
     vtt_content
         .lines()
         .map(|line| {
             let trimmed = line.trim();
-
             if trimmed.is_empty()
                 || trimmed.starts_with("WEBVTT")
                 || trimmed.contains("-->")
@@ -150,13 +146,11 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
             {
                 return line.to_string();
             }
-
             let path_part = trimmed.split('#').next().unwrap_or(trimmed);
             let is_avif = path_part.to_lowercase().ends_with(".avif");
             let is_relative = !trimmed.starts_with('/')
                 && !trimmed.starts_with("http://")
                 && !trimmed.starts_with("https://");
-
             if is_avif && is_relative {
                 if let Some(hash_pos) = trimmed.find('#') {
                     let (path, fragment) = trimmed.split_at(hash_pos);
@@ -165,7 +159,6 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
                     return format!("{}{}", base_path, trimmed);
                 }
             }
-
             line.to_string()
         })
         .collect::<Vec<_>>()
@@ -173,20 +166,20 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
 }
 
 async fn medium_description_prepare(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    Json(
-        sqlx::query!(
-            "SELECT description FROM media WHERE id=$1;",
-            mediumid.to_ascii_lowercase()
-        )
-        .fetch_one(&pool)
+    #[derive(Deserialize)]
+    struct DescRow { description: Option<serde_json::Value> }
+
+    let mut result = db
+        .query("SELECT description FROM type::thing('media', $id)")
+        .bind(("id", mediumid.to_ascii_lowercase()))
         .await
-        .expect("Database error")
-        .description
-        .unwrap_or_default(),
-    )
+        .expect("Database error");
+
+    let row: Option<DescRow> = result.take(0).expect("Database error");
+    Json(row.and_then(|r| r.description).unwrap_or_default())
 }
 
 #[derive(Template)]
