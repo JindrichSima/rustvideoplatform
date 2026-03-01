@@ -85,11 +85,12 @@
                             aspect-ratio="16/9"
                             load="eager"
                             posterLoad="eager"
-                            pip="false"
                             stream-type="on-demand"
-                            log-level="silent"
+                            preload="auto"
                             autoplay
                             keep-alive
+                            crossorigin
+                            playsinline
                         >
                             <media-provider>
                                 {% if medium_captions_exist %} {% for
@@ -131,11 +132,12 @@
                             aspect-ratio="16/9"
                             load="eager"
                             posterLoad="eager"
-                            pip="false"
                             stream-type="on-demand"
-                            log-level="silent"
+                            preload="auto"
                             autoplay
                             keep-alive
+                            crossorigin
+                            playsinline
                         >
                             <media-provider>
                                 {% if medium_captions_exist %} {% for
