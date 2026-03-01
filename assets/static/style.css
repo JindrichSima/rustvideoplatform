@@ -14,6 +14,10 @@
     --bs-font-sans-serif: "Nunito";
     --bs-font-monospace: "Fira Code";
     --bs-font-serif: "Source Serif 4";
+    --video-font-family: var(--bs-font-sans-serif);
+    --media-user-font-family: var(--video-font-family);
+    --media-menu-border-radius: var(--bs-border-radius);
+    --media-cue-border-radius: var(--bs-border-radius);
     --bs-gradient: linear-gradient(
         180deg,
         rgba(255, 255, 255, 0.15),
@@ -55,6 +59,10 @@
     --bs-font-sans-serif: "Nunito";
     --bs-font-monospace: "Fira Code";
     --bs-font-serif: "Source Serif 4";
+    --video-font-family: var(--bs-font-sans-serif);
+    --media-user-font-family: var(--video-font-family);
+    --media-menu-border-radius: var(--bs-border-radius);
+    --media-cue-border-radius: var(--bs-border-radius);
     --bs-gradient: linear-gradient(
         180deg,
         rgba(255, 255, 255, 0.15),
