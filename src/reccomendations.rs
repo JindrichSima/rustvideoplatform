@@ -1,30 +1,26 @@
 async fn hx_recommended(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
-    let user = get_user_login(headers, &pool, redis.clone()).await;
+    let user = get_user_login(headers, &db, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
+    let group_ids = get_user_group_ids(&db, &user_login).await;
 
-    let media: Vec<Medium> = sqlx::query(
-        "SELECT id, name, owner, views, type FROM media WHERE visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)) LIMIT 20;"
-    )
-    .bind(&user_login)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        Medium {
-            id: row.get("id"),
-            name: row.get("name"),
-            owner: row.get("owner"),
-            views: row.get("views"),
-            r#type: row.get("type"),
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .map_err(|_| {
+    let mut result = db
+        .query("SELECT record::id(id) AS id, name, owner, views, type FROM media WHERE visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN $groups) LIMIT 20")
+        .bind(("groups", &group_ids))
+        .await
+        .map_err(|_| {
+            axum::response::Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body("Failed to fetch recommendations".into())
+                .unwrap()
+        })?;
+
+    let media: Vec<Medium> = result.take(0).map_err(|_| {
         axum::response::Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body("Failed to fetch recommendations".into())

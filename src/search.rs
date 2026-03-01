@@ -29,20 +29,10 @@ impl From<MeiliMedia> for Medium {
     }
 }
 
-// --- Visibility filter helpers ---
-
 /// Build a Meilisearch filter string that respects group-based visibility.
-/// For logged-in users, shows public media + restricted media in their groups.
-/// For anonymous users, shows only public media.
-async fn build_visibility_filter(pool: &PgPool, user: &Option<User>) -> String {
+async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
     if let Some(u) = user {
-        let group_ids: Vec<String> = sqlx::query_scalar(
-            "SELECT group_id FROM user_group_members WHERE user_login = $1"
-        )
-        .bind(&u.login)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        let group_ids = get_user_group_ids(db, &u.login).await;
 
         if group_ids.is_empty() {
             return "visibility = 'public'".to_owned();
@@ -72,7 +62,7 @@ struct HXSearch {
 
 async fn hx_search_suggestions(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     headers: HeaderMap,
@@ -82,8 +72,8 @@ async fn hx_search_suggestions(
         return Html("".to_owned());
     }
 
-    let user = get_user_login(headers, &pool, redis).await;
-    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let user = get_user_login(headers, &db, redis).await;
+    let visibility_filter = build_visibility_filter(&db, &user).await;
 
     let index = meili.index("media");
     let results = index
@@ -176,7 +166,7 @@ struct MeiliSearchHit {
 
 async fn hx_search(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     headers: HeaderMap,
@@ -195,38 +185,34 @@ async fn hx_search(
     let sort_by = form.sort_by.clone().unwrap_or_default();
     let date_range = form.date_range.clone().unwrap_or_default();
 
-    // Build filter string with visibility-aware access control
-    let user = get_user_login(headers, &pool, redis).await;
-    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let user = get_user_login(headers, &db, redis).await;
+    let visibility_filter = build_visibility_filter(&db, &user).await;
     let mut filters: Vec<String> = vec![format!("({})", visibility_filter)];
 
-    // Media type filter
     match media_type.as_str() {
         "video" => filters.push("type = \"video\"".to_owned()),
         "audio" => filters.push("type = \"audio\"".to_owned()),
         "picture" => filters.push("type = \"picture\"".to_owned()),
-        _ => {} // "all" or empty - no type filter
+        _ => {}
     }
 
-    // Date range filter
     let now = chrono::Utc::now().timestamp();
     match date_range.as_str() {
         "today" => filters.push(format!("upload > {}", now - 86400)),
         "week" => filters.push(format!("upload > {}", now - 604800)),
         "month" => filters.push(format!("upload > {}", now - 2592000)),
         "year" => filters.push(format!("upload > {}", now - 31536000)),
-        _ => {} // "any" or empty - no date filter
+        _ => {}
     }
 
     let filter_str = filters.join(" AND ");
 
-    // Build sort
     let sort_attrs: Vec<&str> = match sort_by.as_str() {
         "views" => vec!["views:desc"],
         "likes" => vec!["likes:desc"],
         "newest" => vec!["upload:desc"],
         "oldest" => vec!["upload:asc"],
-        _ => vec![], // relevance - no sort override, Meilisearch default ranking
+        _ => vec![],
     };
 
     let index = meili.index("media");

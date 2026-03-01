@@ -7,12 +7,12 @@ struct MediumConcept {
 }
 
 async fn concepts(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(config): Extension<Config>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -35,20 +35,19 @@ struct HXConceptsTemplate {
     concepts: Vec<MediumConcept>,
 }
 async fn hx_concepts(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let userinfo = get_user_login(headers, &pool, redis.clone()).await.unwrap();
+    let userinfo = get_user_login(headers, &db, redis.clone()).await.unwrap();
 
-    let concepts = sqlx::query_as!(
-        MediumConcept,
-        "SELECT id,name,processed,type FROM media_concepts WHERE owner = $1;",
-        userinfo.login
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    let mut result = db
+        .query("SELECT record::id(id) AS id, name, processed, type FROM media_concepts WHERE owner = $owner")
+        .bind(("owner", &userinfo.login))
+        .await
+        .expect("Database error");
+
+    let concepts: Vec<MediumConcept> = result.take(0).expect("Database error");
     let template = HXConceptsTemplate { concepts };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -63,13 +62,13 @@ struct ConceptTemplate {
     owner_groups: Vec<UserGroup>,
 }
 async fn concept(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(config): Extension<Config>,
     Extension(redis): Extension<RedisConn>,
     Path(conceptid): Path<String>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -77,27 +76,23 @@ async fn concept(
     }
     let user_info = user_info.unwrap();
 
-    let concept = sqlx::query_as!(MediumConcept,
-        "SELECT id,name,type,processed FROM media_concepts WHERE owner = $1 AND id = $2 AND processed = true;", user_info.login, conceptid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
-
-    // Fetch user's groups for the dropdown
-    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-        .bind(&user_info.login)
-        .map(|row: sqlx::postgres::PgRow| {
-            use sqlx::Row;
-            UserGroup {
-                id: row.get("id"),
-                name: row.get("name"),
-                owner: row.get("owner"),
-            }
-        })
-        .fetch_all(&pool)
+    let mut result = db
+        .query("SELECT record::id(id) AS id, name, type, processed FROM media_concepts WHERE owner = $owner AND record::id(id) = $id AND processed = true")
+        .bind(("owner", &user_info.login))
+        .bind(("id", &conceptid))
         .await
-        .unwrap_or_default();
+        .expect("Database error");
+
+    let concept: Option<MediumConcept> = result.take(0).expect("Database error");
+    let concept = concept.expect("Concept not found");
+
+    let mut grp_result = db
+        .query("SELECT record::id(id) AS id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC")
+        .bind(("owner", &user_info.login))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+
+    let owner_groups: Vec<UserGroup> = grp_result.take(0).unwrap_or_default();
 
     let sidebar = generate_sidebar(&config, "studio".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
@@ -120,24 +115,28 @@ struct PublishForm {
     medium_restricted_group: Option<String>,
 }
 async fn publish(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(conceptid): Path<String>,
     Form(form): Form<PublishForm>,
 ) -> axum::response::Html<String> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }
     let user_info = user_info.unwrap();
 
-    let concept = sqlx::query_as!(MediumConcept,
-        "SELECT id,name,type,processed FROM media_concepts WHERE owner = $1 AND id = $2 AND processed = true;", user_info.login, conceptid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    // Verify concept ownership and processed status
+    let mut result = db
+        .query("SELECT record::id(id) AS id, name, type, processed FROM media_concepts WHERE owner = $owner AND record::id(id) = $id AND processed = true")
+        .bind(("owner", &user_info.login))
+        .bind(("id", &conceptid))
+        .await
+        .expect("Database error");
+
+    let concept: Option<MediumConcept> = result.take(0).expect("Database error");
+    let concept = concept.expect("Concept not found");
 
     let concept_move = move_dir(
         format!("upload/{}_processing", conceptid).as_str(),
@@ -149,7 +148,6 @@ async fn publish(
             "public" | "hidden" | "restricted" => form.medium_visibility.clone(),
             _ => "hidden".to_owned(),
         };
-        let ispublic = visibility == "public";
         let restricted_to_group = if visibility == "restricted" {
             form.medium_restricted_group.clone().filter(|g| !g.is_empty())
         } else {
@@ -157,22 +155,23 @@ async fn publish(
         };
         let description: serde_json::Value =
             serde_json::from_str(&form.medium_description).unwrap();
-        let _ = sqlx::query(
-            "INSERT INTO media (id,name,description,owner,public,visibility,restricted_to_group,type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);"
-        )
-        .bind(form.medium_id.to_ascii_lowercase())
-        .bind(&form.medium_name)
-        .bind(&description)
-        .bind(&user_info.login)
-        .bind(ispublic)
-        .bind(&visibility)
-        .bind(&restricted_to_group)
-        .bind(&concept.r#type)
-        .execute(&pool)
-        .await;
-        let _ = sqlx::query!("DELETE FROM media_concepts WHERE id=$1;", concept.id)
-            .execute(&pool)
+
+        let _ = db
+            .query("CREATE type::thing('media', $id) SET name = $name, description = $desc, owner = $owner, visibility = $vis, restricted_to_group = $group, type = $type")
+            .bind(("id", form.medium_id.to_ascii_lowercase()))
+            .bind(("name", &form.medium_name))
+            .bind(("desc", &description))
+            .bind(("owner", &user_info.login))
+            .bind(("vis", &visibility))
+            .bind(("group", &restricted_to_group))
+            .bind(("type", &concept.r#type))
             .await;
+
+        let _ = db
+            .query("DELETE type::thing('media_concepts', $id)")
+            .bind(("id", &concept.id))
+            .await;
+
         return Html(format!(
             "<script>window.location.replace(\"/m/{}\");</script>",
             form.medium_id

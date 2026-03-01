@@ -92,7 +92,7 @@ fn extract_common_headers(headers: &HeaderMap) -> Result<CommonHeaders, &'static
 
 async fn get_user_login(
     headers: HeaderMap,
-    pool: &PgPool,
+    db: &Db,
     mut redis: RedisConn,
 ) -> Option<User> {
     let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
@@ -104,15 +104,23 @@ async fn get_user_login(
         .await
         .ok()?;
 
-    let name = sqlx::query!("SELECT name FROM users WHERE login=$1;", login)
-        .fetch_one(pool)
+    #[derive(Deserialize)]
+    struct NameRow {
+        name: String,
+    }
+
+    let mut result = db
+        .query("SELECT name FROM type::thing('users', $login)")
+        .bind(("login", &login))
         .await
-        .ok()?
-        .name;
+        .ok()?;
+
+    let row: Option<NameRow> = result.take(0).ok()?;
+    let row = row?;
 
     Some(User {
         login,
-        name,
+        name: row.name,
     })
 }
 
@@ -145,7 +153,6 @@ fn generate_medium_id() -> String {
 
     (0..10)
         .map(|_| {
-            // No 'rng' variable needed, no trait import needed
             let idx = rand::random_range(0..charset.len());
             charset[idx] as char
         })
@@ -155,96 +162,69 @@ fn generate_medium_id() -> String {
 fn detect_medium_type_mime(mime: String) -> String {
     let mime_type = mime.to_ascii_lowercase();
 
-    // --- Video ---
     if mime_type.contains("video")
-        || matches!(
-            mime_type.as_str(),
-            "application/x-matroska"
-                | "application/ogg"  // .ogv
-        )
+        || matches!(mime_type.as_str(), "application/x-matroska" | "application/ogg")
     {
         return "video".to_owned();
     }
 
-    // --- Audio ---
     if mime_type.contains("audio")
         || matches!(
             mime_type.as_str(),
-            "application/ogg"        // .ogg / .oga
+            "application/ogg"
                 | "application/x-ogg"
                 | "application/flac"
                 | "application/x-flac"
-                | "application/mp4"  // audio-only mp4
+                | "application/mp4"
         )
     {
         return "audio".to_owned();
     }
 
-    // --- Picture ---
     if mime_type.contains("image")
-        || matches!(
-            mime_type.as_str(),
-            "application/dicom"      // medical imaging
-        )
+        || matches!(mime_type.as_str(), "application/dicom")
     {
         return "picture".to_owned();
     }
 
-    // --- Document: PDF ---
     if mime_type == "application/pdf" {
         return "document_pdf".to_owned();
     }
 
-    // --- Document: Writer (word processors) ---
     if matches!(
         mime_type.as_str(),
-        // OpenDocument
         "application/vnd.oasis.opendocument.text"
             | "application/vnd.oasis.opendocument.text-template"
-            // Legacy MS Word
             | "application/msword"
-            // Modern MS Word
             | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             | "application/vnd.openxmlformats-officedocument.wordprocessingml.template"
-            // Apple Pages
             | "application/vnd.apple.pages"
-            // Rich Text / plain text variants
             | "application/rtf"
             | "text/rtf"
     ) {
         return "document_writer".to_owned();
     }
 
-    // --- Document: Spreadsheet ---
     if matches!(
         mime_type.as_str(),
-        // OpenDocument
         "application/vnd.oasis.opendocument.spreadsheet"
             | "application/vnd.oasis.opendocument.spreadsheet-template"
-            // Legacy MS Excel
             | "application/vnd.ms-excel"
-            // Modern MS Excel
             | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             | "application/vnd.openxmlformats-officedocument.spreadsheetml.template"
-            // Apple Numbers
             | "application/vnd.apple.numbers"
     ) {
         return "document_spreadsheet".to_owned();
     }
 
-    // --- Document: Presentation ---
     if matches!(
         mime_type.as_str(),
-        // OpenDocument
         "application/vnd.oasis.opendocument.presentation"
             | "application/vnd.oasis.opendocument.presentation-template"
-            // Legacy MS PowerPoint
             | "application/vnd.ms-powerpoint"
-            // Modern MS PowerPoint
             | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             | "application/vnd.openxmlformats-officedocument.presentationml.template"
             | "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
-            // Apple Keynote
             | "application/vnd.apple.keynote"
     ) {
         return "document_presentation".to_owned();
@@ -286,7 +266,7 @@ async fn move_dir(src: &str, dest: &str) -> io::Result<()> {
     Ok(())
 }
 
-async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
+async fn is_group_member(db: &Db, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
     let redis_key = format!("group:{}:members", group_id);
 
     // Check if membership set is cached in Redis
@@ -296,12 +276,14 @@ async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut re
         return redis.sismember(&redis_key, user_login).await.unwrap_or(false);
     }
 
-    // Cache miss - load all members from DB and cache in Redis
-    let members: Vec<String> = sqlx::query_scalar("SELECT user_login FROM user_group_members WHERE group_id = $1")
-        .bind(group_id)
-        .fetch_all(pool)
+    // Cache miss - load all members from DB via graph edge and cache in Redis
+    let mut result = db
+        .query("SELECT VALUE record::id(out) FROM has_member WHERE in = type::thing('user_groups', $group_id)")
+        .bind(("group_id", group_id))
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|_| unreachable!());
+
+    let members: Vec<String> = result.take(0).unwrap_or_default();
 
     let is_member = members.contains(&user_login.to_owned());
 
@@ -313,7 +295,7 @@ async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut re
     is_member
 }
 
-async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
+async fn can_access_restricted(db: &Db, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
     match visibility {
         "public" => true,
         "restricted" => {
@@ -322,11 +304,39 @@ async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_gr
                     return true;
                 }
                 if let Some(group_id) = restricted_to_group {
-                    return is_group_member(pool, group_id, &u.login, redis).await;
+                    return is_group_member(db, group_id, &u.login, redis).await;
                 }
             }
             false
         }
         _ => true // "hidden" - accessible via direct link (existing behavior)
     }
+}
+
+/// Get group IDs the user is a member of (for visibility filter queries)
+async fn get_user_group_ids(db: &Db, user_login: &str) -> Vec<String> {
+    let mut result = db
+        .query("SELECT VALUE record::id(in) FROM has_member WHERE out = type::thing('users', $login)")
+        .bind(("login", user_login))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+
+    result.take(0).unwrap_or_default()
+}
+
+/// Check media ownership - returns the owner login or None
+async fn get_media_owner(db: &Db, mediumid: &str) -> Option<String> {
+    #[derive(Deserialize)]
+    struct OwnerRow {
+        owner: String,
+    }
+
+    let mut result = db
+        .query("SELECT owner FROM type::thing('media', $id)")
+        .bind(("id", mediumid))
+        .await
+        .ok()?;
+
+    let row: Option<OwnerRow> = result.take(0).ok()?;
+    row.map(|r| r.owner)
 }

@@ -1,13 +1,16 @@
 async fn hx_new_view(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<String> {
-    let update_views = sqlx::query!(
-        "UPDATE media SET views = views + 1 WHERE id=$1 RETURNING views;",
-        mediumid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
-    Html(update_views.views.to_string())
+    #[derive(Deserialize)]
+    struct ViewsRow { views: i64 }
+
+    let mut result = db
+        .query("UPDATE type::thing('media', $id) SET views += 1")
+        .bind(("id", &mediumid))
+        .await
+        .expect("Database error");
+
+    let row: Option<ViewsRow> = result.take(0).unwrap_or(None);
+    Html(row.map(|r| r.views.to_string()).unwrap_or("0".to_owned()))
 }

@@ -1,6 +1,6 @@
 #[derive(Serialize, Deserialize)]
 struct Comment {
-    id: i64,
+    id: String,
     user: String,
     text: serde_json::Value,
     time: i64,
@@ -22,23 +22,22 @@ struct HXCommentsTemplate {
 const COMMENTS_PER_PAGE: i64 = 20;
 
 async fn hx_comments(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path(mediumid): Path<String>,
     axum::extract::Query(query): axum::extract::Query<CommentsQuery>,
 ) -> axum::response::Html<Vec<u8>> {
     let page = query.page.unwrap_or(0);
     let offset = page * COMMENTS_PER_PAGE;
 
-    let comments = sqlx::query_as!(
-        Comment,
-        r#"SELECT id,"user",text,time FROM comments WHERE media=$1 ORDER BY time DESC LIMIT $2 OFFSET $3;"#,
-        mediumid,
-        COMMENTS_PER_PAGE + 1,
-        offset
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    let mut result = db
+        .query("SELECT record::id(id) AS id, user, text, time FROM comments WHERE media = $media ORDER BY time DESC LIMIT $limit START $offset")
+        .bind(("media", &mediumid))
+        .bind(("limit", COMMENTS_PER_PAGE + 1))
+        .bind(("offset", offset))
+        .await
+        .expect("Database error");
+
+    let comments: Vec<Comment> = result.take(0).expect("Database error");
 
     let has_more = comments.len() as i64 > COMMENTS_PER_PAGE;
     let comments: Vec<Comment> = comments.into_iter().take(COMMENTS_PER_PAGE as usize).collect();
@@ -58,18 +57,20 @@ struct CommentForm {
 }
 
 async fn comment_delta(
-    Extension(pool): Extension<PgPool>,
-    Path(comment_id): Path<i64>,
+    Extension(db): Extension<Db>,
+    Path(comment_id): Path<String>,
 ) -> Json<serde_json::Value> {
-    let row = sqlx::query!(
-        r#"SELECT text FROM comments WHERE id=$1;"#,
-        comment_id
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    #[derive(Deserialize)]
+    struct TextRow { text: serde_json::Value }
 
-    Json(row.text)
+    let mut result = db
+        .query("SELECT text FROM type::thing('comments', $id)")
+        .bind(("id", &comment_id))
+        .await
+        .expect("Database error");
+
+    let row: Option<TextRow> = result.take(0).expect("Database error");
+    Json(row.map(|r| r.text).unwrap_or_default())
 }
 
 #[derive(Template)]
@@ -79,13 +80,13 @@ struct HXCommentSingleTemplate {
 }
 
 async fn hx_add_comment(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Form(form): Form<CommentForm>,
 ) -> impl IntoResponse {
-    let user = get_user_login(headers, &pool, redis.clone()).await;
+    let user = get_user_login(headers, &db, redis.clone()).await;
 
     if user.is_none() {
         return (StatusCode::UNAUTHORIZED, Html(Vec::new()));
@@ -96,16 +97,24 @@ async fn hx_add_comment(
     let delta: serde_json::Value =
         serde_json::from_str(&form.text).unwrap_or_default();
 
-    let comment = sqlx::query_as!(
-        Comment,
-        r#"INSERT INTO comments (media, "user", text) VALUES ($1, $2, $3) RETURNING id, "user", text, time;"#,
-        mediumid,
-        user.login,
-        delta
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    let comment_id = generate_medium_id();
+    let now = chrono::Utc::now().timestamp();
+
+    db.query("CREATE type::thing('comments', $id) SET media = $media, user = $user, text = $text, time = $time")
+        .bind(("id", &comment_id))
+        .bind(("media", &mediumid))
+        .bind(("user", &user.login))
+        .bind(("text", &delta))
+        .bind(("time", now))
+        .await
+        .expect("Database error");
+
+    let comment = Comment {
+        id: comment_id,
+        user: user.login,
+        text: delta,
+        time: now,
+    };
 
     let template = HXCommentSingleTemplate { comment };
     (StatusCode::OK, Html(minifi_html(template.render().unwrap())))
