@@ -15,7 +15,7 @@ tower = "*"
 tower-http = { version = "*", features = ["fs"] }
 memory-serve = "1"
 serde = { version = "1.0", features = ["derive"] }
-surrealdb = { version = "2", features = ["protocol-ws", "rustls"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls"] }
 askama = { version = "0.15", features = ["serde_json"] }
 serde_json = "*"
 minify-html-onepass = "0.18"

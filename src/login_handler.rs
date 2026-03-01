@@ -22,26 +22,21 @@ struct User {
 
 async fn hx_login(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(mut redis): Extension<RedisConn>,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
-    #[derive(Deserialize)]
-    struct HashRow { password_hash: String }
+    let password_hash_get = sqlx::query!(
+        "SELECT password_hash FROM users WHERE login=$1;",
+        form.login
+    )
+    .fetch_one(&pool)
+    .await;
 
-    let mut result = db
-        .query("SELECT password_hash FROM type::thing('users', $login)")
-        .bind(("login", &form.login))
-        .await;
-
-    let password_hash_get: Option<HashRow> = match result {
-        Ok(ref mut r) => r.take(0).ok().flatten(),
-        Err(_) => None,
-    };
-
-    if password_hash_get.is_none() {
+    if password_hash_get.is_err() {
         let response_headers = HeaderMap::new();
         let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
+
         return (StatusCode::OK, response_headers, response_body);
     }
 

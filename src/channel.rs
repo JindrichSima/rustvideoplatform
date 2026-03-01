@@ -15,40 +15,40 @@ struct ChannelTemplate {
     user: UserChannel,
 }
 async fn channel(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(config): Extension<Config>,
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    // Two queries in one call: user info + subscriber count via graph
-    #[derive(Deserialize)]
-    struct UserInfo {
-        login: String,
-        name: String,
-        profile_picture: Option<String>,
-        channel_picture: Option<String>,
-    }
-    #[derive(Deserialize)]
-    struct CountRow { count: i64 }
-
-    let mut result = db
-        .query("SELECT record::id(id) AS login, name, profile_picture, channel_picture FROM type::thing('users', $userid); SELECT count() AS count FROM subscribes WHERE out = type::thing('users', $userid) GROUP ALL")
-        .bind(("userid", &userid))
-        .await
-        .expect("Database error");
-
-    let user_info: Option<UserInfo> = result.take(0).expect("Database error");
-    let sub_count: Option<CountRow> = result.take(1).unwrap_or(None);
-
-    let user_info = user_info.unwrap();
-    let user = UserChannel {
-        login: user_info.login,
-        name: user_info.name,
-        profile_picture: user_info.profile_picture,
-        channel_picture: user_info.channel_picture,
-        subscribed: Some(sub_count.map(|r| r.count).unwrap_or(0)),
-    };
-
+    let user = sqlx::query_as!(
+        UserChannel,
+        "SELECT
+    u.login,
+    u.name,
+    u.profile_picture,
+    u.channel_picture,
+    COALESCE(subs.count, 0) AS subscribed
+FROM
+    users u
+LEFT JOIN
+    (
+        SELECT
+            target,
+            COUNT(*) AS count
+        FROM
+            subscriptions
+        GROUP BY
+            target
+    ) subs
+ON
+    u.login = subs.target
+WHERE
+    u.login = $1;",
+        userid
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     let sidebar = generate_sidebar(&config, "channel".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ChannelTemplate {
@@ -62,47 +62,55 @@ async fn channel(
 
 async fn hx_usermedia(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_usermedia_inner(config, db, redis, headers, userid, 0).await
+    hx_usermedia_inner(config, pool, redis, headers, userid, 0).await
 }
 
 async fn hx_usermedia_page(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((userid, page)): Path<(String, i64)>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_usermedia_inner(config, db, redis, headers, userid, page).await
+    hx_usermedia_inner(config, pool, redis, headers, userid, page).await
 }
 
 async fn hx_usermedia_inner(
     config: Config,
-    db: Db,
+    pool: PgPool,
     redis: RedisConn,
     headers: HeaderMap,
     userid: String,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers, &db, redis.clone()).await;
+    let user = get_user_login(headers, &pool, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
     let offset = page * 40;
 
-    let group_ids = get_user_group_ids(&db, &user_login).await;
-
-    let mut result = db
-        .query("SELECT record::id(id) AS id, name, owner, views, type FROM media WHERE owner = $userid AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN $groups)) ORDER BY upload DESC LIMIT 41 START $offset")
-        .bind(("userid", &userid))
-        .bind(("groups", &group_ids))
-        .bind(("offset", offset))
-        .await
-        .expect("Database error");
-
-    let mut media: Vec<Medium> = result.take(0).expect("Database error");
+    let mut media: Vec<Medium> = sqlx::query(
+        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY upload DESC LIMIT 41 OFFSET $3;"
+    )
+    .bind(&userid)
+    .bind(&user_login)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        Medium {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            views: row.get("views"),
+            r#type: row.get("type"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
 
     let has_more = media.len() == 41;
     if has_more {

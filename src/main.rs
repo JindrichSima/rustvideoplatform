@@ -27,24 +27,18 @@ use meilisearch_sdk::client::Client as MeilisearchClient;
 use redis::AsyncCommands;
 use serde::Deserialize;
 use serde::Serialize;
+use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
 use std::io::BufRead;
 use std::sync::Arc;
-use surrealdb::engine::remote::ws::{Client, Ws};
-use surrealdb::opt::auth::Root;
-use surrealdb::Surreal;
 use tokio::{fs, io, io::AsyncWriteExt};
 use tower_http::services::ServeDir;
 
 type RedisConn = redis::aio::ConnectionManager;
-type Db = Surreal<Client>;
 
 #[derive(Deserialize, Clone)]
 struct Config {
-    surrealdb_url: String,
-    surrealdb_namespace: String,
-    surrealdb_database: String,
-    surrealdb_username: Option<String>,
-    surrealdb_password: Option<String>,
+    dbconnection: String,
     redis_url: String,
     instancename: String,
     welcome: String,
@@ -58,27 +52,11 @@ async fn main() {
     let config: Config =
         serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
 
-    let db = Surreal::new::<Ws>(&config.surrealdb_url)
+    let pool = PgPoolOptions::new()
+        .max_connections(100)
+        .connect(&config.dbconnection)
         .await
-        .expect("Failed to connect to SurrealDB");
-
-    if let (Some(username), Some(password)) =
-        (&config.surrealdb_username, &config.surrealdb_password)
-    {
-        db.signin(Root { username, password })
-            .await
-            .expect("Failed to authenticate with SurrealDB");
-    }
-
-    db.use_ns(&config.surrealdb_namespace)
-        .use_db(&config.surrealdb_database)
-        .await
-        .expect("Failed to select SurrealDB namespace/database");
-
-    println!(
-        "SurrealDB connected: url={}, ns={}, db={}",
-        &config.surrealdb_url, &config.surrealdb_namespace, &config.surrealdb_database
-    );
+        .unwrap();
 
     let meilisearch_client = MeilisearchClient::new(
         &config.meilisearch_url,
@@ -164,26 +142,11 @@ async fn main() {
         .route("/hx/studio/{page}", get(hx_studio_page))
         .route("/studio/edit/{mediumid}", get(studio_edit))
         .route("/studio/edit/{mediumid}", post(studio_edit_save))
-        .route(
-            "/studio/edit/{mediumid}/chapters.json",
-            get(studio_chapters_get),
-        )
-        .route(
-            "/studio/edit/{mediumid}/chapters",
-            post(studio_chapters_save),
-        )
-        .route(
-            "/studio/edit/{mediumid}/subtitles.json",
-            get(studio_subtitles_get),
-        )
-        .route(
-            "/studio/edit/{mediumid}/subtitles/add",
-            post(studio_subtitles_add),
-        )
-        .route(
-            "/studio/edit/{mediumid}/subtitles/delete",
-            post(studio_subtitles_delete),
-        )
+        .route("/studio/edit/{mediumid}/chapters.json", get(studio_chapters_get))
+        .route("/studio/edit/{mediumid}/chapters", post(studio_chapters_save))
+        .route("/studio/edit/{mediumid}/subtitles.json", get(studio_subtitles_get))
+        .route("/studio/edit/{mediumid}/subtitles/add", post(studio_subtitles_add))
+        .route("/studio/edit/{mediumid}/subtitles/delete", post(studio_subtitles_delete))
         .route("/hx/studio/delete/{mediumid}", get(hx_delete_video))
         .route("/studio/lists", get(studio_lists))
         .route("/hx/studio/lists", get(hx_studio_lists))
@@ -199,20 +162,11 @@ async fn main() {
         .route("/l/{listid}/{mediumid}", get(medium_in_list))
         .route("/hx/listitems/{listid}", get(hx_list_items))
         .route("/hx/listitems/{listid}/{page}", get(hx_list_items_page))
-        .route(
-            "/hx/listsidebar/{listid}/{mediumid}",
-            get(hx_list_sidebar),
-        )
+        .route("/hx/listsidebar/{listid}/{mediumid}", get(hx_list_sidebar))
         .route("/hx/listmodal/{mediumid}", get(hx_list_modal))
         .route("/hx/createlist/{mediumid}", post(hx_create_list))
-        .route(
-            "/hx/addtolist/{listid}/{mediumid}",
-            get(hx_add_to_list),
-        )
-        .route(
-            "/hx/removefromlist/{listid}/{mediumid}",
-            get(hx_remove_from_list),
-        )
+        .route("/hx/addtolist/{listid}/{mediumid}", get(hx_add_to_list))
+        .route("/hx/removefromlist/{listid}/{mediumid}", get(hx_remove_from_list))
         .route("/hx/deletelist/{listid}", get(hx_delete_list))
         .route("/hx/userlists/{userid}", get(hx_user_lists))
         .route("/hx/userlists/{userid}/{page}", get(hx_user_lists_page))
@@ -222,17 +176,11 @@ async fn main() {
         .route("/hx/creategroup", post(hx_create_group))
         .route("/hx/deletegroup/{groupid}", get(hx_delete_group))
         .route("/hx/group/{groupid}/members", get(hx_group_members))
-        .route(
-            "/hx/group/{groupid}/addmember",
-            post(hx_add_group_member),
-        )
-        .route(
-            "/hx/group/{groupid}/removemember/{login}",
-            get(hx_remove_group_member),
-        )
+        .route("/hx/group/{groupid}/addmember", post(hx_add_group_member))
+        .route("/hx/group/{groupid}/removemember/{login}", get(hx_remove_group_member))
         .route("/hx/usergroups.json", get(hx_user_groups_json))
         .nest("/source", static_router("source"))
-        .layer(Extension(db))
+        .layer(Extension(pool))
         .layer(Extension(config))
         .layer(Extension(redis_conn))
         .layer(Extension(Arc::new(meilisearch_client)))

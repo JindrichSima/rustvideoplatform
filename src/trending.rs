@@ -21,31 +21,32 @@ async fn trending(
 
 async fn hx_trending(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, db, redis, headers, 0).await
+    hx_trending_inner(config, pool, redis, headers, 0).await
 }
 
 async fn hx_trending_page(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(page): Path<i64>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, db, redis, headers, page).await
+    hx_trending_inner(config, pool, redis, headers, page).await
 }
 
 /// Try to load a page of trending media from the Redis cache.
+/// Returns Some(media) if the cache is populated, None if cache is unavailable.
 async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<Vec<Medium>> {
     let exists: bool = redis.exists("cache:trending").await.ok()?;
     if !exists {
         return None;
     }
 
-    let stop = offset + 30;
+    let stop = offset + 30; // inclusive, fetches up to 31 items for has_more check
     let ids: Vec<String> = redis
         .zrevrange("cache:trending", offset as isize, stop as isize)
         .await
@@ -55,6 +56,7 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
         return Some(Vec::new());
     }
 
+    // Pipeline: fetch metadata for all IDs in a single round-trip
     let mut pipe = redis::pipe();
     for id in &ids {
         pipe.cmd("HGETALL")
@@ -85,7 +87,7 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
 
 async fn hx_trending_inner(
     config: Config,
-    db: Db,
+    pool: PgPool,
     mut redis: RedisConn,
     headers: HeaderMap,
     page: i64,
@@ -97,19 +99,31 @@ async fn hx_trending_inner(
         Some(cached) => cached,
         None => {
             // Cache not available — fall back to direct DB query
-            // Use graph traversal to order by like count
-            let user = get_user_login(headers, &db, redis.clone()).await;
+            let user = get_user_login(headers, &pool, redis.clone()).await;
             let user_login = user.map(|u| u.login).unwrap_or_default();
-            let group_ids = get_user_group_ids(&db, &user_login).await;
-
-            let mut result = db
-                .query("SELECT record::id(id) AS id, name, owner, views, type FROM media WHERE visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN $groups) ORDER BY views DESC LIMIT 31 START $offset")
-                .bind(("groups", &group_ids))
-                .bind(("offset", offset))
-                .await
-                .expect("Database error");
-
-            result.take(0).expect("Database error")
+            sqlx::query(
+                "SELECT m.id, m.name, m.owner, m.views, m.type \
+                 FROM media m \
+                 LEFT JOIN media_likes ml ON m.id = ml.media_id \
+                 WHERE m.visibility = 'public' OR (m.visibility = 'restricted' AND m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)) \
+                 GROUP BY m.id, m.name, m.owner, m.views, m.type \
+                 ORDER BY COUNT(*) FILTER (WHERE ml.reaction = 'like') DESC LIMIT 31 OFFSET $2;"
+            )
+            .bind(&user_login)
+            .bind(offset)
+            .map(|row: sqlx::postgres::PgRow| {
+                use sqlx::Row;
+                Medium {
+                    id: row.get("id"),
+                    name: row.get("name"),
+                    owner: row.get("owner"),
+                    views: row.get("views"),
+                    r#type: row.get("type"),
+                }
+            })
+            .fetch_all(&pool)
+            .await
+            .expect("Database error")
         }
     };
 
