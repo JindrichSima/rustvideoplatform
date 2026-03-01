@@ -12,6 +12,7 @@ struct MediumTemplate {
     medium_captions_list: Vec<String>,
     medium_chapters_exist: bool,
     medium_previews_exist: bool,
+    is_cmaf: bool,
     config: Config,
     common_headers: CommonHeaders,
     is_logged_in: bool,
@@ -95,6 +96,13 @@ async fn medium(
         medium_previews_exist = false;
     }
 
+    let is_cmaf: bool;
+    if std::path::Path::new(&format!("source/{}/video/video.m3u8", medium_id)).exists() {
+        is_cmaf = true;
+    } else {
+        is_cmaf = false;
+    }
+
     let sidebar = generate_sidebar(&config, "medium".to_owned());
     let template = MediumTemplate {
         sidebar,
@@ -108,6 +116,7 @@ async fn medium(
         medium_captions_list,
         medium_chapters_exist,
         medium_previews_exist,
+        is_cmaf,
         config,
         common_headers,
         is_logged_in,

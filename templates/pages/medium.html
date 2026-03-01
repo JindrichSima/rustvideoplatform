@@ -81,7 +81,6 @@
                         {% if medium_type == "video" %}
                         <media-player
                             view-type="video"
-                            src="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.mpd"
                             aspect-ratio="16/9"
                             load="eager"
                             posterLoad="eager"
@@ -93,6 +92,12 @@
                             playsinline
                         >
                             <media-provider>
+                                {% if is_cmaf %}
+                                <source src="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.m3u8" type="application/dash+xml" />
+                                <source src="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.mpd" type="application/x-mpegurl" />
+                                {% else %}
+                                <source src="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.mpd" type="application/x-mpegurl" />
+                                {% endif %}
                                 {% if medium_captions_exist %} {% for
                                 caption_name in medium_captions_list %}
                                 <track
