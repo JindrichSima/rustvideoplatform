@@ -57,6 +57,12 @@ struct HXStudioGroupsTemplate {
     groups: Vec<UserGroupWithCount>,
 }
 
+#[derive(Template)]
+#[template(path = "pages/hx-groups-list.html", escape = "none")]
+struct HXGroupsListTemplate {
+    groups: Vec<UserGroupWithCount>,
+}
+
 async fn hx_studio_groups(
     Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
