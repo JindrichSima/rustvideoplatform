@@ -14325,6 +14325,9 @@ fieldset:disabled .btn {
 body:has(> .sidebar) {
     padding-left: 15%;
     min-height: 100vh;
+}
+
+body:has(> .sidebar).sidebar-animating {
     transition: padding-left 0.3s ease;
 }
 
@@ -14342,6 +14345,7 @@ body:has(> .sidebar).sidebar-collapsed {
     overflow-y: auto;
     overflow-x: hidden;
     transition: transform 0.3s ease;
+    background-color: var(--bs-dark);
 }
 
 body.sidebar-collapsed .sidebar {
