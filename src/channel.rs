@@ -93,7 +93,7 @@ async fn hx_usermedia_inner(
     let offset = page * 40;
 
     let mut media: Vec<Medium> = sqlx::query(
-        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY upload DESC LIMIT 41 OFFSET $3;"
+        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND (restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) OR (restricted_to_group = '__all_registered__' AND $2 != '') OR (restricted_to_group = '__subscribers__' AND $2 != '' AND owner IN (SELECT target FROM subscriptions WHERE subscriber = $2))))) ORDER BY upload DESC LIMIT 41 OFFSET $3;"
     )
     .bind(&userid)
     .bind(&user_login)

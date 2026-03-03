@@ -286,6 +286,39 @@ async fn move_dir(src: &str, dest: &str) -> io::Result<()> {
     Ok(())
 }
 
+const SYSTEM_GROUP_ALL_REGISTERED: &str = "__all_registered__";
+const SYSTEM_GROUP_SUBSCRIBERS: &str = "__subscribers__";
+
+fn is_system_group(group_id: &str) -> bool {
+    group_id == SYSTEM_GROUP_ALL_REGISTERED || group_id == SYSTEM_GROUP_SUBSCRIBERS
+}
+
+fn system_groups_for_owner(owner: &str) -> Vec<UserGroup> {
+    vec![
+        UserGroup {
+            id: SYSTEM_GROUP_ALL_REGISTERED.to_owned(),
+            name: "All Registered Users".to_owned(),
+            owner: owner.to_owned(),
+        },
+        UserGroup {
+            id: SYSTEM_GROUP_SUBSCRIBERS.to_owned(),
+            name: "Subscribers Only".to_owned(),
+            owner: owner.to_owned(),
+        },
+    ]
+}
+
+async fn is_subscribed(pool: &PgPool, subscriber: &str, target: &str) -> bool {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE subscriber = $1 AND target = $2)"
+    )
+    .bind(subscriber)
+    .bind(target)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false)
+}
+
 async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
     let redis_key = format!("group:{}:members", group_id);
 
@@ -322,6 +355,12 @@ async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_gr
                     return true;
                 }
                 if let Some(group_id) = restricted_to_group {
+                    if group_id == SYSTEM_GROUP_ALL_REGISTERED {
+                        return true; // user is logged in
+                    }
+                    if group_id == SYSTEM_GROUP_SUBSCRIBERS {
+                        return is_subscribed(pool, &u.login, owner).await;
+                    }
                     return is_group_member(pool, group_id, &u.login, redis).await;
                 }
             }

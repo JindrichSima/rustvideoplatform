@@ -44,20 +44,46 @@ async fn build_visibility_filter(pool: &PgPool, user: &Option<User>) -> String {
         .await
         .unwrap_or_default();
 
-        if group_ids.is_empty() {
-            return "visibility = 'public'".to_owned();
-        }
+        // Fetch channels the user is subscribed to
+        let subscribed_channels: Vec<String> = sqlx::query_scalar(
+            "SELECT target FROM subscriptions WHERE subscriber = $1"
+        )
+        .bind(&u.login)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
 
-        let group_list = group_ids
+        // Build the list of group IDs + system group for all registered users
+        let mut all_group_ids = group_ids;
+        all_group_ids.push(SYSTEM_GROUP_ALL_REGISTERED.to_owned());
+
+        let group_list = all_group_ids
             .iter()
             .map(|g| format!("'{}'", g.replace('\'', "")))
             .collect::<Vec<_>>()
             .join(", ");
 
-        format!(
+        let mut filter = format!(
             "visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN [{}])",
             group_list
-        )
+        );
+
+        // For subscribers-only content, we need to check if the user is subscribed to the owner
+        // Meilisearch doesn't support subqueries, so we add owner-based filters
+        if !subscribed_channels.is_empty() {
+            let owner_list = subscribed_channels
+                .iter()
+                .map(|o| format!("'{}'", o.replace('\'', "")))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            filter = format!(
+                "{} OR (visibility = 'restricted' AND restricted_to_group = '{}' AND owner IN [{}])",
+                filter, SYSTEM_GROUP_SUBSCRIBERS, owner_list
+            );
+        }
+
+        filter
     } else {
         "visibility = 'public'".to_owned()
     }

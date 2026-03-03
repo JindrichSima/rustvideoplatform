@@ -254,8 +254,9 @@ async fn studio_edit(
                 ));
             }
 
-            // Fetch user's groups for the dropdown
-            let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+            // Fetch user's groups for the dropdown (system groups + user groups)
+            let mut owner_groups = system_groups_for_owner(&user_info.login);
+            let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
                 .bind(&user_info.login)
                 .map(|row: sqlx::postgres::PgRow| {
                     UserGroup {
@@ -267,6 +268,7 @@ async fn studio_edit(
                 .fetch_all(&pool)
                 .await
                 .unwrap_or_default();
+            owner_groups.extend(user_groups);
 
             let sidebar = generate_sidebar(&config, "studio".to_owned());
             let common_headers = extract_common_headers(&headers).unwrap();

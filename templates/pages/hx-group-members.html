@@ -3,6 +3,16 @@
         <h5 class="text-white m-0"><i class="fa-solid fa-users me-2"></i>{{ group.name }} - Members</h5>
     </div>
     <hr class="mt-0">
+    {% if group.id == "__all_registered__" || group.id == "__subscribers__" %}
+    <div class="text-secondary">
+        <i class="fa-solid fa-circle-info me-2"></i>
+        {% if group.id == "__all_registered__" %}
+        This is an automatic group that includes all registered users. Any logged-in user will have access to media or lists restricted to this group. Membership is managed automatically and cannot be changed.
+        {% else %}
+        This is an automatic group that includes all users subscribed to your channel. Only users who have subscribed to you will have access to media or lists restricted to this group. Membership is managed automatically and cannot be changed.
+        {% endif %}
+    </div>
+    {% else %}
     {% if is_owner %}
     <form hx-post="/hx/group/{{ group.id }}/addmember" hx-target="#group-members-panel" class="mb-3">
         <div class="input-group" style="max-width:400px;">
@@ -49,5 +59,6 @@
             </tbody>
         </table>
     </div>
+    {% endif %}
     {% endif %}
 </div>
