@@ -57,6 +57,12 @@ struct HXStudioGroupsTemplate {
     groups: Vec<UserGroupWithCount>,
 }
 
+#[derive(Template)]
+#[template(path = "pages/hx-groups-list.html", escape = "none")]
+struct HXGroupsListTemplate {
+    groups: Vec<UserGroupWithCount>,
+}
+
 async fn hx_studio_groups(
     Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
@@ -131,7 +137,7 @@ async fn hx_create_group(
     .await
     .expect("Database error");
 
-    let template = HXStudioGroupsTemplate { groups };
+    let template = HXGroupsListTemplate { groups };
     Html(minifi_html(template.render().unwrap()))
 }
 
@@ -211,7 +217,7 @@ async fn hx_delete_group(
     .await
     .expect("Database error");
 
-    let template = HXStudioGroupsTemplate { groups };
+    let template = HXGroupsListTemplate { groups };
     Html(minifi_html(template.render().unwrap()))
 }
 
