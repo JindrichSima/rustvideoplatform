@@ -4,7 +4,11 @@ function toggleSidebar() {
         document.getElementById("sidebar").classList.toggle("sidebar-open");
         document.getElementById("sidebarbackground").classList.toggle("sidebar-open");
     } else {
+        document.body.classList.add("sidebar-animating");
         document.body.classList.toggle("sidebar-collapsed");
+        setTimeout(function() {
+            document.body.classList.remove("sidebar-animating");
+        }, 300);
     }
 }
 
