@@ -6,6 +6,9 @@ function toggleSidebar() {
     } else {
         document.body.classList.add("sidebar-animating");
         document.body.classList.toggle("sidebar-collapsed");
+        try {
+            localStorage.setItem("sidebar-collapsed", document.body.classList.contains("sidebar-collapsed") ? "1" : "0");
+        } catch(e) {}
         setTimeout(function() {
             document.body.classList.remove("sidebar-animating");
         }, 300);
@@ -22,6 +25,11 @@ function navbarSearch(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (document.documentElement.classList.contains('sidebar-will-collapse')) {
+        document.body.classList.add('sidebar-collapsed');
+        document.documentElement.classList.remove('sidebar-will-collapse');
+    }
+
     const sidebarBg = document.getElementById("sidebarbackground");
     if (sidebarBg) {
         sidebarBg.addEventListener("click", function () {
