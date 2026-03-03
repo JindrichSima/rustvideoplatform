@@ -63,7 +63,7 @@ async fn hx_subscriptions_inner(
         "SELECT m.id, m.name, m.owner, m.views, m.type
          FROM media m
          INNER JOIN subscriptions s ON m.owner = s.target
-         WHERE s.subscriber = $1 AND (m.visibility = 'public' OR (m.visibility = 'restricted' AND m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)))
+         WHERE s.subscriber = $1 AND (m.visibility = 'public' OR (m.visibility = 'restricted' AND (m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1) OR m.restricted_to_group = '__all_registered__' OR (m.restricted_to_group = '__subscribers__' AND m.owner IN (SELECT target FROM subscriptions WHERE subscriber = $1)))))
          ORDER BY m.upload DESC
          LIMIT 31 OFFSET $2;"
     )

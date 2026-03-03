@@ -76,7 +76,22 @@ async fn hx_studio_groups(
     }
     let user_info = user_info.unwrap();
 
-    let groups: Vec<UserGroupWithCount> = sqlx::query(
+    let mut groups: Vec<UserGroupWithCount> = vec![
+        UserGroupWithCount {
+            id: SYSTEM_GROUP_ALL_REGISTERED.to_owned(),
+            name: "All Registered Users".to_owned(),
+            owner: user_info.login.clone(),
+            member_count: None,
+        },
+        UserGroupWithCount {
+            id: SYSTEM_GROUP_SUBSCRIBERS.to_owned(),
+            name: "Subscribers Only".to_owned(),
+            owner: user_info.login.clone(),
+            member_count: None,
+        },
+    ];
+
+    let user_groups: Vec<UserGroupWithCount> = sqlx::query(
         "SELECT g.id, g.name, g.owner, (SELECT COUNT(*) FROM user_group_members gm WHERE gm.group_id = g.id) AS member_count FROM user_groups g WHERE g.owner = $1 ORDER BY g.created DESC;"
     )
     .bind(&user_info.login)
@@ -92,6 +107,8 @@ async fn hx_studio_groups(
     .fetch_all(&pool)
     .await
     .expect("Database error");
+
+    groups.extend(user_groups);
 
     let template = HXStudioGroupsTemplate { groups };
     Html(minifi_html(template.render().unwrap()))
@@ -119,8 +136,23 @@ async fn hx_create_group(
         .await
         .expect("Database error");
 
-    // Return updated groups list
-    let groups: Vec<UserGroupWithCount> = sqlx::query(
+    // Return updated groups list (with system groups prepended)
+    let mut groups: Vec<UserGroupWithCount> = vec![
+        UserGroupWithCount {
+            id: SYSTEM_GROUP_ALL_REGISTERED.to_owned(),
+            name: "All Registered Users".to_owned(),
+            owner: user_info.login.clone(),
+            member_count: None,
+        },
+        UserGroupWithCount {
+            id: SYSTEM_GROUP_SUBSCRIBERS.to_owned(),
+            name: "Subscribers Only".to_owned(),
+            owner: user_info.login.clone(),
+            member_count: None,
+        },
+    ];
+
+    let user_groups: Vec<UserGroupWithCount> = sqlx::query(
         "SELECT g.id, g.name, g.owner, (SELECT COUNT(*) FROM user_group_members gm WHERE gm.group_id = g.id) AS member_count FROM user_groups g WHERE g.owner = $1 ORDER BY g.created DESC;"
     )
     .bind(&user_info.login)
@@ -137,7 +169,9 @@ async fn hx_create_group(
     .await
     .expect("Database error");
 
-    let template = HXGroupsListTemplate { groups };
+    groups.extend(user_groups);
+
+    let template = HXStudioGroupsTemplate { groups };
     Html(minifi_html(template.render().unwrap()))
 }
 
@@ -152,6 +186,11 @@ async fn hx_delete_group(
         return Html("".as_bytes().to_vec());
     }
     let user_info = user_info.unwrap();
+
+    // Prevent deletion of system groups
+    if is_system_group(&groupid) {
+        return Html("".as_bytes().to_vec());
+    }
 
     // Verify ownership
     let owner_check: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT owner FROM user_groups WHERE id = $1;")
@@ -199,8 +238,23 @@ async fn hx_delete_group(
     // Invalidate Redis group membership cache
     let _: Result<(), _> = redis.clone().del(format!("group:{}:members", groupid)).await;
 
-    // Return updated groups list
-    let groups: Vec<UserGroupWithCount> = sqlx::query(
+    // Return updated groups list (with system groups prepended)
+    let mut groups: Vec<UserGroupWithCount> = vec![
+        UserGroupWithCount {
+            id: SYSTEM_GROUP_ALL_REGISTERED.to_owned(),
+            name: "All Registered Users".to_owned(),
+            owner: user_info.login.clone(),
+            member_count: None,
+        },
+        UserGroupWithCount {
+            id: SYSTEM_GROUP_SUBSCRIBERS.to_owned(),
+            name: "Subscribers Only".to_owned(),
+            owner: user_info.login.clone(),
+            member_count: None,
+        },
+    ];
+
+    let user_groups: Vec<UserGroupWithCount> = sqlx::query(
         "SELECT g.id, g.name, g.owner, (SELECT COUNT(*) FROM user_group_members gm WHERE gm.group_id = g.id) AS member_count FROM user_groups g WHERE g.owner = $1 ORDER BY g.created DESC;"
     )
     .bind(&user_info.login)
@@ -217,7 +271,9 @@ async fn hx_delete_group(
     .await
     .expect("Database error");
 
-    let template = HXGroupsListTemplate { groups };
+    groups.extend(user_groups);
+
+    let template = HXStudioGroupsTemplate { groups };
     Html(minifi_html(template.render().unwrap()))
 }
 
@@ -240,6 +296,21 @@ async fn hx_group_members(
         return Html("".as_bytes().to_vec());
     }
     let user_info = user_info.unwrap();
+
+    // System groups are automatically managed - show info instead of member list
+    if is_system_group(&groupid) {
+        let group = if groupid == SYSTEM_GROUP_ALL_REGISTERED {
+            UserGroup { id: groupid, name: "All Registered Users".to_owned(), owner: user_info.login.clone() }
+        } else {
+            UserGroup { id: groupid, name: "Subscribers Only".to_owned(), owner: user_info.login.clone() }
+        };
+        let template = HXGroupMembersTemplate {
+            group,
+            members: vec![],
+            is_owner: false, // prevents showing add/remove controls
+        };
+        return Html(minifi_html(template.render().unwrap()));
+    }
 
     let group_row: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE id = $1;")
         .bind(&groupid)
@@ -293,6 +364,11 @@ async fn hx_add_group_member(
         return Html("".as_bytes().to_vec());
     }
     let user_info = user_info.unwrap();
+
+    // System groups cannot have members manually added
+    if is_system_group(&groupid) {
+        return Html("".as_bytes().to_vec());
+    }
 
     // Verify group ownership
     let group_row: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE id = $1;")
@@ -369,6 +445,11 @@ async fn hx_remove_group_member(
     }
     let user_info = user_info.unwrap();
 
+    // System groups cannot have members manually removed
+    if is_system_group(&groupid) {
+        return Html("".as_bytes().to_vec());
+    }
+
     // Verify group ownership
     let group_row: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE id = $1;")
         .bind(&groupid)
@@ -434,7 +515,9 @@ async fn hx_user_groups_json(
     }
     let user_info = user_info.unwrap();
 
-    let groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+    let mut groups = system_groups_for_owner(&user_info.login);
+
+    let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
         .bind(&user_info.login)
         .map(|row: sqlx::postgres::PgRow| {
             use sqlx::Row;
@@ -447,6 +530,8 @@ async fn hx_user_groups_json(
         .fetch_all(&pool)
         .await
         .unwrap_or_default();
+
+    groups.extend(user_groups);
 
     Json(groups)
 }

@@ -105,7 +105,7 @@ async fn hx_trending_inner(
                 "SELECT m.id, m.name, m.owner, m.views, m.type \
                  FROM media m \
                  LEFT JOIN media_likes ml ON m.id = ml.media_id \
-                 WHERE m.visibility = 'public' OR (m.visibility = 'restricted' AND m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)) \
+                 WHERE m.visibility = 'public' OR (m.visibility = 'restricted' AND (m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1) OR (m.restricted_to_group = '__all_registered__' AND $1 != '') OR (m.restricted_to_group = '__subscribers__' AND $1 != '' AND m.owner IN (SELECT target FROM subscriptions WHERE subscriber = $1)))) \
                  GROUP BY m.id, m.name, m.owner, m.views, m.type \
                  ORDER BY COUNT(*) FILTER (WHERE ml.reaction = 'like') DESC LIMIT 31 OFFSET $2;"
             )

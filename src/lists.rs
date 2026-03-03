@@ -357,8 +357,9 @@ async fn hx_list_modal(
     .await
     .expect("Database error");
 
-    // Fetch user's groups for visibility selection in create form
-    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+    // Fetch user's groups for visibility selection in create form (system groups + user groups)
+    let mut owner_groups = system_groups_for_owner(&user_info.login);
+    let user_groups_list: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
         .bind(&user_info.login)
         .map(|row: sqlx::postgres::PgRow| {
             use sqlx::Row;
@@ -371,6 +372,7 @@ async fn hx_list_modal(
         .fetch_all(&pool)
         .await
         .unwrap_or_default();
+    owner_groups.extend(user_groups_list);
 
     let template = HXListModalTemplate {
         lists,
@@ -438,8 +440,9 @@ async fn hx_create_list(
     .await
     .expect("Database error");
 
-    // Fetch user's groups for visibility selection in create form
-    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+    // Fetch user's groups for visibility selection in create form (system groups + user groups)
+    let mut owner_groups = system_groups_for_owner(&user_info.login);
+    let user_groups_list: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
         .bind(&user_info.login)
         .map(|row: sqlx::postgres::PgRow| {
             use sqlx::Row;
@@ -452,6 +455,7 @@ async fn hx_create_list(
         .fetch_all(&pool)
         .await
         .unwrap_or_default();
+    owner_groups.extend(user_groups_list);
 
     let template = HXListModalTemplate {
         lists,
@@ -666,7 +670,7 @@ async fn hx_user_lists_inner(
     let offset = page * 40;
 
     let mut lists: Vec<ListWithCount> = sqlx::query(
-        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2))) ORDER BY l.created DESC LIMIT 41 OFFSET $3;"
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND (l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) OR (l.restricted_to_group = '__all_registered__' AND $2 != '') OR (l.restricted_to_group = '__subscribers__' AND $2 != '' AND l.owner IN (SELECT target FROM subscriptions WHERE subscriber = $2))))) ORDER BY l.created DESC LIMIT 41 OFFSET $3;"
     )
     .bind(&userid)
     .bind(&user_login)
