@@ -144,16 +144,24 @@
                             </div>
                         </div>
                         <script>
-                        document.getElementById('medium_visibility').addEventListener('change', function() {
-                            var groupSelect = document.getElementById('medium_restricted_group');
+                        document.addEventListener('DOMContentLoaded', function() {
+                            var visTomSelect = new TomSelect('#medium_visibility', { create: false });
+                            var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true });
                             var noGroupsHint = document.getElementById('no-groups-hint');
-                            if (this.value === 'restricted') {
-                                groupSelect.style.display = '';
-                                if (noGroupsHint) noGroupsHint.style.display = '';
-                            } else {
-                                groupSelect.style.display = 'none';
-                                if (noGroupsHint) noGroupsHint.style.display = 'none';
+
+                            // Show/hide group selector wrapper based on visibility
+                            function updateGroupVisibility() {
+                                var wrapper = groupTomSelect.wrapper;
+                                if (visTomSelect.getValue() === 'restricted') {
+                                    wrapper.style.display = '';
+                                    if (noGroupsHint) noGroupsHint.style.display = '';
+                                } else {
+                                    wrapper.style.display = 'none';
+                                    if (noGroupsHint) noGroupsHint.style.display = 'none';
+                                }
                             }
+                            updateGroupVisibility();
+                            document.getElementById('medium_visibility').addEventListener('change', updateGroupVisibility);
                         });
                         </script>
                         <div class="form-group row my-3">

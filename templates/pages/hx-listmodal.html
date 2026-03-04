@@ -39,12 +39,12 @@
                 </button>
             </div>
             <div class="d-flex align-items-center gap-2 mx-2">
-                <select name="visibility" class="form-select form-select-sm" style="width:auto;" id="listmodal-visibility" onchange="document.getElementById('listmodal-group-select').style.display = this.value === 'restricted' ? '' : 'none'">
+                <select name="visibility" class="form-select form-select-sm" style="width:auto;" id="listmodal-visibility">
                     <option value="hidden">Private</option>
                     <option value="public">Public</option>
                     <option value="restricted">Restricted to Group</option>
                 </select>
-                <select name="restricted_group" class="form-select form-select-sm" style="width:auto;display:none;" id="listmodal-group-select">
+                <select name="restricted_group" class="form-select form-select-sm" style="width:auto;" id="listmodal-group-select">
                     <option value="">-- Group --</option>
                     {% for group in owner_groups %}
                     <option value="{{ group.id }}">{{ group.name }}</option>
@@ -54,3 +54,20 @@
         </form>
     </div>
 </div>
+<script>
+(function() {
+    var visEl = document.getElementById('listmodal-visibility');
+    var groupEl = document.getElementById('listmodal-group-select');
+    if (!visEl || !groupEl || typeof TomSelect === 'undefined') return;
+    if (visEl.tomselect) visEl.tomselect.destroy();
+    if (groupEl.tomselect) groupEl.tomselect.destroy();
+    var visTomSelect = new TomSelect(visEl, { create: false });
+    var groupTomSelect = new TomSelect(groupEl, { create: false, allowEmptyOption: true });
+    groupTomSelect.wrapper.style.width = 'auto';
+    function updateGroupVisibility() {
+        groupTomSelect.wrapper.style.display = visTomSelect.getValue() === 'restricted' ? '' : 'none';
+    }
+    updateGroupVisibility();
+    visEl.addEventListener('change', updateGroupVisibility);
+})();
+</script>
