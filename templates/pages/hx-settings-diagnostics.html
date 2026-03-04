@@ -1,0 +1,62 @@
+<div class="col-12 col-md-8 col-lg-6">
+    <h5 class="mb-3">Diagnostics</h5>
+    <table class="table table-dark table-bordered">
+        <tbody>
+            <tr>
+                <td class="text-secondary">Version</td>
+                <td><code>{{ version }}</code></td>
+            </tr>
+            <tr>
+                <td class="text-secondary">Git Commit</td>
+                <td><code>{{ git_commit }}</code></td>
+            </tr>
+            <tr>
+                <td class="text-secondary">Server OS</td>
+                <td><code>{{ os_info }}</code></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h5 class="mb-3 mt-4">Browser Codec Support</h5>
+    <table class="table table-dark table-bordered">
+        <tbody>
+            <tr>
+                <td class="text-secondary">AV1</td>
+                <td id="codec-av1"><code>Checking...</code></td>
+            </tr>
+            <tr>
+                <td class="text-secondary">VP9</td>
+                <td id="codec-vp9"><code>Checking...</code></td>
+            </tr>
+            <tr>
+                <td class="text-secondary">H.265 (HEVC)</td>
+                <td id="codec-h265"><code>Checking...</code></td>
+            </tr>
+            <tr>
+                <td class="text-secondary">Opus</td>
+                <td id="codec-opus"><code>Checking...</code></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+<script>
+(function() {
+    function checkMediaSource(codec) {
+        if (typeof MediaSource === 'undefined') return false;
+        try { return MediaSource.isTypeSupported(codec); } catch(e) { return false; }
+    }
+    function setResult(id, supported) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (supported) {
+            el.innerHTML = '<code class="text-success">Supported</code>';
+        } else {
+            el.innerHTML = '<code class="text-danger">Not supported</code>';
+        }
+    }
+    setResult('codec-av1', checkMediaSource('video/webm; codecs="av01.0.05M.08"'));
+    setResult('codec-vp9', checkMediaSource('video/webm; codecs="vp9"'));
+    setResult('codec-h265', checkMediaSource('video/mp4; codecs="hvc1.1.6.L93.B0"'));
+    setResult('codec-opus', checkMediaSource('audio/webm; codecs="opus"'));
+})();
+</script>
