@@ -16369,7 +16369,7 @@ body.sidebar-collapsed .sidebarbackground {
     list-style-type: none;
     background-color: var(--bs-dark);
     border-color: var(--bs-dark);
-    width: 450px;
+    width: 35vw;
     box-shadow: 0 4px 20px var(--bs-shadow-color);
     border-radius: 0.75rem;
     overflow: hidden;
@@ -16537,7 +16537,7 @@ body.sidebar-collapsed .sidebarbackground {
 
 /* Desktop: search centered at 25vw */
 .navbar-search-form {
-    width: 25vw;
+    width: 35vw;
     margin: 0 auto;
     position: relative;
 }
