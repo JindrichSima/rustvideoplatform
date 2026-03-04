@@ -16513,3 +16513,90 @@ body.sidebar-collapsed .sidebarbackground {
         justify-content: flex-end;
     }
 }
+
+/* Navbar redesign */
+
+.navbar-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar-top-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.navbar-instance-name {
+    display: none;
+}
+
+.navbar-mobile-title {
+    display: none;
+}
+
+/* Desktop: search centered at 25vw */
+.navbar-search-form {
+    width: 25vw;
+    margin: 0 auto;
+    position: relative;
+}
+
+.navbar-search-form .input-group {
+    width: 100%;
+}
+
+/* Mobile layout */
+@media screen and (max-width: 1000px) {
+    .navbar-container {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .navbar-top-row {
+        flex-wrap: wrap;
+    }
+
+    /* Show instance name on mobile */
+    .navbar-instance-name {
+        display: inline;
+        order: 1;
+    }
+
+    /* Hide desktop page title in the top row on mobile */
+    .navbar-page-title {
+        display: none !important;
+    }
+
+    /* User button */
+    .navbar-top-row > div[hx-get="/hx/usernav"] {
+        order: 2;
+        margin-left: auto !important;
+    }
+
+    /* Sidebar toggle */
+    .navbar-top-row > div:last-child {
+        order: 3;
+    }
+
+    /* Search form takes full width on its own line */
+    .navbar-search-form {
+        order: 4;
+        width: 100%;
+        flex-basis: 100%;
+    }
+
+    .navbar-search-form .input-group {
+        width: 100%;
+    }
+
+    #suggestions {
+        width: calc(100vw - 2rem) !important;
+    }
+
+    /* Show mobile page title under search */
+    .navbar-mobile-title {
+        display: block;
+        padding-bottom: 0.5rem;
+    }
+}
