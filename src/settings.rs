@@ -281,7 +281,7 @@ async fn hx_settings_profile_picture(
         .unwrap_or(None);
 
     let media: Vec<PictureMedium> = sqlx::query(
-        "SELECT id, name, visibility FROM media WHERE owner=$1 AND (visibility='public' OR visibility='hidden') ORDER BY upload DESC;"
+        "SELECT id, name, visibility FROM media WHERE owner=$1 AND type='picture' AND (visibility='public' OR visibility='hidden') ORDER BY upload DESC;"
     )
     .bind(&user_info.login)
     .map(|row: sqlx::postgres::PgRow| {
@@ -316,8 +316,8 @@ async fn hx_settings_profile_picture_save(
     }
     let user_info = user_info.unwrap();
 
-    // Verify the medium belongs to this user and is public or hidden
-    let medium = sqlx::query("SELECT owner, visibility FROM media WHERE id=$1")
+    // Verify the medium belongs to this user, is an image, and is public or hidden
+    let medium = sqlx::query("SELECT owner, visibility, type FROM media WHERE id=$1")
         .bind(&form.medium_id)
         .fetch_one(&pool)
         .await;
@@ -326,8 +326,12 @@ async fn hx_settings_profile_picture_save(
             use sqlx::Row;
             let owner: String = record.get("owner");
             let visibility: String = record.get("visibility");
+            let medium_type: String = record.get("type");
             if owner != user_info.login {
                 return Html(minifi_html("<b class=\"text-danger\">You can only use your own media.</b>".to_owned()));
+            }
+            if medium_type != "picture" {
+                return Html(minifi_html("<b class=\"text-danger\">Only image media can be used as a profile picture.</b>".to_owned()));
             }
             if visibility != "public" && visibility != "hidden" {
                 return Html(minifi_html("<b class=\"text-danger\">Media must be public or hidden.</b>".to_owned()));
@@ -377,7 +381,7 @@ async fn hx_settings_channel_picture(
         .unwrap_or(None);
 
     let media: Vec<PictureMedium> = sqlx::query(
-        "SELECT id, name, visibility FROM media WHERE owner=$1 AND (visibility='public' OR visibility='hidden') ORDER BY upload DESC;"
+        "SELECT id, name, visibility FROM media WHERE owner=$1 AND type='picture' AND (visibility='public' OR visibility='hidden') ORDER BY upload DESC;"
     )
     .bind(&user_info.login)
     .map(|row: sqlx::postgres::PgRow| {
@@ -408,8 +412,8 @@ async fn hx_settings_channel_picture_save(
     }
     let user_info = user_info.unwrap();
 
-    // Verify the medium belongs to this user and is public or hidden
-    let medium = sqlx::query("SELECT owner, visibility FROM media WHERE id=$1")
+    // Verify the medium belongs to this user, is an image, and is public or hidden
+    let medium = sqlx::query("SELECT owner, visibility, type FROM media WHERE id=$1")
         .bind(&form.medium_id)
         .fetch_one(&pool)
         .await;
@@ -418,8 +422,12 @@ async fn hx_settings_channel_picture_save(
             use sqlx::Row;
             let owner: String = record.get("owner");
             let visibility: String = record.get("visibility");
+            let medium_type: String = record.get("type");
             if owner != user_info.login {
                 return Html(minifi_html("<b class=\"text-danger\">You can only use your own media.</b>".to_owned()));
+            }
+            if medium_type != "picture" {
+                return Html(minifi_html("<b class=\"text-danger\">Only image media can be used as a channel picture.</b>".to_owned()));
             }
             if visibility != "public" && visibility != "hidden" {
                 return Html(minifi_html("<b class=\"text-danger\">Media must be public or hidden.</b>".to_owned()));
@@ -443,12 +451,38 @@ async fn hx_settings_channel_picture_save(
 
 // --- Diagnostics ---
 
+fn get_os_distro() -> String {
+    if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
+        for line in content.lines() {
+            if line.starts_with("PRETTY_NAME=") {
+                return line[12..].trim_matches('"').to_owned();
+            }
+        }
+    }
+    std::env::consts::OS.to_owned()
+}
+
+fn get_kernel_version() -> String {
+    let output = std::process::Command::new("uname")
+        .arg("-r")
+        .output();
+    match output {
+        Ok(o) if o.status.success() => {
+            let v = String::from_utf8(o.stdout).unwrap_or_default().trim().to_owned();
+            if v.is_empty() { "unknown".to_owned() } else { v }
+        }
+        _ => "unknown".to_owned(),
+    }
+}
+
 #[derive(Template)]
 #[template(path = "pages/hx-settings-diagnostics.html", escape = "none")]
 struct HXSettingsDiagnosticsTemplate {
     git_commit: String,
     version: String,
-    os_info: String,
+    os_distro: String,
+    os_kernel: String,
+    os_arch: String,
 }
 async fn hx_settings_diagnostics(
     Extension(pool): Extension<PgPool>,
@@ -462,12 +496,16 @@ async fn hx_settings_diagnostics(
 
     let git_commit = env!("GIT_COMMIT_HASH").to_owned();
     let version = env!("CARGO_PKG_VERSION").to_owned();
-    let os_info = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
+    let os_distro = get_os_distro();
+    let os_kernel = get_kernel_version();
+    let os_arch = std::env::consts::ARCH.to_owned();
 
     let template = HXSettingsDiagnosticsTemplate {
         git_commit,
         version,
-        os_info,
+        os_distro,
+        os_kernel,
+        os_arch,
     };
     Html(minifi_html(template.render().unwrap()))
 }

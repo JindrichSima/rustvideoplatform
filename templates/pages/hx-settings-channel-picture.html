@@ -8,7 +8,7 @@
     {% else %}
     <p class="text-secondary mb-3">No channel picture set.</p>
     {% endif %}
-    <p class="text-secondary">Select a public or hidden medium from your channel to use as your channel picture.</p>
+    <p class="text-secondary">Select a public or hidden image from your channel to use as your channel picture.</p>
     <form hx-post="/hx/settings/channel-picture" hx-target="#settings-result" hx-swap="innerHTML">
         <div class="row g-2 mb-3">
             {% for m in media %}
@@ -27,7 +27,7 @@
             {% endfor %}
         </div>
         {% if media.is_empty() %}
-        <p class="text-secondary">You have no public or hidden media. Upload some media first.</p>
+        <p class="text-secondary">You have no public or hidden images. Upload an image first.</p>
         {% else %}
         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Save</button>
         {% endif %}
