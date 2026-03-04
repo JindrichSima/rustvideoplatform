@@ -16085,7 +16085,7 @@ body.sidebar-collapsed .sidebarbackground {
 }
 
 .search-submit-btn {
-    background: var(--bs-white);
+    background: var(--bs-secondary);
     border: none;
     border-radius: var(--bs-border-radius-pill);
     color: #000;
@@ -16156,9 +16156,9 @@ body.sidebar-collapsed .sidebarbackground {
 }
 
 .filter-chip.active {
-    background: var(--bs-white);
-    color: #000;
-    border-color: var(--bs-white);
+    background: var(--bs-secondary);
+    color: var(--bs-white);
+    border-color: var(--bs-secondary);
 }
 
 /* Search loading */
