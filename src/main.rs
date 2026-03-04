@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 
 use argon2::Argon2;
+use argon2::PasswordHasher;
 use argon2::PasswordVerifier;
 use axum::http::StatusCode;
 use mimalloc::MiMalloc;
@@ -170,6 +171,21 @@ async fn main() {
         .route("/hx/deletelist/{listid}", get(hx_delete_list))
         .route("/hx/userlists/{userid}", get(hx_user_lists))
         .route("/hx/userlists/{userid}/{page}", get(hx_user_lists_page))
+        // Settings routes
+        .route("/settings", get(settings))
+        .route("/settings/password", get(settings_password))
+        .route("/settings/profile-picture", get(settings_profile_picture))
+        .route("/settings/channel-picture", get(settings_channel_picture))
+        .route("/settings/diagnostics", get(settings_diagnostics))
+        .route("/hx/settings/channel-name", get(hx_settings_channel_name))
+        .route("/hx/settings/channel-name", post(hx_settings_channel_name_save))
+        .route("/hx/settings/password", get(hx_settings_password))
+        .route("/hx/settings/password", post(hx_settings_password_save))
+        .route("/hx/settings/profile-picture", get(hx_settings_profile_picture))
+        .route("/hx/settings/profile-picture", post(hx_settings_profile_picture_save))
+        .route("/hx/settings/channel-picture", get(hx_settings_channel_picture))
+        .route("/hx/settings/channel-picture", post(hx_settings_channel_picture_save))
+        .route("/hx/settings/diagnostics", get(hx_settings_diagnostics))
         // Group management routes
         .route("/studio/groups", get(studio_groups))
         .route("/hx/studio/groups", get(hx_studio_groups))
@@ -214,3 +230,4 @@ include!("concept.rs");
 include!("serve.rs");
 include!("lists.rs");
 include!("groups.rs");
+include!("settings.rs");

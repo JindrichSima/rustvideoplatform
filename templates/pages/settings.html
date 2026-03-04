@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    {% include "component-dependencies.html" %}
+
+    <title>Settings</title>
+
+    <meta property="og:title" content="{{ config.instancename }} Settings" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://{{ common_headers.host }}/settings" />
+</head>
+
+<body hx-ext="preload">
+    {% set page_title = "Settings" %}
+    {{ sidebar }}
+    {% include "component-navbar.html" %}
+    <div class="row maincontentrow g-3 py-2 ps-2 w-100">
+        <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+            <div class="card py-3 px-3 text-white" style="min-height:30vh;">
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item">
+                        <button class="nav-link {% if active_tab == "channel_name" %}active {% endif %}text-white"
+                                hx-get="/hx/settings/channel-name"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/settings"
+                                hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                            <i class="fa-solid fa-signature me-2"></i>Channel Name
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link {% if active_tab == "password" %}active {% endif %}text-white"
+                                hx-get="/hx/settings/password"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/settings/password"
+                                hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                            <i class="fa-solid fa-lock me-2"></i>Password
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link {% if active_tab == "profile_picture" %}active {% endif %}text-white"
+                                hx-get="/hx/settings/profile-picture"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/settings/profile-picture"
+                                hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                            <i class="fa-solid fa-user-circle me-2"></i>Profile Picture
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link {% if active_tab == "channel_picture" %}active {% endif %}text-white"
+                                hx-get="/hx/settings/channel-picture"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/settings/channel-picture"
+                                hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                            <i class="fa-solid fa-image me-2"></i>Channel Picture
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link {% if active_tab == "diagnostics" %}active {% endif %}text-white"
+                                hx-get="/hx/settings/diagnostics"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/settings/diagnostics"
+                                hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                            <i class="fa-solid fa-stethoscope me-2"></i>Diagnostics
+                        </button>
+                    </li>
+                </ul>
+                <div id="tab-content" class="row">
+                    {% if active_tab == "password" %}
+                    <div hx-get="/hx/settings/password" hx-trigger="load" class="mb-3 hx-placeholder">
+                    </div>
+                    {% else if active_tab == "profile_picture" %}
+                    <div hx-get="/hx/settings/profile-picture" hx-trigger="load" class="mb-3 hx-placeholder">
+                    </div>
+                    {% else if active_tab == "channel_picture" %}
+                    <div hx-get="/hx/settings/channel-picture" hx-trigger="load" class="mb-3 hx-placeholder">
+                    </div>
+                    {% else if active_tab == "diagnostics" %}
+                    <div hx-get="/hx/settings/diagnostics" hx-trigger="load" class="mb-3 hx-placeholder">
+                    </div>
+                    {% else %}
+                    <div hx-get="/hx/settings/channel-name" hx-trigger="load" class="mb-3 hx-placeholder">
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
