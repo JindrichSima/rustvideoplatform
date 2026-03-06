@@ -1,5 +1,5 @@
 <div class="navbar-container mx-1">
-    <div class="navbar-top-row d-flex align-items-center">
+    <div class="navbar-top-row align-items-center">
         <a href="/" class="navbar-instance-name text-white text-decoration-none ms-3 me-auto fs-3 fw-semibold">
             {{ config.instancename }}
         </a>
@@ -29,7 +29,7 @@
         </form>
         <div class="my-1 mx-4 text-white d-flex align-items-center gap-3">
             <div hx-get="/hx/usernav" hx-trigger="load" style="width:120px;height:40px;" class="mx-3" preload="always">
-                <a href="/login" preload="mouseover"><button class="btn text-white"><i class="fa-solid fa-user mx-2"></i>Log in</button></a>
+                <a href="/login" preload="mouseover" style="visibility:hidden;"><button class="btn text-white"><i class="fa-solid fa-user mx-2"></i>Log in</button></a>
             </div>
             <button class="btn btn-primary d-flex align-items-center" onclick="toggleSidebar()"><i class="fa-solid fa-bars fa-xl mx-2"></i></button>
         </div>

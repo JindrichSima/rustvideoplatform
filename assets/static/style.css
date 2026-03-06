@@ -16412,10 +16412,11 @@ body.sidebar-collapsed .sidebarbackground {
     flex-direction: column;
 }
 
+/* Desktop: 3-column grid keeps search always centered regardless of page title width */
 .navbar-top-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    flex-wrap: nowrap;
 }
 
 .navbar-instance-name {
@@ -16426,15 +16427,24 @@ body.sidebar-collapsed .sidebarbackground {
     display: none;
 }
 
-/* Desktop: search centered at 25vw */
+/* Override Bootstrap me-auto — grid handles spacing */
+.navbar-page-title {
+    margin-right: 0 !important;
+}
+
+/* Desktop: search centered in its auto-width column */
 .navbar-search-form {
     width: 35vw;
-    margin: 0 auto;
     position: relative;
 }
 
 .navbar-search-form .input-group {
     width: 100%;
+}
+
+/* Right-align user nav section in its grid cell */
+.navbar-top-row > div:last-child {
+    justify-self: end;
 }
 
 /* Mobile layout */
@@ -16444,7 +16454,9 @@ body.sidebar-collapsed .sidebarbackground {
         flex-direction: column;
     }
 
+    /* Revert to flex for mobile so order/wrap work */
     .navbar-top-row {
+        display: flex;
         flex-wrap: wrap;
     }
 
@@ -16459,20 +16471,16 @@ body.sidebar-collapsed .sidebarbackground {
         display: none !important;
     }
 
-    /* User button */
-    .navbar-top-row > div[hx-get="/hx/usernav"] {
-        order: 2;
-        margin-left: auto !important;
-    }
-
-    /* Sidebar toggle */
+    /* Sidebar toggle + usernav wrapper: push to right, after instance name */
     .navbar-top-row > div:last-child {
-        order: 3;
+        order: 2;
+        justify-self: auto;
+        margin-left: auto;
     }
 
     /* Search form takes full width on its own line */
     .navbar-search-form {
-        order: 4;
+        order: 3;
         width: 100%;
         flex-basis: 100%;
     }
