@@ -5,3 +5,4 @@ Cargo.lock
 /source
 /node_modules
 /assets/processed
+./package-lock.json
