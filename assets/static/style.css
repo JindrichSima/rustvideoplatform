@@ -16605,3 +16605,16 @@ media-poster img {
 /* Medium select card (moved from hx-settings-channel-picture.html and hx-settings-profile-picture.html) */
 .medium-select-card { border: 2px solid transparent; }
 input[type="radio"]:checked + .medium-select-card { border-color: var(--bs-primary); }
+
+/* Tom-select: hover/active color for dropdown options */
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active {
+    background-color: var(--bs-primary) !important;
+    color: #fff !important;
+}
+
+/* Tom-select: dropdown floats above content to avoid layout shift */
+.ts-dropdown {
+    position: absolute !important;
+    z-index: 9999 !important;
+}
