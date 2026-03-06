@@ -4,13 +4,13 @@
         <a href="/channel/{{ comment.user }}" class="text-decoration-none d-flex align-items-center gap-2">
             {% if comment.user_picture.is_some() %}
             <img src="{{ config.source_server_url }}/source/{{ comment.user_picture.clone().unwrap() }}/thumbnail.avif"
-                 style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />
+                 class="user-avatar" />
             {% else %}
-            <div style="width:32px;height:32px;border-radius:50%;background:var(--bs-secondary);display:flex;align-items:center;justify-content:center;">
+            <div class="user-avatar-placeholder">
                 <i class="fa-solid fa-user" style="font-size:13px;color:white;"></i>
             </div>
             {% endif %}
-            <h6 class="mb-0 text-white">{{ comment.user_name }}</h6>
+            <h6 class="mb-0 text-white user-name-clamp">{{ comment.user_name }}</h6>
         </a>
     </div>
     <div class="comment-content ql-editor p-0" style="min-height: auto;" data-comment-delta='{{ comment.text }}'></div>
