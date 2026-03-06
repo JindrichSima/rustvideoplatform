@@ -416,8 +416,8 @@ document.body.addEventListener('htmx:afterSettle', function (e) {
     if (!visEl || !groupEl || typeof TomSelect === 'undefined') return;
     if (visEl.tomselect) visEl.tomselect.destroy();
     if (groupEl.tomselect) groupEl.tomselect.destroy();
-    var visTomSelect = new TomSelect(visEl, { create: false });
-    var groupTomSelect = new TomSelect(groupEl, { create: false, allowEmptyOption: true });
+    var visTomSelect = new TomSelect(visEl, { create: false, onFocus: function() { this.clear(true); } });
+    var groupTomSelect = new TomSelect(groupEl, { create: false, allowEmptyOption: true, onFocus: function() { this.clear(true); } });
     groupTomSelect.wrapper.style.width = 'auto';
     function updateGroupVisibility() {
         groupTomSelect.wrapper.style.display = visTomSelect.getValue() === 'restricted' ? '' : 'none';
@@ -483,8 +483,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!visSelect || !groupSelect || !publishForm) return;
     // Avoid re-init if already done (studio-edit also uses these ids)
     if (visSelect.tomselect) return;
-    var visTomSelect = new TomSelect('#medium_visibility', { create: false });
-    var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true });
+    var visTomSelect = new TomSelect('#medium_visibility', { create: false, onFocus: function() { this.clear(true); } });
+    var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true, onFocus: function() { this.clear(true); } });
     var noGroupsHint = document.getElementById('no-groups-hint');
 
     function updateGroupVisibility() {
@@ -546,8 +546,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var editPageConfig = document.getElementById('edit-page-config');
     var currentGroup = editPageConfig ? editPageConfig.dataset.restrictedGroup : '';
 
-    var visTomSelect = new TomSelect('#medium_visibility', { create: false });
-    var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true });
+    var visTomSelect = new TomSelect('#medium_visibility', { create: false, onFocus: function() { this.clear(true); } });
+    var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true, onFocus: function() { this.clear(true); } });
     var noGroupsHint = document.getElementById('no-groups-hint');
 
     if (currentGroup) {
