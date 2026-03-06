@@ -145,8 +145,8 @@
                         </div>
                         <script>
                         document.addEventListener('DOMContentLoaded', function() {
-                            var visTomSelect = new TomSelect('#medium_visibility', { create: false });
-                            var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true });
+                            var visTomSelect = new TomSelect('#medium_visibility', { create: false, onFocus: function() { this.clear(true); } });
+                            var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true, onFocus: function() { this.clear(true); } });
                             var noGroupsHint = document.getElementById('no-groups-hint');
 
                             // Show/hide group selector wrapper based on visibility

@@ -16573,40 +16573,6 @@ body.sidebar-collapsed .sidebarbackground {
     text-overflow: ellipsis;
     font-size: clamp(0.6rem, 2vw, 1rem);
 }
-
-/* Sidebar will-collapse state (moved from component-dependencies.html) */
-html.sidebar-will-collapse body:has(> .sidebar) { padding-left: 0; }
-html.sidebar-will-collapse .sidebar { transform: translateX(-100%); }
-html.sidebar-will-collapse .sidebarbackground { transform: translateX(-100%); }
-@media screen and (max-width: 1000px) {
-    html.sidebar-will-collapse body:has(> .sidebar) { padding-left: 0; }
-    html.sidebar-will-collapse .sidebar { transform: translateX(-100%); }
-    html.sidebar-will-collapse .sidebarbackground { transform: none; opacity: 0; }
-}
-
-/* Audio player poster (moved from medium.html) */
-media-player[data-started] media-poster {
-    opacity: 1;
-    visibility: visible;
-}
-
-media-poster img {
-    object-fit: cover;
-}
-
-/* Thumbnail hover animation (moved from hx-mediumlist.html) */
-.thumbnail-container:hover .thumbnail-static {
-    opacity: 0 !important;
-}
-.thumbnail-container:hover .thumbnail-animated {
-    opacity: 1 !important;
-}
-
-/* Medium select card (moved from hx-settings-channel-picture.html and hx-settings-profile-picture.html) */
-.medium-select-card { border: 2px solid transparent; }
-input[type="radio"]:checked + .medium-select-card { border-color: var(--bs-primary); }
-
-/* Tom-select: hover/active color for dropdown options */
 .ts-dropdown .option:hover,
 .ts-dropdown .option.active {
     background-color: var(--bs-primary) !important;
