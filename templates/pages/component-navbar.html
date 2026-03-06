@@ -28,10 +28,10 @@
             </ul>
         </form>
         <div class="my-1 mx-4 text-white d-flex align-items-center gap-3">
-            <div hx-get="/hx/usernav" hx-trigger="load" style="width:120px;height:40px;" preload="always">
+            <div hx-get="/hx/usernav" hx-trigger="load" style="width:120px;height:40px;" class="mx-3" preload="always">
                 <a href="/login" preload="mouseover"><button class="btn text-white"><i class="fa-solid fa-user mx-2"></i>Log in</button></a>
             </div>
-            <button class="btn btn-primary d-flex align-items-center" onclick="toggleSidebar()"><i class="fa-solid fa-bars fa-xl"></i></button>
+            <button class="btn btn-primary d-flex align-items-center" onclick="toggleSidebar()"><i class="fa-solid fa-bars fa-xl mx-2"></i></button>
         </div>
     </div>
     {% if page_title is defined %}
