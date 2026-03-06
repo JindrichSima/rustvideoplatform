@@ -1,7 +1,7 @@
 <div class="dropdown">
     <button class="btn d-flex align-items-center gap-2 p-1">
         {% if user.profile_picture.is_some() %}
-        <img src="{{ config.source_server_url }}/source/{{ user.profile_picture.clone().unwrap() }}/thumbnail.avif"
+        <img src="{{ config.source_server_url }}/source/{{ user.profile_picture.clone().unwrap() }}/thumbnail-small.avif"
              class="user-avatar" />
         {% else %}
         <div class="user-avatar-placeholder">

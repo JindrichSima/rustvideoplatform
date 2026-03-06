@@ -2,7 +2,7 @@
     <form hx-post="/hx/settings/profile-picture" hx-target="#settings-result" hx-swap="innerHTML">
         <div class="d-flex align-items-center gap-3 mb-3">
             {% if current_picture.is_some() %}
-            <img src="{{ config.source_server_url }}/source/{{ current_picture.clone().unwrap() }}/thumbnail.avif" style="width:88px;height:88px;border-radius:50%;object-fit:cover;" class="border flex-shrink-0">
+            <img src="{{ config.source_server_url }}/source/{{ current_picture.clone().unwrap() }}/thumbnail-small.avif" style="width:88px;height:88px;border-radius:50%;object-fit:cover;" class="border flex-shrink-0">
             {% else %}
             <p class="text-secondary mb-0">No profile picture set.</p>
             {% endif %}

@@ -3,7 +3,7 @@
     <div class="d-flex align-items-center mb-2 gap-2">
         <a href="/channel/{{ comment.user }}" class="text-decoration-none d-flex align-items-center gap-2">
             {% if comment.user_picture.is_some() %}
-            <img src="{{ config.source_server_url }}/source/{{ comment.user_picture.clone().unwrap() }}/thumbnail.avif"
+            <img src="{{ config.source_server_url }}/source/{{ comment.user_picture.clone().unwrap() }}/thumbnail-small.avif"
                  class="user-avatar" />
             {% else %}
             <div class="user-avatar-placeholder">
