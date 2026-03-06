@@ -4,21 +4,37 @@
         <table>
             <tr>
                 <td class="d-flex justify-content-center">
-                    <img src="{{ config.source_server_url }}/source/{{ item.id }}/thumbnail.avif" width="176" height="99" class="mx-2 rounded">
+                    <div
+                        class="thumbnail-container"
+                        style="position: relative; width: 176px; height: 99px"
+                    >
+                        <img src="{{ config.source_server_url }}/source/{{ item.id }}/thumbnail.avif" width="176" height="99" class="rounded">
+                        <div class="search-card-type-badge">
+                            {% if item.type == "video" %}
+                            <i class="fa-solid fa-video"></i>
+                            {% else if item.type == "audio" %}
+                            <i class="fa-solid fa-music"></i>
+                            {% else if item.type == "picture" %}
+                            <i class="fa-solid fa-image"></i>
+                            {% else if item.type == "document_pdf" %}
+                            <i class="fa-solid fa-file-pdf"></i>
+                            {% else if item.type == "document_writer" %}
+                            <i class="fa-solid fa-file-word"></i>
+                            {% else if item.type == "document_spreadsheet" %}
+                            <i class="fa-solid fa-file-excel"></i>
+                            {% else if item.type == "document_presentation" %}
+                            <i class="fa-solid fa-file-powerpoint"></i>
+                            {% else %}
+                            <i class="fa-solid fa-file"></i>
+                            {% endif %}
+                        </div>
+                    </div>
                 </td>
             </tr>
             <tr>
                 <td class="text-center">
                     <b class="text-white font-weight-bold">{{ item.name }}</b>
-                    <p class="text-secondary">{{ item.views }} views
-                        {% if item.type == "video" %}
-                        <i class="fa-solid fa-video fa-sm ms-1"></i>
-                        {% else if item.type == "audio" %}
-                        <i class="fa-solid fa-music fa-sm ms-1"></i>
-                        {% else if item.type == "picture" %}
-                        <i class="fa-solid fa-image fa-sm ms-1"></i>
-                        {% endif %}
-                    </p>
+                    <p class="text-secondary">{{ item.views }} views</p>
                 </td>
             </tr>
         </table>
