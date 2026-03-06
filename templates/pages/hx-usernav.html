@@ -2,13 +2,13 @@
     <button class="btn d-flex align-items-center gap-2 p-1">
         {% if user.profile_picture.is_some() %}
         <img src="{{ config.source_server_url }}/source/{{ user.profile_picture.clone().unwrap() }}/thumbnail.avif"
-             style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />
+             class="user-avatar" />
         {% else %}
-        <div style="width:32px;height:32px;border-radius:50%;background:var(--bs-secondary);display:flex;align-items:center;justify-content:center;">
+        <div class="user-avatar-placeholder">
             <i class="fa-solid fa-user" style="font-size:14px;color:white;"></i>
         </div>
         {% endif %}
-        <span class="text-white">{{ user.name }}</span>
+        <span class="text-white user-name-clamp">{{ user.name }}</span>
     </button>
     <div class="dropdown-content border shadow">
         <a class="dropdown-item" href="/channel/{{ user.login }}" preload="mouseover"><i class="fa-solid fa-house-flag mx-2"></i>My Channel</a>

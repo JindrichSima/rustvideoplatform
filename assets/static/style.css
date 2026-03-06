@@ -16491,3 +16491,39 @@ body.sidebar-collapsed .sidebarbackground {
         padding-bottom: 0.5rem;
     }
 }
+
+/* User avatar - always a perfect circle regardless of surrounding content */
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+/* Fallback placeholder when no profile picture is set */
+.user-avatar-placeholder {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 50%;
+    background: var(--bs-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+/* User display name - always single line, max 150px, responsive font size */
+.user-name-clamp {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: clamp(0.6rem, 2vw, 1rem);
+}
