@@ -1,6 +1,9 @@
+"use strict";
+
+const MOBILE_QUERY = "(max-width: 1000px)";
+
 function toggleSidebar() {
-    var isMobile = window.matchMedia("(max-width: 1000px)").matches;
-    if (isMobile) {
+    if (window.matchMedia(MOBILE_QUERY).matches) {
         document.getElementById("sidebar").classList.toggle("sidebar-open");
         document.getElementById("sidebarbackground").classList.toggle("sidebar-open");
     } else {
@@ -8,8 +11,8 @@ function toggleSidebar() {
         document.body.classList.toggle("sidebar-collapsed");
         try {
             localStorage.setItem("sidebar-collapsed", document.body.classList.contains("sidebar-collapsed") ? "1" : "0");
-        } catch(e) {}
-        setTimeout(function() {
+        } catch (e) {}
+        setTimeout(() => {
             document.body.classList.remove("sidebar-animating");
         }, 300);
     }
@@ -17,23 +20,25 @@ function toggleSidebar() {
 
 function navbarSearch(event) {
     event.preventDefault();
-    var input = document.getElementById('searchInput');
-    if (input && input.value.trim().length > 0) {
-        window.location.href = '/search?q=' + encodeURIComponent(input.value.trim());
+    const input = document.getElementById('searchInput');
+    const query = input && input.value.trim();
+    if (query) {
+        window.location.href = '/search?q=' + encodeURIComponent(query);
     }
     return false;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.documentElement.classList.contains('sidebar-will-collapse')) {
+    const docEl = document.documentElement;
+    if (docEl.classList.contains('sidebar-will-collapse')) {
         document.body.classList.add('sidebar-collapsed');
-        document.documentElement.classList.remove('sidebar-will-collapse');
+        docEl.classList.remove('sidebar-will-collapse');
     }
 
     const sidebarBg = document.getElementById("sidebarbackground");
     if (sidebarBg) {
         sidebarBg.addEventListener("click", function () {
-            if (window.matchMedia("(max-width: 1000px)").matches) {
+            if (window.matchMedia(MOBILE_QUERY).matches) {
                 document.getElementById("sidebar").classList.remove("sidebar-open");
                 this.classList.remove("sidebar-open");
             }
@@ -63,11 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
             target.style.display = target.children.length > 0 ? '' : 'none';
         }
     });
+
+    fitMediumTitle();
 });
 
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-    var d = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.setAttribute('data-bs-theme', d ? 'dark' : 'light');
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
 });
 
 function closeListModal(event) {
@@ -77,8 +83,7 @@ function closeListModal(event) {
 }
 
 function togglePdfFullscreen() {
-    var wrapper = document.getElementById('pdfViewerWrapper');
-    var icon = document.getElementById('pdfFullscreenIcon');
+    const wrapper = document.getElementById('pdfViewerWrapper');
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
         if (wrapper.requestFullscreen) {
             wrapper.requestFullscreen();
@@ -94,49 +99,34 @@ function togglePdfFullscreen() {
     }
 }
 
-document.addEventListener('fullscreenchange', function () {
-    var icon = document.getElementById('pdfFullscreenIcon');
+function updateFullscreenIcon() {
+    const icon = document.getElementById('pdfFullscreenIcon');
     if (!icon) return;
-    if (document.fullscreenElement) {
-        icon.classList.remove('fa-expand');
-        icon.classList.add('fa-compress');
-    } else {
-        icon.classList.remove('fa-compress');
-        icon.classList.add('fa-expand');
-    }
-});
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    icon.classList.toggle('fa-compress', !!isFullscreen);
+    icon.classList.toggle('fa-expand', !isFullscreen);
+}
 
-document.addEventListener('webkitfullscreenchange', function () {
-    var icon = document.getElementById('pdfFullscreenIcon');
-    if (!icon) return;
-    if (document.webkitFullscreenElement) {
-        icon.classList.remove('fa-expand');
-        icon.classList.add('fa-compress');
-    } else {
-        icon.classList.remove('fa-compress');
-        icon.classList.add('fa-expand');
-    }
-});
+document.addEventListener('fullscreenchange', updateFullscreenIcon);
+document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
 function fitMediumTitle() {
     const title = document.getElementById('medium-title');
     if (!title || window.matchMedia('(min-width: 992px)').matches) return;
 
-    // Reset to CSS-specified font size to measure from the top
     title.style.fontSize = '';
 
     const style = window.getComputedStyle(title);
     const lineHeight = parseFloat(style.lineHeight);
-    const maxHeight = lineHeight * 2;
+    const maxHeight = lineHeight * 2 + 1;
 
-    if (title.scrollHeight <= maxHeight + 1) return;
+    if (title.scrollHeight <= maxHeight) return;
 
-    // Binary search for the largest font size that fits in 2 lines
     let lo = 10, hi = parseFloat(style.fontSize);
     while (hi - lo > 0.5) {
         const mid = (lo + hi) / 2;
         title.style.fontSize = mid + 'px';
-        if (title.scrollHeight <= maxHeight + 1) {
+        if (title.scrollHeight <= maxHeight) {
             lo = mid;
         } else {
             hi = mid;
@@ -145,5 +135,4 @@ function fitMediumTitle() {
     title.style.fontSize = lo + 'px';
 }
 
-document.addEventListener('DOMContentLoaded', fitMediumTitle);
 window.addEventListener('resize', fitMediumTitle);
