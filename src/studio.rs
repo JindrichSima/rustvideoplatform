@@ -374,7 +374,7 @@ async fn hx_delete_video(
 ) -> impl IntoResponse {
     let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
-        return ([("HX-Redirect", "/login")], "");
+        return Redirect::to("/login");
     }
     let user_info = user_info.unwrap();
 
@@ -385,11 +385,11 @@ async fn hx_delete_video(
     match media_owner {
         Ok(record) => {
             if record.owner != user_info.login {
-                return ([("HX-Redirect", "/studio")], "");
+                return Redirect::to("/studio");
             }
         }
         Err(_) => {
-            return ([("HX-Redirect", "/studio")], "");
+            return Redirect::to("/studio");
         }
     }
 
@@ -409,12 +409,12 @@ async fn hx_delete_video(
         .await;
 
     if delete_result.is_err() {
-        return ([("HX-Redirect", "/studio")], "<meta http-equiv=\"refresh\" content=\"0;url=/studio\"><script>window.location.replace('/studio');</script>");
+        return Redirect::to("/studio");
     }
 
     // Delete the source directory
     let source_path = format!("source/{}", mediumid);
     let _ = fs::remove_dir_all(&source_path).await;
 
-    ([("HX-Redirect", "/studio")], "<meta http-equiv=\"refresh\" content=\"0;url=/studio\"><script>window.location.replace('/studio');</script>")
+    Redirect::to("/studio")
 }

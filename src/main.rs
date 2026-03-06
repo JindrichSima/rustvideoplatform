@@ -17,7 +17,7 @@ use axum::{
     extract::{DefaultBodyLimit, Form, Multipart, Path},
     http::header::HeaderMap,
     http::header::{ACCEPT_LANGUAGE, COOKIE, HOST, USER_AGENT},
-    response::{Html, IntoResponse, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     routing::get,
     routing::post,
     Extension, Json, Router,
