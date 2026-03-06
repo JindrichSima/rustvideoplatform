@@ -3,3 +3,5 @@ Cargo.lock
 /config.json
 .env
 /source
+/node_modules
+/assets/processed
