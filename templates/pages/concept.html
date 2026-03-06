@@ -78,6 +78,34 @@
                                 />
                             </div>
                         </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            let quill = new Quill('#medium_description_editor', {
+                                theme: 'snow'
+                            });
+
+                            const publishForm = document.getElementById('publish-form');
+
+                            publishForm.addEventListener('submit', function(e) {
+                                let descriptionInput = document.getElementById('medium_description');
+
+                                let delta = quill.getContents();
+                                descriptionInput.value = JSON.stringify(delta);
+
+
+                                console.log("Submitting content:", descriptionInput.value);
+                            });
+
+                            const hljsScript = document.getElementById('hljs-script');
+                            if (hljsScript) {
+                                hljsScript.addEventListener('load', function() {
+                                    if (typeof hljs !== 'undefined') {
+                                        hljs.highlightAll();
+                                    }
+                                });
+                            }
+                        });
+                        </script>
                         <div class="form-group row my-3">
                             <label
                                 for="medium_visibility"
@@ -115,6 +143,27 @@
                                 {% endif %}
                             </div>
                         </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            var visTomSelect = new TomSelect('#medium_visibility', { create: false });
+                            var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true });
+                            var noGroupsHint = document.getElementById('no-groups-hint');
+
+                            // Show/hide group selector wrapper based on visibility
+                            function updateGroupVisibility() {
+                                var wrapper = groupTomSelect.wrapper;
+                                if (visTomSelect.getValue() === 'restricted') {
+                                    wrapper.style.display = '';
+                                    if (noGroupsHint) noGroupsHint.style.display = '';
+                                } else {
+                                    wrapper.style.display = 'none';
+                                    if (noGroupsHint) noGroupsHint.style.display = 'none';
+                                }
+                            }
+                            updateGroupVisibility();
+                            document.getElementById('medium_visibility').addEventListener('change', updateGroupVisibility);
+                        });
+                        </script>
                         <div class="form-group row my-3">
                             <div class="offset-4 col-8">
                                 <button

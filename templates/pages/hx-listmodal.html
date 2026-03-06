@@ -54,3 +54,20 @@
         </form>
     </div>
 </div>
+<script>
+(function() {
+    var visEl = document.getElementById('listmodal-visibility');
+    var groupEl = document.getElementById('listmodal-group-select');
+    if (!visEl || !groupEl || typeof TomSelect === 'undefined') return;
+    if (visEl.tomselect) visEl.tomselect.destroy();
+    if (groupEl.tomselect) groupEl.tomselect.destroy();
+    var visTomSelect = new TomSelect(visEl, { create: false });
+    var groupTomSelect = new TomSelect(groupEl, { create: false, allowEmptyOption: true });
+    groupTomSelect.wrapper.style.width = 'auto';
+    function updateGroupVisibility() {
+        groupTomSelect.wrapper.style.display = visTomSelect.getValue() === 'restricted' ? '' : 'none';
+    }
+    updateGroupVisibility();
+    visEl.addEventListener('change', updateGroupVisibility);
+})();
+</script>

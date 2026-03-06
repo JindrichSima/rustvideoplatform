@@ -83,6 +83,60 @@
         </div>
     </div>
 
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Filter chip click handlers
+        document.querySelectorAll('.filter-chips').forEach(function(group) {
+            group.querySelectorAll('.filter-chip').forEach(function(chip) {
+                chip.addEventListener('click', function() {
+                    group.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
+                    chip.classList.add('active');
+
+                    // Update the hidden input
+                    var hiddenInput = group.nextElementSibling;
+                    if (hiddenInput) {
+                        hiddenInput.value = chip.getAttribute('data-value');
+                    }
+
+                    // Auto-submit if there's a search query
+                    var searchInput = document.getElementById('searchMainInput');
+                    if (searchInput && searchInput.value.trim().length > 0) {
+                        htmx.trigger('#searchForm', 'submit');
+                    }
+                });
+            });
+        });
+
+        // Submit on Enter key in search input
+        var searchInput = document.getElementById('searchMainInput');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    htmx.trigger('#searchForm', 'submit');
+                }
+            });
+
+            // Auto-search on typing with debounce
+            var debounceTimer;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(function() {
+                    if (searchInput.value.trim().length > 0) {
+                        htmx.trigger('#searchForm', 'submit');
+                    }
+                }, 400);
+            });
+
+            // Auto-trigger search if initial query present
+            if (searchInput.value.trim().length > 0) {
+                setTimeout(function() { htmx.trigger('#searchForm', 'submit'); }, 100);
+            }
+
+            searchInput.focus();
+        }
+    });
+    </script>
 </body>
 
 </html>

@@ -16,6 +16,7 @@
     <div class="comment-content ql-editor p-0" style="min-height: auto;" data-comment-delta='{{ comment.text }}'></div>
 </div>
 {% endfor %}
+<script>initCommentDeltas(document.getElementById("comments-list"));</script>
 {% match next_page %}
 {% when Some with (page) %}
 <div
