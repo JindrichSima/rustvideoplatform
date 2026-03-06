@@ -1,17 +1,4 @@
-<script>
-(function(){var d=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.setAttribute('data-bs-theme',d?'dark':'light');})();
-(function(){try{if(localStorage.getItem('sidebar-collapsed')==='1'){document.documentElement.classList.add('sidebar-will-collapse');}}catch(e){}})();
-</script>
-<style>
-html.sidebar-will-collapse body:has(> .sidebar) { padding-left: 0; }
-html.sidebar-will-collapse .sidebar { transform: translateX(-100%); }
-html.sidebar-will-collapse .sidebarbackground { transform: translateX(-100%); }
-@media screen and (max-width: 1000px) {
-    html.sidebar-will-collapse body:has(> .sidebar) { padding-left: 0; }
-    html.sidebar-will-collapse .sidebar { transform: translateX(-100%); }
-    html.sidebar-will-collapse .sidebarbackground { transform: none; opacity: 0; }
-}
-</style>
+<script src="/script.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -28,4 +15,3 @@ html.sidebar-will-collapse .sidebarbackground { transform: translateX(-100%); }
 <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js" defer></script>
 <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js" defer></script>
-<script src="/script.js"></script>

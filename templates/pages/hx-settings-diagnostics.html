@@ -46,24 +46,3 @@
         </tbody>
     </table>
 </div>
-<script>
-(function() {
-    function checkMediaSource(codec) {
-        if (typeof MediaSource === 'undefined') return false;
-        try { return MediaSource.isTypeSupported(codec); } catch(e) { return false; }
-    }
-    function setResult(id, supported) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        if (supported) {
-            el.innerHTML = '<i class="fa-solid fa-check" style="color:var(--bs-success);"></i>';
-        } else {
-            el.innerHTML = '<i class="fa-solid fa-xmark" style="color:var(--bs-danger);"></i>';
-        }
-    }
-    setResult('codec-av1', checkMediaSource('video/webm; codecs="av01.0.05M.08"'));
-    setResult('codec-vp9', checkMediaSource('video/webm; codecs="vp9"'));
-    setResult('codec-h265', checkMediaSource('video/mp4; codecs="hvc1.1.6.L93.B0"'));
-    setResult('codec-opus', checkMediaSource('audio/webm; codecs="opus"'));
-})();
-</script>
