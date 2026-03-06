@@ -11,7 +11,7 @@
         {% include "component-navbar.html" %}
         <div class="row maincontentrow g-3 py-2 ps-2 w-100">
             <div class="col-12">
-                <div class="card py-3 px-3 text-white" style="min-height:30vh;">
+                <div class="card py-3 px-3 text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h2><i class="fa-solid fa-list me-2"></i>{{ list.name }}</h2>
                         {% if is_owner %}
@@ -22,7 +22,7 @@
                         </a>
                         {% endif %}
                     </div>
-                    <p class="text-secondary">
+                    <p class="text-secondary m-0">
                         by <a href="/channel/{{ list.owner }}" class="text-secondary text-decoration-none">{{ list.owner }}</a>
                         {% if list.visibility == "public" %}
                         <i class="fa-solid fa-globe fa-sm ms-2"></i> Public
