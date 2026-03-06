@@ -203,9 +203,19 @@
                         <div class="medium-channel-col d-flex align-items-center mt-1">
                             <a
                                 href="/channel/{{ medium_owner }}"
-                                class="text-secondary text-decoration-none fs-5"
+                                class="text-secondary text-decoration-none d-flex align-items-center gap-2"
                                 preload="mouseover"
-                            >{{ medium_owner }}</a>
+                            >
+                                {% if medium_owner_picture.is_some() %}
+                                <img src="{{ config.source_server_url }}/source/{{ medium_owner_picture.clone().unwrap() }}/thumbnail.avif"
+                                     style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />
+                                {% else %}
+                                <div style="width:36px;height:36px;border-radius:50%;background:var(--bs-secondary);display:flex;align-items:center;justify-content:center;">
+                                    <i class="fa-solid fa-user" style="font-size:16px;color:white;"></i>
+                                </div>
+                                {% endif %}
+                                <span class="fs-5">{{ medium_owner_name }}</span>
+                            </a>
                             <div
                                 hx-get="/hx/subscribebutton/{{ medium_owner }}"
                                 hx-trigger="load"

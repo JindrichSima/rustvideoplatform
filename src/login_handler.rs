@@ -18,6 +18,7 @@ struct LoginForm {
 struct User {
     login: String,
     name: String,
+    profile_picture: Option<String>,
 }
 
 async fn hx_login(
