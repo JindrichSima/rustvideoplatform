@@ -170,7 +170,7 @@ async fn medium_in_list(
 
     // Also check media access
     let medium_row = sqlx::query(
-        "SELECT id,name,description,upload,owner,views,type,visibility,restricted_to_group FROM media WHERE id=$1;"
+        "SELECT m.id, m.name, m.description, m.upload, m.owner, m.views, m.type, m.visibility, m.restricted_to_group, u.name as owner_name, u.profile_picture as owner_picture FROM media m LEFT JOIN users u ON m.owner = u.login WHERE m.id=$1;"
     )
     .bind(mediumid.to_ascii_lowercase())
     .fetch_one(&pool)
@@ -235,6 +235,8 @@ async fn medium_in_list(
         medium_id,
         medium_name: medium.get("name"),
         medium_owner: medium.get("owner"),
+        medium_owner_name: medium.get("owner_name"),
+        medium_owner_picture: medium.get("owner_picture"),
         medium_upload: prettyunixtime(medium.get("upload")).await,
         medium_views: medium.get("views"),
         medium_type: medium.get("type"),

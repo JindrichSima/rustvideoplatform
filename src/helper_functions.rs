@@ -104,15 +104,19 @@ async fn get_user_login(
         .await
         .ok()?;
 
-    let name = sqlx::query!("SELECT name FROM users WHERE login=$1;", login)
-        .fetch_one(pool)
-        .await
-        .ok()?
-        .name;
+    let row = sqlx::query(
+        "SELECT name, profile_picture FROM users WHERE login=$1;"
+    )
+    .bind(&login)
+    .fetch_one(pool)
+    .await
+    .ok()?;
 
+    use sqlx::Row;
     Some(User {
         login,
-        name,
+        name: row.get("name"),
+        profile_picture: row.get("profile_picture"),
     })
 }
 
