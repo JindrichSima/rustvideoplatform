@@ -15775,8 +15775,7 @@ body.sidebar-collapsed .sidebarbackground {
 
 /* Channel profile image container — prevent shift before image loads */
 .channel-picture-container {
-    aspect-ratio: 16 / 9;
-    max-height: 15vh;
+    height: 20vh;
     overflow: hidden;
 }
 
