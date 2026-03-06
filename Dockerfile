@@ -10,6 +10,7 @@ RUN cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --r
 
 
 FROM alpine:latest
+RUN apk add --no-cache ffmpeg
 COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
 
 EXPOSE 8080

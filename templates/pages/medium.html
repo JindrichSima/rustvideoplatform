@@ -26,13 +26,13 @@
         <meta property="og:type" content="video.movie" />
         <meta
             property="og:video"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/video/video.webm"
+            content="https://{{ common_headers.host }}/m/{{ medium_id }}/video.mp4"
         />
         <meta
             property="og:video:secure_url"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/video/video.webm"
+            content="https://{{ common_headers.host }}/m/{{ medium_id }}/video.mp4"
         />
-        <meta property="og:video:type" content="video/webm" />
+        <meta property="og:video:type" content="video/mp4" />
         <meta property="og:video:width" content="1280" />
         <meta property="og:video:height" content="720" />
         {% else if medium_type == "audio" %}
@@ -232,7 +232,7 @@
                                 ></li>
                                 <li class="mx-4">
                                     {% if medium_type == "video" %}
-                                    <a href="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.webm" class="text-white text-decoration-none" download="{{ medium_id }}.webm"><i class="fa-solid fa-download fa-xl"></i></a>
+                                    <a href="/m/{{ medium_id }}/video.mp4" class="text-white text-decoration-none" download="{{ medium_name }}.mp4"><i class="fa-solid fa-download fa-xl"></i></a>
                                     {% else if medium_type == "audio" %}
                                     <a href="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg" class="text-white text-decoration-none" download="{{ medium_id }}.ogg"><i class="fa-solid fa-download fa-xl"></i></a>
                                     {% else if medium_type == "picture" %}

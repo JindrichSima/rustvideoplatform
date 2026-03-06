@@ -117,6 +117,7 @@ async fn main() {
             "/m/{mediumid}/description.json",
             get(medium_description_prepare),
         )
+        .route("/m/{mediumid}/video.mp4", get(compose_mp4))
         .route("/hx/comments/{mediumid}", get(hx_comments))
         .route("/hx/comments/{mediumid}/add", post(hx_add_comment))
         .route("/hx/comment/{commentid}/delta.json", get(comment_delta))
@@ -228,6 +229,7 @@ include!("subtitles.rs");
 include!("upload.rs");
 include!("concept.rs");
 include!("serve.rs");
+include!("mp4_compose.rs");
 include!("lists.rs");
 include!("groups.rs");
 include!("settings.rs");
