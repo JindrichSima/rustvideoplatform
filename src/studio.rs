@@ -409,12 +409,12 @@ async fn hx_delete_video(
         .await;
 
     if delete_result.is_err() {
-        return ([("Redirect", "/studio")], "");
+        return ([("HX-Redirect", "/studio")], "<meta http-equiv=\"refresh\" content=\"0;url=/studio\"><script>window.location.replace('/studio');</script>");
     }
 
     // Delete the source directory
     let source_path = format!("source/{}", mediumid);
     let _ = fs::remove_dir_all(&source_path).await;
 
-    ([("Redirect", "/studio")], "")
+    ([("HX-Redirect", "/studio")], "<meta http-equiv=\"refresh\" content=\"0;url=/studio\"><script>window.location.replace('/studio');</script>")
 }
