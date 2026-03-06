@@ -25,6 +25,7 @@
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
                                 hx-push-url="/settings"
+                                preload="mouseover"
                                 hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
                             <i class="fa-solid fa-signature me-2"></i>Channel Name
                         </button>
@@ -35,6 +36,7 @@
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
                                 hx-push-url="/settings/password"
+                                preload="mouseover"
                                 hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
                             <i class="fa-solid fa-lock me-2"></i>Password
                         </button>
@@ -45,6 +47,7 @@
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
                                 hx-push-url="/settings/profile-picture"
+                                preload="mouseover"
                                 hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
                             <i class="fa-solid fa-user-circle me-2"></i>Profile Picture
                         </button>
@@ -55,6 +58,7 @@
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
                                 hx-push-url="/settings/channel-picture"
+                                preload="mouseover"
                                 hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
                             <i class="fa-solid fa-image me-2"></i>Channel Picture
                         </button>
@@ -65,6 +69,7 @@
                                 hx-target="#tab-content"
                                 hx-swap="innerHTML"
                                 hx-push-url="/settings/diagnostics"
+                                preload="mouseover"
                                 hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
                             <i class="fa-solid fa-stethoscope me-2"></i>Diagnostics
                         </button>
