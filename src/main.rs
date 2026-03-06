@@ -100,7 +100,7 @@ async fn main() {
     let redis_conn = redis_client.get_connection_manager().await.unwrap();
     println!("Redis connected: url={}", &config.redis_url);
 
-    let memory_router = MemoryServe::new(load_assets!("assets/static")).into_router();
+    let memory_router = MemoryServe::new(load_assets!("assets/processed")).into_router();
 
     let app = Router::new()
         .route("/", get(home))

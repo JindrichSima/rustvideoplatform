@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "description": "Build-time CSS/JS optimization tools",
+  "devDependencies": {
+    "purgecss": "^6.0.0",
+    "csso-cli": "^4.0.0",
+    "terser": "^5.0.0"
+  }
+}

@@ -1,12 +1,12 @@
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig
+RUN apk add --no-cache musl-dev openssl-dev pkgconfig nodejs npm
 
 RUN mkdir /src
 COPY ./ /src/rustvideoplatform
 
 ENV RUSTFLAGS="-C target-cpu=x86-64-v2"
-RUN cd /src/rustvideoplatform && cargo build --release
+RUN cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --release
 
 
 FROM alpine:latest
