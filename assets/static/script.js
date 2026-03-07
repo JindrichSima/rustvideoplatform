@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.body.addEventListener('htmx:afterSwap', (event) => {
+    document.addEventListener('htmx:afterSwap', (event) => {
         const target = event.detail.target;
         if (target.id === 'suggestions' && document.getElementById('searchInput') === document.activeElement) {
             target.style.display = target.children.length > 0 ? '' : 'none';
@@ -183,7 +183,7 @@ function beginupload() {
 }
 
 // --- hx-studio-upload.html: upload progress (studio tab) ---
-document.body.addEventListener('htmx:afterSettle', function (e) {
+document.addEventListener('htmx:afterSettle', function (e) {
     var uploadForm = document.getElementById('upload-form');
     if (!uploadForm) return;
     if (uploadForm._studioUploadBound) return;
@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // HTMX: init comment deltas after comments-list is swapped
-document.body.addEventListener('htmx:afterSettle', function (e) {
+document.addEventListener('htmx:afterSettle', function (e) {
     var target = e.detail.target;
     if (target && target.id === 'comments-list') {
         initCommentDeltas(target);
@@ -412,7 +412,7 @@ document.body.addEventListener('htmx:afterSettle', function (e) {
 });
 
 // --- hx-listmodal.html: TomSelect for list visibility ---
-document.body.addEventListener('htmx:afterSettle', function (e) {
+document.addEventListener('htmx:afterSettle', function (e) {
     var visEl = document.getElementById('listmodal-visibility');
     var groupEl = document.getElementById('listmodal-group-select');
     if (!visEl || !groupEl || typeof TomSelect === 'undefined') return;
@@ -429,7 +429,7 @@ document.body.addEventListener('htmx:afterSettle', function (e) {
 });
 
 // --- hx-settings-diagnostics.html: codec support detection ---
-document.body.addEventListener('htmx:afterSettle', function (e) {
+document.addEventListener('htmx:afterSettle', function (e) {
     if (!document.getElementById('codec-av1')) return;
     function checkMediaSource(codec) {
         if (typeof MediaSource === 'undefined') return false;
