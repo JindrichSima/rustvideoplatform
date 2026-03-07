@@ -1,7 +1,7 @@
 {% for comment in comments %}
 <div class="comment-item my-3 p-3 inf-scroll-reveal" style="border-left: 3px solid var(--bs-secondary); border-radius: 4px;">
     <div class="d-flex align-items-center mb-2 gap-2">
-        <a href="/channel/{{ comment.user }}" class="text-decoration-none d-flex align-items-center gap-2">
+        <a href="/u/{{ comment.user }}" class="text-decoration-none d-flex align-items-center gap-2">
             {% if comment.user_picture.is_some() %}
             <img src="{{ config.source_server_url }}/source/{{ comment.user_picture.clone().unwrap() }}/thumbnail-small.avif"
                  class="user-avatar" />
