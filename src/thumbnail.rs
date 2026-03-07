@@ -1,0 +1,219 @@
+async fn studio_thumbnail_get(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> Json<serde_json::Value> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Json(serde_json::json!({ "exists": false }));
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) if record.owner == user_info.login => {}
+        _ => return Json(serde_json::json!({ "exists": false })),
+    }
+
+    let avif_path = format!("source/{}/thumbnail.avif", mediumid);
+    let exists = std::path::Path::new(&avif_path).exists();
+    Json(serde_json::json!({ "exists": exists }))
+}
+
+async fn studio_thumbnail_upload(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+    mut multipart: Multipart,
+) -> Response<Body> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"not logged in\"}"))
+            .unwrap();
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"not authorized\"}"))
+                    .unwrap();
+            }
+        }
+        Err(_) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"media not found\"}"))
+                .unwrap();
+        }
+    }
+
+    let mut image_content = Vec::new();
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name().unwrap_or("") == "file" {
+            image_content = field.bytes().await.unwrap_or_default().to_vec();
+            break;
+        }
+    }
+
+    if image_content.is_empty() {
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"image file is required\"}"))
+            .unwrap();
+    }
+
+    // Write the uploaded image to a temp file
+    let temp_path = format!("source/{}/.tmp_thumbnail_upload", mediumid);
+    let source_dir = format!("source/{}", mediumid);
+    let _ = tokio::fs::create_dir_all(&source_dir).await;
+
+    if let Err(_) = tokio::fs::write(&temp_path, &image_content).await {
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"failed to write temp file\"}"))
+            .unwrap();
+    }
+
+    // Convert to thumbnail.jpg and thumbnail.avif at 1280x720 using FFmpeg
+    let avif_path = format!("source/{}/thumbnail.avif", mediumid);
+    let jpg_path = format!("source/{}/thumbnail.jpg", mediumid);
+    let temp_path_clone = temp_path.clone();
+    let avif_path_clone = avif_path.clone();
+    let jpg_path_clone = jpg_path.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        use std::process::Command;
+
+        let jpg_status = Command::new("ffmpeg")
+            .args([
+                "-nostdin", "-y",
+                "-i", &temp_path_clone,
+                "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black",
+                "-frames:v", "1",
+                "-update", "1",
+                &jpg_path_clone,
+            ])
+            .status();
+
+        let avif_status = Command::new("ffmpeg")
+            .args([
+                "-nostdin", "-y",
+                "-i", &temp_path_clone,
+                "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p",
+                "-frames:v", "1",
+                "-c:v", "libsvtav1",
+                "-svtav1-params", "avif=1",
+                "-crf", "28",
+                "-update", "1",
+                &avif_path_clone,
+            ])
+            .status();
+
+        let jpg_ok = jpg_status.map(|s| s.success()).unwrap_or(false);
+        let avif_ok = avif_status.map(|s| s.success()).unwrap_or(false);
+        (jpg_ok, avif_ok)
+    }).await;
+
+    // Clean up temp file
+    let _ = tokio::fs::remove_file(&temp_path).await;
+
+    match result {
+        Ok((true, true)) => {
+            Response::builder()
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"ok\":true}"))
+                .unwrap()
+        }
+        Ok((jpg_ok, avif_ok)) => {
+            let msg = if !jpg_ok && !avif_ok {
+                "{\"error\":\"thumbnail conversion failed\"}"
+            } else if !jpg_ok {
+                "{\"error\":\"JPG thumbnail conversion failed\"}"
+            } else {
+                "{\"error\":\"AVIF thumbnail conversion failed\"}"
+            };
+            // Clean up any partial output
+            if !jpg_ok { let _ = tokio::fs::remove_file(&jpg_path).await; }
+            if !avif_ok { let _ = tokio::fs::remove_file(&avif_path).await; }
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from(msg))
+                .unwrap()
+        }
+        Err(_) => {
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"processing error\"}"))
+                .unwrap()
+        }
+    }
+}
+
+async fn studio_thumbnail_delete(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> Response<Body> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"not logged in\"}"))
+            .unwrap();
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"not authorized\"}"))
+                    .unwrap();
+            }
+        }
+        Err(_) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"media not found\"}"))
+                .unwrap();
+        }
+    }
+
+    let _ = tokio::fs::remove_file(format!("source/{}/thumbnail.avif", mediumid)).await;
+    let _ = tokio::fs::remove_file(format!("source/{}/thumbnail.jpg", mediumid)).await;
+
+    Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{\"ok\":true}"))
+        .unwrap()
+}

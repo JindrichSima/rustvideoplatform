@@ -152,6 +152,9 @@ async fn main() {
         .route("/studio/edit/{mediumid}/subtitles/font.json", get(studio_subtitle_font_get))
         .route("/studio/edit/{mediumid}/subtitles/font", post(studio_subtitle_font_upload))
         .route("/studio/edit/{mediumid}/subtitles/font/delete", post(studio_subtitle_font_delete))
+        .route("/studio/edit/{mediumid}/thumbnail.json", get(studio_thumbnail_get))
+        .route("/studio/edit/{mediumid}/thumbnail", post(studio_thumbnail_upload))
+        .route("/studio/edit/{mediumid}/thumbnail/delete", post(studio_thumbnail_delete))
         .route("/hx/studio/delete/{mediumid}", get(hx_delete_video))
         .route("/studio/lists", get(studio_lists))
         .route("/hx/studio/lists", get(hx_studio_lists))
@@ -229,6 +232,7 @@ include!("channel.rs");
 include!("studio.rs");
 include!("chapters.rs");
 include!("subtitles.rs");
+include!("thumbnail.rs");
 include!("upload.rs");
 include!("concept.rs");
 include!("serve.rs");
