@@ -1,3 +1,31 @@
+async fn convert_subtitle_to_vtt(content: Vec<u8>, input_format: &str) -> Option<Vec<u8>> {
+    use tokio::io::AsyncWriteExt;
+
+    let mut child = tokio::process::Command::new("ffmpeg")
+        .arg("-hide_banner")
+        .arg("-loglevel").arg("error")
+        .arg("-f").arg(input_format)
+        .arg("-i").arg("pipe:0")
+        .arg("-f").arg("webvtt")
+        .arg("pipe:1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(&content).await.ok()?;
+    }
+
+    let output = child.wait_with_output().await.ok()?;
+    if output.status.success() {
+        Some(output.stdout)
+    } else {
+        None
+    }
+}
+
 async fn studio_subtitles_get(
     Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
@@ -32,16 +60,12 @@ async fn studio_subtitles_get(
             .filter(|l| !l.trim().is_empty())
             .map(|l| {
                 let entry = l.trim();
-                let (label, format) = if entry.ends_with(".srt") {
-                    (entry.trim_end_matches(".srt").to_string(), "srt".to_string())
-                } else if entry.ends_with(".ass") {
-                    (entry.trim_end_matches(".ass").to_string(), "ass".to_string())
-                } else if entry.ends_with(".vtt") {
-                    (entry.trim_end_matches(".vtt").to_string(), "vtt".to_string())
+                let label = if let Some(dot) = entry.rfind('.') {
+                    entry[..dot].to_string()
                 } else {
-                    (entry.to_string(), "vtt".to_string())
+                    entry.to_string()
                 };
-                serde_json::json!({ "label": label, "format": format })
+                serde_json::json!({ "label": label })
             })
             .collect();
         Json(serde_json::Value::Array(labels))
@@ -92,7 +116,7 @@ async fn studio_subtitles_add(
 
     let mut label = String::new();
     let mut file_content = Vec::new();
-    let mut file_ext = String::from("vtt");
+    let mut input_format = "webvtt";
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
@@ -103,11 +127,9 @@ async fn studio_subtitles_add(
             "file" => {
                 let filename = field.file_name().unwrap_or("").to_lowercase();
                 if filename.ends_with(".srt") {
-                    file_ext = "srt".to_string();
+                    input_format = "srt";
                 } else if filename.ends_with(".ass") {
-                    file_ext = "ass".to_string();
-                } else {
-                    file_ext = "vtt".to_string();
+                    input_format = "ass";
                 }
                 file_content = field.bytes().await.unwrap_or_default().to_vec();
             }
@@ -123,7 +145,6 @@ async fn studio_subtitles_add(
             .unwrap();
     }
 
-    // Sanitize label: only allow alphanumeric, hyphens, underscores, spaces
     let sanitized_label: String = label
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_' || *c == ' ')
@@ -145,13 +166,28 @@ async fn studio_subtitles_add(
             .unwrap();
     }
 
+    // Convert to WebVTT via ffmpeg if needed
+    let vtt_content = if input_format != "webvtt" {
+        match convert_subtitle_to_vtt(file_content, input_format).await {
+            Some(converted) => converted,
+            None => {
+                return Response::builder()
+                    .status(StatusCode::UNPROCESSABLE_ENTITY)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"subtitle conversion failed\"}"))
+                    .unwrap();
+            }
+        }
+    } else {
+        file_content
+    };
+
     let captions_dir = format!("source/{}/captions", mediumid);
     let _ = tokio::fs::create_dir_all(&captions_dir).await;
 
-    let new_list_entry = format!("{}.{}", sanitized_label, file_ext);
+    let new_list_entry = format!("{}.vtt", sanitized_label);
     let subtitle_path = format!("{}/{}", captions_dir, new_list_entry);
 
-    // Update list.txt - read existing entries
     let list_path = format!("{}/list.txt", captions_dir);
     let mut existing: Vec<String> = if std::path::Path::new(&list_path).exists() {
         read_lines_to_vec(&list_path)
@@ -163,38 +199,25 @@ async fn studio_subtitles_add(
         Vec::new()
     };
 
-    // Remove any existing entries for this label (old format or different extension)
+    // Remove any existing entries for this label
     let label_prefix = format!("{}.", sanitized_label);
     let old_entries: Vec<String> = existing
         .iter()
-        .filter(|e| {
-            let e_str = e.as_str();
-            e_str == sanitized_label || e_str.starts_with(&label_prefix)
-        })
+        .filter(|e| e.as_str() == sanitized_label || e.starts_with(&label_prefix))
         .cloned()
         .collect();
 
     for old_entry in &old_entries {
-        let old_filename = if old_entry.contains('.') {
-            old_entry.clone()
-        } else {
-            format!("{}.vtt", old_entry)
-        };
-        let old_file_path = format!("{}/{}", captions_dir, old_filename);
-        // Delete old file only if it differs from the new one
+        let old_file_path = format!("{}/{}", captions_dir, old_entry);
         if old_file_path != subtitle_path {
             let _ = tokio::fs::remove_file(&old_file_path).await;
         }
     }
 
-    existing.retain(|e| {
-        let e_str = e.as_str();
-        e_str != sanitized_label && !e_str.starts_with(&label_prefix)
-    });
+    existing.retain(|e| e.as_str() != sanitized_label && !e.starts_with(&label_prefix));
     existing.push(new_list_entry);
 
-    // Write the subtitle file
-    if let Err(_) = tokio::fs::write(&subtitle_path, &file_content).await {
+    if let Err(_) = tokio::fs::write(&subtitle_path, &vtt_content).await {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -429,30 +452,17 @@ async fn studio_subtitles_delete(
             .map(|l| l.trim().to_string())
             .collect();
 
-        // Find the matching entry by label (with or without extension)
         let label_prefix = format!("{}.", label);
         let matched_entry = existing
             .iter()
-            .find(|e| {
-                let e_str = e.as_str();
-                e_str == label || e_str.starts_with(&label_prefix)
-            })
+            .find(|e| e.as_str() == label || e.starts_with(&label_prefix))
             .cloned();
 
         if let Some(entry) = matched_entry {
-            // Determine the actual filename to delete
-            let filename = if entry.contains('.') {
-                entry.clone()
-            } else {
-                format!("{}.vtt", entry)
-            };
-            let file_path = format!("{}/{}", captions_dir, filename);
+            let file_path = format!("{}/{}", captions_dir, entry);
             let _ = tokio::fs::remove_file(&file_path).await;
 
-            let remaining: Vec<String> = existing
-                .into_iter()
-                .filter(|e| e != &entry)
-                .collect();
+            let remaining: Vec<String> = existing.into_iter().filter(|e| e != &entry).collect();
 
             if remaining.is_empty() {
                 let _ = tokio::fs::remove_file(&list_path).await;
