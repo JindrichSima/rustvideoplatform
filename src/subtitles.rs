@@ -1,99 +1,29 @@
-fn convert_srt_to_vtt(content: &[u8]) -> Vec<u8> {
-    let text = String::from_utf8_lossy(content);
-    let text = text.replace('\r', "");
-    let mut result = String::from("WEBVTT\n\n");
-    for line in text.lines() {
-        if line.contains(" --> ") {
-            result.push_str(&line.replace(',', "."));
-        } else {
-            result.push_str(line);
-        }
-        result.push('\n');
+async fn convert_subtitle_to_vtt(content: Vec<u8>, input_format: &str) -> Option<Vec<u8>> {
+    use tokio::io::AsyncWriteExt;
+
+    let mut child = tokio::process::Command::new("ffmpeg")
+        .arg("-hide_banner")
+        .arg("-loglevel").arg("error")
+        .arg("-f").arg(input_format)
+        .arg("-i").arg("pipe:0")
+        .arg("-f").arg("webvtt")
+        .arg("pipe:1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(&content).await.ok()?;
     }
-    result.into_bytes()
-}
 
-fn ass_time_to_vtt(time: &str) -> String {
-    // ASS time: h:mm:ss.cs (centiseconds) → VTT: hh:mm:ss.mmm
-    let parts: Vec<&str> = time.splitn(3, ':').collect();
-    if parts.len() != 3 {
-        return "00:00:00.000".to_string();
+    let output = child.wait_with_output().await.ok()?;
+    if output.status.success() {
+        Some(output.stdout)
+    } else {
+        None
     }
-    let h: u32 = parts[0].parse().unwrap_or(0);
-    let m: u32 = parts[1].parse().unwrap_or(0);
-    let sec_parts: Vec<&str> = parts[2].splitn(2, '.').collect();
-    let s: u32 = sec_parts[0].parse().unwrap_or(0);
-    let cs: u32 = sec_parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
-    format!("{:02}:{:02}:{:02}.{:03}", h, m, s, cs * 10)
-}
-
-fn strip_ass_tags(text: &str) -> String {
-    let mut result = String::new();
-    let mut in_tag = false;
-    for ch in text.chars() {
-        match ch {
-            '{' => in_tag = true,
-            '}' => in_tag = false,
-            _ if !in_tag => result.push(ch),
-            _ => {}
-        }
-    }
-    result.replace("\\N", "\n").replace("\\n", "\n").replace("\\h", "\u{00A0}")
-}
-
-fn convert_ass_to_vtt(content: &[u8]) -> Vec<u8> {
-    let text = String::from_utf8_lossy(content);
-    let text = text.replace('\r', "");
-    let mut result = String::from("WEBVTT\n\n");
-
-    let mut in_events = false;
-    let mut start_idx: usize = 1;
-    let mut end_idx: usize = 2;
-    let mut text_idx: usize = 9;
-    let mut cue_number: u32 = 1;
-
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed == "[Events]" {
-            in_events = true;
-            continue;
-        }
-        if trimmed.starts_with('[') {
-            in_events = false;
-            continue;
-        }
-        if !in_events {
-            continue;
-        }
-        if trimmed.starts_with("Format:") {
-            let fields: Vec<&str> = trimmed["Format:".len()..].split(',').map(str::trim).collect();
-            for (i, &f) in fields.iter().enumerate() {
-                match f {
-                    "Start" => start_idx = i,
-                    "End" => end_idx = i,
-                    "Text" => text_idx = i,
-                    _ => {}
-                }
-            }
-            continue;
-        }
-        if trimmed.starts_with("Dialogue:") {
-            let rest = &trimmed["Dialogue:".len()..];
-            let parts: Vec<&str> = rest.splitn(text_idx + 1, ',').collect();
-            if parts.len() <= text_idx {
-                continue;
-            }
-            let start_vtt = ass_time_to_vtt(parts[start_idx].trim());
-            let end_vtt = ass_time_to_vtt(parts[end_idx].trim());
-            let clean_text = strip_ass_tags(parts[text_idx].trim());
-            if clean_text.trim().is_empty() {
-                continue;
-            }
-            result.push_str(&format!("{}\n{} --> {}\n{}\n\n", cue_number, start_vtt, end_vtt, clean_text));
-            cue_number += 1;
-        }
-    }
-    result.into_bytes()
 }
 
 async fn studio_subtitles_get(
@@ -186,7 +116,7 @@ async fn studio_subtitles_add(
 
     let mut label = String::new();
     let mut file_content = Vec::new();
-    let mut input_ext = String::from("vtt");
+    let mut input_format = "webvtt";
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
@@ -197,9 +127,9 @@ async fn studio_subtitles_add(
             "file" => {
                 let filename = field.file_name().unwrap_or("").to_lowercase();
                 if filename.ends_with(".srt") {
-                    input_ext = "srt".to_string();
+                    input_format = "srt";
                 } else if filename.ends_with(".ass") {
-                    input_ext = "ass".to_string();
+                    input_format = "ass";
                 }
                 file_content = field.bytes().await.unwrap_or_default().to_vec();
             }
@@ -236,11 +166,20 @@ async fn studio_subtitles_add(
             .unwrap();
     }
 
-    // Convert to WebVTT if needed
-    let vtt_content = match input_ext.as_str() {
-        "srt" => convert_srt_to_vtt(&file_content),
-        "ass" => convert_ass_to_vtt(&file_content),
-        _ => file_content,
+    // Convert to WebVTT via ffmpeg if needed
+    let vtt_content = if input_format != "webvtt" {
+        match convert_subtitle_to_vtt(file_content, input_format).await {
+            Some(converted) => converted,
+            None => {
+                return Response::builder()
+                    .status(StatusCode::UNPROCESSABLE_ENTITY)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"subtitle conversion failed\"}"))
+                    .unwrap();
+            }
+        }
+    } else {
+        file_content
     };
 
     let captions_dir = format!("source/{}/captions", mediumid);
