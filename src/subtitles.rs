@@ -307,8 +307,11 @@ async fn studio_subtitle_font_upload(
     }
 
     let mut font_content = Vec::new();
+    let mut is_ttf = false;
     while let Ok(Some(field)) = multipart.next_field().await {
         if field.name().unwrap_or("") == "file" {
+            let filename = field.file_name().unwrap_or("").to_lowercase();
+            is_ttf = filename.ends_with(".ttf");
             font_content = field.bytes().await.unwrap_or_default().to_vec();
             break;
         }
@@ -322,11 +325,26 @@ async fn studio_subtitle_font_upload(
             .unwrap();
     }
 
+    let woff2_content = if is_ttf {
+        match ttf2woff2::encode(&font_content, ttf2woff2::BrotliQuality::default()) {
+            Ok(converted) => converted,
+            Err(_) => {
+                return Response::builder()
+                    .status(StatusCode::UNPROCESSABLE_ENTITY)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"TTF to WOFF2 conversion failed\"}"))
+                    .unwrap();
+            }
+        }
+    } else {
+        font_content
+    };
+
     let captions_dir = format!("source/{}/captions", mediumid);
     let _ = tokio::fs::create_dir_all(&captions_dir).await;
 
     let font_path = format!("{}/font.woff2", captions_dir);
-    if let Err(_) = tokio::fs::write(&font_path, &font_content).await {
+    if let Err(_) = tokio::fs::write(&font_path, &woff2_content).await {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .header(axum::http::header::CONTENT_TYPE, "application/json")
