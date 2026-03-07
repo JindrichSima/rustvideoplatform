@@ -213,7 +213,7 @@
                         <!-- Channel + subscribe (grid col 1, row 2) -->
                         <div class="medium-channel-col d-flex align-items-center mt-1">
                             <a
-                                href="/channel/{{ medium_owner }}"
+                                href="/u/{{ medium_owner }}"
                                 class="text-secondary text-decoration-none d-flex align-items-center gap-2"
                                 preload="mouseover"
                             >
@@ -465,7 +465,7 @@
                     {% else %}
                     <h5 class="text-white text-center mb-3">
                         <i class="fa-solid fa-list me-1"></i>
-                        <a href="/list/{{ list_id }}" class="text-white text-decoration-none">{{ list_name }}</a>
+                        <a href="/l/{{ list_id }}" class="text-white text-decoration-none">{{ list_name }}</a>
                     </h5>
                     <div
                         hx-get="/hx/listsidebar/{{ list_id }}/{{ medium_id }}"
