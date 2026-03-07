@@ -396,6 +396,63 @@
                             <div id="subtitles-status" class="mt-2"></div>
                         </div>
                         <div class="border rounded p-3 mt-3">
+                            <h6><i class="fa-solid fa-language"></i>&nbsp;Translate Subtitle</h6>
+                            <p class="text-secondary mb-2">Request an AI translation of an existing subtitle track into another language. The translation will be queued and processed automatically.</p>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-4">
+                                    <label for="translate-source-select" class="form-label">Source Subtitle</label>
+                                    <select class="form-select form-select-sm" id="translate-source-select">
+                                        <option value="">-- Select source --</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="translate-target-select" class="form-label">Target Language</label>
+                                    <select class="form-select form-select-sm" id="translate-target-select">
+                                        <option value="">-- Select language --</option>
+                                        <option value="en">English</option>
+                                        <option value="cs">Czech</option>
+                                        <option value="de">German</option>
+                                        <option value="fr">French</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="it">Italian</option>
+                                        <option value="pt">Portuguese</option>
+                                        <option value="ru">Russian</option>
+                                        <option value="ja">Japanese</option>
+                                        <option value="ko">Korean</option>
+                                        <option value="zh">Chinese</option>
+                                        <option value="ar">Arabic</option>
+                                        <option value="hi">Hindi</option>
+                                        <option value="pl">Polish</option>
+                                        <option value="nl">Dutch</option>
+                                        <option value="sv">Swedish</option>
+                                        <option value="da">Danish</option>
+                                        <option value="no">Norwegian</option>
+                                        <option value="fi">Finnish</option>
+                                        <option value="hu">Hungarian</option>
+                                        <option value="tr">Turkish</option>
+                                        <option value="el">Greek</option>
+                                        <option value="he">Hebrew</option>
+                                        <option value="th">Thai</option>
+                                        <option value="vi">Vietnamese</option>
+                                        <option value="id">Indonesian</option>
+                                        <option value="uk">Ukrainian</option>
+                                        <option value="ro">Romanian</option>
+                                        <option value="bg">Bulgarian</option>
+                                        <option value="hr">Croatian</option>
+                                        <option value="sk">Slovak</option>
+                                        <option value="sl">Slovenian</option>
+                                        <option value="sr">Serbian</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-4">
+                                    <button type="button" class="btn btn-primary btn-sm w-100" id="translate-subtitle-btn">
+                                        <i class="fa-solid fa-language"></i>&nbsp;Translate
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="translate-status" class="mt-2"></div>
+                        </div>
+                        <div class="border rounded p-3 mt-3">
                             <h6><i class="fa-solid fa-font"></i>&nbsp;Custom Subtitle Font</h6>
                             <p class="text-secondary mb-2">Upload a custom font (.woff2 or .ttf — TTF files are automatically converted to WOFF2) to override the subtitle font for this media.</p>
                             <div id="font-current" class="mb-2" style="display:none">
@@ -426,6 +483,8 @@
                             var tbody = document.getElementById('subtitles-tbody');
                             var noMsg = document.getElementById('no-subtitles-msg');
                             tbody.innerHTML = '';
+
+                            updateTranslateSourceSelect();
 
                             if (subtitles.length === 0) {
                                 noMsg.style.display = '';
@@ -490,6 +549,64 @@
                                 renderSubtitles();
                             })
                             .catch(function(err) { console.error('Failed to load subtitles:', err); });
+
+                        function updateTranslateSourceSelect() {
+                            var sel = document.getElementById('translate-source-select');
+                            var currentVal = sel.value;
+                            sel.innerHTML = '<option value="">-- Select source --</option>';
+                            subtitles.forEach(function(sub) {
+                                var opt = document.createElement('option');
+                                opt.value = sub.label;
+                                opt.textContent = sub.label;
+                                sel.appendChild(opt);
+                            });
+                            if (currentVal) sel.value = currentVal;
+                        }
+
+                        function showTranslateStatus(type, msg) {
+                            var el = document.getElementById('translate-status');
+                            var icon = type === 'success' ? 'fa-check' : (type === 'warning' ? 'fa-spinner fa-spin' : 'fa-xmark');
+                            el.innerHTML = '<span class="text-' + type + '"><i class="fa-solid ' + icon + '"></i> ' + msg + '</span>';
+                            if (type !== 'warning') {
+                                setTimeout(function() { el.innerHTML = ''; }, 6000);
+                            }
+                        }
+
+                        document.getElementById('translate-subtitle-btn').addEventListener('click', function() {
+                            var btn = this;
+                            var sourceLabel = document.getElementById('translate-source-select').value;
+                            var targetLang = document.getElementById('translate-target-select').value;
+
+                            if (!sourceLabel) {
+                                showTranslateStatus('danger', 'Please select a source subtitle.');
+                                return;
+                            }
+                            if (!targetLang) {
+                                showTranslateStatus('danger', 'Please select a target language.');
+                                return;
+                            }
+
+                            btn.disabled = true;
+                            showTranslateStatus('warning', 'Queueing translation...');
+                            fetch('/studio/edit/{{ medium.id }}/subtitles/translate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ source_label: sourceLabel, target_language: targetLang })
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                btn.disabled = false;
+                                if (data.ok) {
+                                    showTranslateStatus('success', 'Translation queued! It will appear in the subtitle list when complete.');
+                                } else {
+                                    showTranslateStatus('danger', data.error || 'Failed to queue translation.');
+                                }
+                            })
+                            .catch(function() {
+                                btn.disabled = false;
+                                showTranslateStatus('danger', 'Failed to queue translation.');
+                            });
+                        });
 
                         document.getElementById('upload-subtitle-btn').addEventListener('click', function() {
                             var btn = this;
