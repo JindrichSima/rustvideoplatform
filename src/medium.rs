@@ -5,8 +5,7 @@ struct CaptionEntry {
 
 fn parse_caption_entry(entry: &str) -> CaptionEntry {
     let entry = entry.trim();
-    if entry.ends_with(".srt") || entry.ends_with(".ass") || entry.ends_with(".vtt") {
-        let dot_pos = entry.rfind('.').unwrap();
+    if let Some(dot_pos) = entry.rfind('.') {
         CaptionEntry {
             label: entry[..dot_pos].to_string(),
             filename: entry.to_string(),
