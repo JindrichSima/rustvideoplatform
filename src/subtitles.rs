@@ -407,6 +407,123 @@ async fn studio_subtitle_font_delete(
 }
 
 #[derive(Deserialize)]
+struct SubtitleTranslateForm {
+    source_label: String,
+    target_language: String,
+}
+
+async fn studio_subtitles_translate(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+    Json(form): Json<SubtitleTranslateForm>,
+) -> Response<Body> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"not logged in\"}"))
+            .unwrap();
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"not authorized\"}"))
+                    .unwrap();
+            }
+        }
+        Err(_) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"media not found\"}"))
+                .unwrap();
+        }
+    }
+
+    let source_label = form.source_label.trim().to_string();
+    let target_language = form.target_language.trim().to_lowercase();
+
+    if source_label.is_empty() || target_language.is_empty() {
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"source_label and target_language are required\"}"))
+            .unwrap();
+    }
+
+    // Verify source subtitle exists
+    let source_path = format!("source/{}/captions/{}.vtt", mediumid, source_label);
+    if !std::path::Path::new(&source_path).exists() {
+        return Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"source subtitle not found\"}"))
+            .unwrap();
+    }
+
+    // Create a concept entry of type vtt_translate with metadata as the upload file
+    let concept_id = format!("{}_translate", mediumid);
+
+    let metadata = serde_json::json!({
+        "medium_id": mediumid,
+        "source_label": source_label,
+        "target_language": target_language,
+    });
+
+    let upload_dir = std::path::Path::new("upload");
+    let _ = tokio::fs::create_dir_all(upload_dir).await;
+    let meta_path = upload_dir.join(&concept_id);
+
+    if let Err(_) = tokio::fs::write(&meta_path, metadata.to_string()).await {
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"failed to create translation job\"}"))
+            .unwrap();
+    }
+
+    // Upsert concept: delete any existing translation job for this medium, then insert new one
+    let _ = sqlx::query("DELETE FROM media_concepts WHERE id=$1;")
+        .bind(&concept_id)
+        .execute(&pool)
+        .await;
+
+    let concept_name = format!("Translate {} -> {}", source_label, target_language);
+    if let Err(_) = sqlx::query(
+        "INSERT INTO media_concepts (id, name, owner, type, processed) VALUES ($1, $2, $3, 'vtt_translate', false)"
+    )
+    .bind(&concept_id)
+    .bind(&concept_name)
+    .bind(&user_info.login)
+    .execute(&pool)
+    .await
+    {
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"failed to queue translation job\"}"))
+            .unwrap();
+    }
+
+    Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{\"ok\":true}"))
+        .unwrap()
+}
+
+#[derive(Deserialize)]
 struct SubtitleDeleteForm {
     label: String,
 }
