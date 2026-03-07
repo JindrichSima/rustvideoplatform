@@ -11,6 +11,10 @@
             property="og:url"
             content="https://{{ common_headers.host }}/concepts"
         />
+        <meta property="og:locale" content="{{ config.locale }}" />
+        <meta property="og:description" content="{{ config.description }}" />
+        <meta property="og:image" content="{{ config.source_server_url }}/source/favicon.svg" />
+        <meta property="og:site_name" content="{{ config.instancename }}" />
     </head>
 
     <body hx-ext="preload">

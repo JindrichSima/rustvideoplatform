@@ -2,9 +2,19 @@
 #[template(path = "pages/login.html", escape = "none")]
 struct LoginTemplate {
     config: Config,
+    common_headers: CommonHeaders,
 }
-async fn login(Extension(config): Extension<Config>) -> axum::response::Html<Vec<u8>> {
-    let template = LoginTemplate { config };
+async fn login(
+    Extension(config): Extension<Config>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    let common_headers = extract_common_headers(&headers).unwrap_or(CommonHeaders {
+        host: String::new(),
+        user_agent: None,
+        accept_language: None,
+        cookie: None,
+    });
+    let template = LoginTemplate { config, common_headers };
     Html(minifi_html(template.render().unwrap()))
 }
 

@@ -38,6 +38,7 @@ struct ListPageTemplate {
     config: Config,
     list: List,
     is_owner: bool,
+    common_headers: CommonHeaders,
 }
 
 #[derive(Template)]
@@ -113,12 +114,14 @@ async fn list_page(
         ));
     }
 
+    let common_headers = extract_common_headers(&headers).unwrap();
     let sidebar = generate_sidebar(&config, "list".to_owned());
     let template = ListPageTemplate {
         sidebar,
         config,
         list,
         is_owner,
+        common_headers,
     };
     Html(minifi_html(template.render().unwrap()))
 }
