@@ -393,7 +393,7 @@
                         </div>
                         <div class="border rounded p-3 mt-3">
                             <h6><i class="fa-solid fa-font"></i>&nbsp;Custom Subtitle Font</h6>
-                            <p class="text-secondary mb-2">Upload a custom font (.woff2) to override the subtitle font for this media.</p>
+                            <p class="text-secondary mb-2">Upload a custom font (.woff2 or .ttf — TTF files are automatically converted to WOFF2) to override the subtitle font for this media.</p>
                             <div id="font-current" class="mb-2" style="display:none">
                                 <span class="text-success"><i class="fa-solid fa-check"></i> Custom font active</span>
                                 <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="delete-font-btn">
@@ -402,8 +402,8 @@
                             </div>
                             <div id="font-upload-row" class="row g-2 align-items-end">
                                 <div class="col-sm-7">
-                                    <label for="font-file-input" class="form-label">WOFF2 Font File</label>
-                                    <input type="file" class="form-control form-control-sm" id="font-file-input" accept=".woff2" />
+                                    <label for="font-file-input" class="form-label">Font File (.woff2 or .ttf)</label>
+                                    <input type="file" class="form-control form-control-sm" id="font-file-input" accept=".woff2,.ttf" />
                                 </div>
                                 <div class="col-sm-3">
                                     <button type="button" class="btn btn-primary btn-sm w-100" id="upload-font-btn">
@@ -554,7 +554,7 @@
                             var btn = this;
                             var fileInput = document.getElementById('font-file-input');
                             if (!fileInput.files || fileInput.files.length === 0) {
-                                showFontStatus('danger', 'Please select a .woff2 file.');
+                                showFontStatus('danger', 'Please select a .woff2 or .ttf file.');
                                 return;
                             }
                             var formData = new FormData();
