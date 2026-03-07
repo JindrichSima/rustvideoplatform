@@ -341,6 +341,7 @@ async fn hx_list_sidebar(
     let template = HXMediumListTemplate {
         media,
         current_medium_id: mediumid,
+        list_id: listid,
         config
     };
     Html(minifi_html(template.render().unwrap()))
