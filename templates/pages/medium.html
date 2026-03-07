@@ -70,6 +70,17 @@
         {% else if medium_type == "document_pdf" %}
         <meta property="og:type" content="article" />
         {% endif %}
+        {% if medium_custom_font %}
+        <style>
+            @font-face {
+                font-family: 'SubtitleFont';
+                src: url('{{ config.source_server_url }}/source/{{ medium_id }}/captions/font.woff2') format('woff2');
+            }
+            :root {
+                --video-font-family: 'SubtitleFont', var(--bs-font-sans-serif) !important;
+            }
+        </style>
+        {% endif %}
     </head>
 
     <body hx-ext="preload">
@@ -99,12 +110,12 @@
                                 <source src="{{ config.source_server_url }}/source/{{ medium_id }}/video/video.mpd" type="application/dash+xml" />
                                 {% endif %}
                                 {% if medium_captions_exist %} {% for
-                                caption_name in medium_captions_list %}
+                                caption in medium_captions_list %}
                                 <track
-                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption_name }}.vtt"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption.filename }}"
                                     kind="subtitles"
-                                    label="{{ caption_name }}"
-                                    lang="{{caption_name}}"
+                                    label="{{ caption.label }}"
+                                    lang="{{ caption.label }}"
                                 />
                                 {% endfor %} {% endif %} {% if
                                 medium_chapters_exist %}
@@ -146,12 +157,12 @@
                         >
                             <media-provider>
                                 {% if medium_captions_exist %} {% for
-                                caption_name in medium_captions_list %}
+                                caption in medium_captions_list %}
                                 <track
-                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption_name }}.vtt"
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption.filename }}"
                                     kind="subtitles"
-                                    label="{{ caption_name }}"
-                                    lang="{{caption_name}}"
+                                    label="{{ caption.label }}"
+                                    lang="{{ caption.label }}"
                                 />
                                 {% endfor %} {% endif %} {% if
                                 medium_chapters_exist %}

@@ -198,15 +198,20 @@ async fn medium_in_list(
 
     let medium_id: String = medium.get("id");
     let medium_captions_exist: bool;
-    let mut medium_captions_list: Vec<String> = Vec::new();
+    let mut medium_captions_list: Vec<CaptionEntry> = Vec::new();
     if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
         medium_captions_exist = true;
-        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium_id)) {
-            medium_captions_list.push(caption_name);
+        for entry in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium_id)) {
+            if !entry.trim().is_empty() {
+                medium_captions_list.push(parse_caption_entry(&entry));
+            }
         }
     } else {
         medium_captions_exist = false;
     }
+
+    let medium_custom_font =
+        std::path::Path::new(&format!("source/{}/captions/font.woff2", medium_id)).exists();
 
     let medium_chapters_exist: bool;
     if std::path::Path::new(&format!("source/{}/chapters.vtt", medium_id)).exists() {
@@ -242,6 +247,7 @@ async fn medium_in_list(
         medium_type: medium.get("type"),
         medium_captions_exist,
         medium_captions_list,
+        medium_custom_font,
         medium_chapters_exist,
         medium_previews_exist,
         is_cmaf,
