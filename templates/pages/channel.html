@@ -6,11 +6,15 @@
 
     <title>{{ user.name }}</title>
 
-    <meta property="og:title" content="{{ config.instancename }}" />
+    <meta property="og:title" content="{{ user.name }}" />
     <meta property="og:type" content="profile" />
     <meta property="og:profile:username" content="{{ user.login }}" />
     <meta property="og:profile:first_name" content="{{ user.name }}" />
-    <meta property="og:url" content="https://{{ common_headers.host }}" />
+    <meta property="og:url" content="https://{{ common_headers.host }}/u/{{ user.login }}" />
+    <meta property="og:locale" content="{{ config.locale }}" />
+    <meta property="og:description" content="{{ config.description }}" />
+    <meta property="og:image" content="{{ config.source_server_url }}/source/favicon.svg" />
+    <meta property="og:site_name" content="{{ config.instancename }}" />
 </head>
 
 <body hx-ext="preload">

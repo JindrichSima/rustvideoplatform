@@ -4,6 +4,11 @@
         {% include "component-dependencies.html" %}
         <title>{{ list.name }}</title>
         <meta property="og:title" content="{{ list.name }}" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://{{ common_headers.host }}/list/{{ list.id }}" />
+        <meta property="og:locale" content="{{ config.locale }}" />
+        <meta property="og:description" content="{{ config.description }}" />
+        <meta property="og:image" content="{{ config.source_server_url }}/source/favicon.svg" />
         <meta property="og:site_name" content="{{ config.instancename }}" />
     </head>
     <body hx-ext="preload">

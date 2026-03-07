@@ -6,6 +6,8 @@
             property="og:url"
             content="https://{{ common_headers.host }}/m/{{ medium_id }}"
         />
+        <meta property="og:locale" content="{{ config.locale }}" />
+        <meta property="og:description" content="{{ config.description }}" />
         <meta property="og:site_name" content="{{ config.instancename }}" />
 
         {% if medium_type == "video" %}

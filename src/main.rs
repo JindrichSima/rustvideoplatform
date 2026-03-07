@@ -43,6 +43,8 @@ struct Config {
     redis_url: String,
     instancename: String,
     welcome: String,
+    description: String,
+    locale: String,
     custom_session_domain: Option<String>,
     meilisearch_url: String,
     meilisearch_key: Option<String>,
