@@ -33,6 +33,7 @@ struct MediumTemplate {
     medium_type: String,
     medium_captions_exist: bool,
     medium_captions_list: Vec<CaptionEntry>,
+    medium_custom_font: bool,
     medium_chapters_exist: bool,
     medium_previews_exist: bool,
     is_cmaf: bool,
@@ -107,6 +108,9 @@ async fn medium(
         medium_captions_exist = false;
     }
 
+    let medium_custom_font =
+        std::path::Path::new(&format!("source/{}/captions/font.woff2", medium_id)).exists();
+
     let medium_chapters_exist: bool;
     if std::path::Path::new(&format!("source/{}/chapters.vtt", medium_id)).exists() {
         medium_chapters_exist = true;
@@ -141,6 +145,7 @@ async fn medium(
         medium_type: medium.get("type"),
         medium_captions_exist,
         medium_captions_list,
+        medium_custom_font,
         medium_chapters_exist,
         medium_previews_exist,
         is_cmaf,

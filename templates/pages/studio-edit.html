@@ -391,6 +391,28 @@
                             </div>
                             <div id="subtitles-status" class="mt-2"></div>
                         </div>
+                        <div class="border rounded p-3 mt-3">
+                            <h6><i class="fa-solid fa-font"></i>&nbsp;Custom Subtitle Font</h6>
+                            <p class="text-secondary mb-2">Upload a custom font (.woff2) to override the subtitle font for this media.</p>
+                            <div id="font-current" class="mb-2" style="display:none">
+                                <span class="text-success"><i class="fa-solid fa-check"></i> Custom font active</span>
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="delete-font-btn">
+                                    <i class="fa-solid fa-trash"></i>&nbsp;Remove
+                                </button>
+                            </div>
+                            <div id="font-upload-row" class="row g-2 align-items-end">
+                                <div class="col-sm-7">
+                                    <label for="font-file-input" class="form-label">WOFF2 Font File</label>
+                                    <input type="file" class="form-control form-control-sm" id="font-file-input" accept=".woff2" />
+                                </div>
+                                <div class="col-sm-3">
+                                    <button type="button" class="btn btn-primary btn-sm w-100" id="upload-font-btn">
+                                        <i class="fa-solid fa-upload"></i>&nbsp;Upload
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="font-status" class="mt-2"></div>
+                        </div>
                     </div>
                     <script>
                     document.addEventListener('DOMContentLoaded', function() {
@@ -510,6 +532,73 @@
                                 btn.disabled = false;
                                 showSubStatus('danger', 'Upload failed.');
                             });
+                        });
+                    });
+                    </script>
+                    <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        function showFontStatus(type, msg) {
+                            var el = document.getElementById('font-status');
+                            var icon = type === 'success' ? 'fa-check' : 'fa-xmark';
+                            el.innerHTML = '<span class="text-' + type + '"><i class="fa-solid ' + icon + '"></i> ' + msg + '</span>';
+                            setTimeout(function() { el.innerHTML = ''; }, 4000);
+                        }
+
+                        function setFontExists(exists) {
+                            document.getElementById('font-current').style.display = exists ? '' : 'none';
+                        }
+
+                        fetch('/studio/edit/{{ medium.id }}/subtitles/font.json')
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) { setFontExists(data.exists); })
+                            .catch(function() {});
+
+                        document.getElementById('upload-font-btn').addEventListener('click', function() {
+                            var btn = this;
+                            var fileInput = document.getElementById('font-file-input');
+                            if (!fileInput.files || fileInput.files.length === 0) {
+                                showFontStatus('danger', 'Please select a .woff2 file.');
+                                return;
+                            }
+                            var formData = new FormData();
+                            formData.append('file', fileInput.files[0]);
+                            btn.disabled = true;
+                            fetch('/studio/edit/{{ medium.id }}/subtitles/font', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                btn.disabled = false;
+                                if (data.ok) {
+                                    fileInput.value = '';
+                                    setFontExists(true);
+                                    showFontStatus('success', 'Font uploaded!');
+                                } else {
+                                    showFontStatus('danger', data.error || 'Upload failed.');
+                                }
+                            })
+                            .catch(function() {
+                                btn.disabled = false;
+                                showFontStatus('danger', 'Upload failed.');
+                            });
+                        });
+
+                        document.getElementById('delete-font-btn').addEventListener('click', function() {
+                            if (!confirm('Remove custom subtitle font?')) return;
+                            fetch('/studio/edit/{{ medium.id }}/subtitles/font/delete', {
+                                method: 'POST'
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                if (data.ok) {
+                                    setFontExists(false);
+                                    showFontStatus('success', 'Font removed.');
+                                } else {
+                                    showFontStatus('danger', data.error || 'Failed to remove font.');
+                                }
+                            })
+                            .catch(function() { showFontStatus('danger', 'Failed to remove font.'); });
                         });
                     });
                     </script>

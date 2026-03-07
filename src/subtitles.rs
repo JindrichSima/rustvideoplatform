@@ -217,6 +217,154 @@ async fn studio_subtitles_add(
         .unwrap()
 }
 
+async fn studio_subtitle_font_get(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> Json<serde_json::Value> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Json(serde_json::json!({ "exists": false }));
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) if record.owner == user_info.login => {}
+        _ => return Json(serde_json::json!({ "exists": false })),
+    }
+
+    let font_path = format!("source/{}/captions/font.woff2", mediumid);
+    let exists = std::path::Path::new(&font_path).exists();
+    Json(serde_json::json!({ "exists": exists }))
+}
+
+async fn studio_subtitle_font_upload(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+    mut multipart: Multipart,
+) -> Response<Body> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"not logged in\"}"))
+            .unwrap();
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"not authorized\"}"))
+                    .unwrap();
+            }
+        }
+        Err(_) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"media not found\"}"))
+                .unwrap();
+        }
+    }
+
+    let mut font_content = Vec::new();
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name().unwrap_or("") == "file" {
+            font_content = field.bytes().await.unwrap_or_default().to_vec();
+            break;
+        }
+    }
+
+    if font_content.is_empty() {
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"font file is required\"}"))
+            .unwrap();
+    }
+
+    let captions_dir = format!("source/{}/captions", mediumid);
+    let _ = tokio::fs::create_dir_all(&captions_dir).await;
+
+    let font_path = format!("{}/font.woff2", captions_dir);
+    if let Err(_) = tokio::fs::write(&font_path, &font_content).await {
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"failed to write font file\"}"))
+            .unwrap();
+    }
+
+    Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{\"ok\":true}"))
+        .unwrap()
+}
+
+async fn studio_subtitle_font_delete(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> Response<Body> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{\"error\":\"not logged in\"}"))
+            .unwrap();
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"not authorized\"}"))
+                    .unwrap();
+            }
+        }
+        Err(_) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"media not found\"}"))
+                .unwrap();
+        }
+    }
+
+    let font_path = format!("source/{}/captions/font.woff2", mediumid);
+    let _ = tokio::fs::remove_file(&font_path).await;
+
+    Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{\"ok\":true}"))
+        .unwrap()
+}
+
 #[derive(Deserialize)]
 struct SubtitleDeleteForm {
     label: String,
