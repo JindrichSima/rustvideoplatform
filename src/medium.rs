@@ -1,3 +1,24 @@
+struct CaptionEntry {
+    label: String,
+    filename: String,
+}
+
+fn parse_caption_entry(entry: &str) -> CaptionEntry {
+    let entry = entry.trim();
+    if entry.ends_with(".srt") || entry.ends_with(".ass") || entry.ends_with(".vtt") {
+        let dot_pos = entry.rfind('.').unwrap();
+        CaptionEntry {
+            label: entry[..dot_pos].to_string(),
+            filename: entry.to_string(),
+        }
+    } else {
+        CaptionEntry {
+            label: entry.to_string(),
+            filename: format!("{}.vtt", entry),
+        }
+    }
+}
+
 #[derive(Template)]
 #[template(path = "pages/medium.html", escape = "none")]
 struct MediumTemplate {
@@ -11,7 +32,7 @@ struct MediumTemplate {
     medium_views: i64,
     medium_type: String,
     medium_captions_exist: bool,
-    medium_captions_list: Vec<String>,
+    medium_captions_list: Vec<CaptionEntry>,
     medium_chapters_exist: bool,
     medium_previews_exist: bool,
     is_cmaf: bool,
@@ -74,11 +95,13 @@ async fn medium(
 
     let medium_id: String = medium.get("id");
     let medium_captions_exist: bool;
-    let mut medium_captions_list: Vec<String> = Vec::new();
+    let mut medium_captions_list: Vec<CaptionEntry> = Vec::new();
     if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
         medium_captions_exist = true;
-        for caption_name in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium_id)) {
-            medium_captions_list.push(caption_name);
+        for entry in read_lines_to_vec(&format!("source/{}/captions/list.txt", medium_id)) {
+            if !entry.trim().is_empty() {
+                medium_captions_list.push(parse_caption_entry(&entry));
+            }
         }
     } else {
         medium_captions_exist = false;
