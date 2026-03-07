@@ -143,8 +143,10 @@ window.addEventListener('resize', fitMediumTitle);
 
 // Cross-document view transition: mark the clicked thumbnail so it morphs into the player.
 // Uses event delegation so it works for HTMX-loaded cards too.
+// Handles /m/ links (regular medium pages), /l/ links (list item pages),
+// and sidebar/recommended items which also use .thumbnail-container.
 document.addEventListener('click', function (e) {
-    const link = e.target.closest('a[href^="/m/"]');
+    const link = e.target.closest('a[href^="/m/"], a[href^="/l/"]');
     if (!link || e.defaultPrevented) return;
     // hx-mediumcard cards use .thumbnail-container; search cards use .search-card-thumbnail
     const thumb = link.querySelector('.thumbnail-container, .search-card-thumbnail');
