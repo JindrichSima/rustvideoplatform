@@ -33,6 +33,7 @@ async fn hx_recommended(
 
     let template = HXMediumListTemplate {
         current_medium_id: mediumid,
+        list_id: String::new(),
         media,
         config
     };

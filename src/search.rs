@@ -143,6 +143,7 @@ async fn hx_search_suggestions(
 
             let template = HXMediumListTemplate {
                 current_medium_id: String::new(),
+                list_id: String::new(),
                 media,
                 config
             };

@@ -1,6 +1,6 @@
 {% for item in media %}
 <a
-    href="/m/{{ item.id }}"
+    href="{% if list_id.is_empty() %}/m/{{ item.id }}{% else %}/l/{{ list_id }}/{{ item.id }}{% endif %}"
     class="text-decoration-none rounded {% if item.id == current_medium_id %}list-sidebar-active{% endif %}"
     preload="mouseover"
     title="{{ item.name }}"

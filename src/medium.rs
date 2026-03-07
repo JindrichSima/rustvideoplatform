@@ -243,6 +243,7 @@ struct HXMediumCardTemplate {
 #[template(path = "pages/hx-mediumlist.html", escape = "none")]
 struct HXMediumListTemplate {
     current_medium_id: String,
+    list_id: String,
     media: Vec<Medium>,
     config: Config,
 }
