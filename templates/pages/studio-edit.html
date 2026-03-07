@@ -356,7 +356,7 @@
                     <hr />
                     <div class="mx-3">
                         <h5><i class="fa-solid fa-closed-captioning"></i>&nbsp;Subtitles</h5>
-                        <p class="text-secondary">Upload subtitle files (.vtt, .srt, .ass). Each subtitle track needs a label (e.g. "English", "Spanish").</p>
+                        <p class="text-secondary">Upload subtitle files (.vtt, .srt, .ass) — SRT and ASS files are automatically converted to WebVTT. Each subtitle track needs a label (e.g. "English", "Spanish").</p>
                         <div id="subtitles-editor">
                             <div class="table-responsive">
                                 <table class="table table-hover text-white" id="subtitles-table">
@@ -379,7 +379,7 @@
                                         <input type="text" class="form-control form-control-sm" id="subtitle-label-input" />
                                     </div>
                                     <div class="col-sm-5">
-                                        <label for="subtitle-file-input" class="form-label">Subtitle File (.vtt, .srt, .ass)</label>
+                                        <label for="subtitle-file-input" class="form-label">Subtitle File (.vtt, .srt, .ass → WebVTT)</label>
                                         <input type="file" class="form-control form-control-sm" id="subtitle-file-input" accept=".vtt,.srt,.ass" />
                                     </div>
                                     <div class="col-sm-3">
@@ -435,7 +435,7 @@
                                 var tr = document.createElement('tr');
 
                                 var tdLabel = document.createElement('td');
-                                tdLabel.textContent = sub.label + ' (' + (sub.format || 'vtt') + ')';
+                                tdLabel.textContent = sub.label;
                                 tr.appendChild(tdLabel);
 
                                 var tdActions = document.createElement('td');
@@ -515,11 +515,8 @@
                             .then(function(data) {
                                 btn.disabled = false;
                                 if (data.ok) {
-                                    var fileEl = fileInput.files[0];
-                                    var ext = fileEl ? fileEl.name.split('.').pop().toLowerCase() : 'vtt';
-                                    if (ext !== 'srt' && ext !== 'ass') ext = 'vtt';
                                     subtitles = subtitles.filter(function(s) { return s.label !== label; });
-                                    subtitles.push({ label: label, format: ext });
+                                    subtitles.push({ label: label });
                                     renderSubtitles();
                                     labelInput.value = '';
                                     fileInput.value = '';
