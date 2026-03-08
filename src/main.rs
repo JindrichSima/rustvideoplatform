@@ -164,6 +164,8 @@ async fn main() {
         .route("/hx/studio/edit/{mediumid}/chapters", get(hx_studio_edit_chapters_tab))
         .route("/hx/studio/edit/{mediumid}/subtitles", get(hx_studio_edit_subtitles_tab))
         .route("/hx/studio/edit/{mediumid}/thumbnail", get(hx_studio_edit_thumbnail_tab))
+        .route("/hx/studio/edit/{mediumid}/permissions", get(hx_studio_edit_permissions_tab))
+        .route("/studio/edit/{mediumid}/permissions", post(studio_edit_permissions_save))
         .route("/hx/studio/edit/{mediumid}/danger", get(hx_studio_edit_danger_tab))
         .route("/studio/lists", get(studio_lists))
         .route("/hx/studio/lists", get(hx_studio_lists))

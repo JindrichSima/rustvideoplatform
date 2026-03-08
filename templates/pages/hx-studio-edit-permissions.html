@@ -1,0 +1,57 @@
+<div class="col-12">
+    <form action="/studio/edit/{{ medium.id }}/permissions" method="post" class="mx-3">
+        <div class="form-group row my-3">
+            <label for="medium_visibility" class="col-4 col-form-label">Visibility</label>
+            <div class="col-8">
+                <select id="medium_visibility" name="medium_visibility" class="form-select" required>
+                    <option value="public" {% if medium.visibility == "public" %}selected{% endif %}>Public</option>
+                    <option value="hidden" {% if medium.visibility == "hidden" %}selected{% endif %}>Hidden</option>
+                    <option value="restricted" {% if medium.visibility == "restricted" %}selected{% endif %}>Restricted to Group</option>
+                </select>
+                <select id="medium_restricted_group" name="medium_restricted_group" class="form-select mt-2" style="display:none">
+                    <option value="">-- Select a group --</option>
+                    {% for group in owner_groups %}
+                    <option value="{{ group.id }}">{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+                {% if owner_groups.is_empty() %}
+                <small class="text-secondary mt-1" id="no-groups-hint" style="display:none">
+                    You have no groups yet. <a href="/studio/groups" class="text-primary">Create one</a> to use restricted visibility.
+                </small>
+                {% endif %}
+            </div>
+        </div>
+        <script>
+        (function() {
+            var visTomSelect = new TomSelect('#medium_visibility', { create: false });
+            var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true });
+            var noGroupsHint = document.getElementById('no-groups-hint');
+
+            var currentGroup = '{{ medium.restricted_to_group }}';
+            if (currentGroup) {
+                groupTomSelect.setValue(currentGroup);
+            }
+
+            function updateGroupVisibility() {
+                var wrapper = groupTomSelect.wrapper;
+                if (visTomSelect.getValue() === 'restricted') {
+                    wrapper.style.display = '';
+                    if (noGroupsHint) noGroupsHint.style.display = '';
+                } else {
+                    wrapper.style.display = 'none';
+                    if (noGroupsHint) noGroupsHint.style.display = 'none';
+                }
+            }
+            updateGroupVisibility();
+            document.getElementById('medium_visibility').addEventListener('change', updateGroupVisibility);
+        })();
+        </script>
+        <div class="form-group row my-3">
+            <div class="offset-4 col-8">
+                <button name="submit" type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-floppy-disk"></i>&nbsp;Save Changes
+                </button>
+            </div>
+        </div>
+    </form>
+</div>

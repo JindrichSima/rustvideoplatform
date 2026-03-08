@@ -77,6 +77,16 @@
                             </button>
                         </li>
                         <li class="nav-item">
+                            <button class="nav-link {% if active_tab == "permissions" %}active {% endif %}text-white"
+                                    hx-get="/hx/studio/edit/{{ medium.id }}/permissions"
+                                    hx-target="#tab-content"
+                                    hx-swap="innerHTML"
+                                    preload="mouseover"
+                                    hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                                <i class="fa-solid fa-lock me-2"></i>Permissions
+                            </button>
+                        </li>
+                        <li class="nav-item">
                             <button class="nav-link {% if active_tab == "danger" %}active {% endif %}text-white"
                                     hx-get="/hx/studio/edit/{{ medium.id }}/danger"
                                     hx-target="#tab-content"
@@ -94,6 +104,8 @@
                         <div hx-get="/hx/studio/edit/{{ medium.id }}/subtitles" hx-trigger="load" class="mb-3 hx-placeholder"></div>
                         {% else if active_tab == "thumbnail" %}
                         <div hx-get="/hx/studio/edit/{{ medium.id }}/thumbnail" hx-trigger="load" class="mb-3 hx-placeholder"></div>
+                        {% else if active_tab == "permissions" %}
+                        <div hx-get="/hx/studio/edit/{{ medium.id }}/permissions" hx-trigger="load" class="mb-3 hx-placeholder"></div>
                         {% else if active_tab == "danger" %}
                         <div hx-get="/hx/studio/edit/{{ medium.id }}/danger" hx-trigger="load" class="mb-3 hx-placeholder"></div>
                         {% else %}
