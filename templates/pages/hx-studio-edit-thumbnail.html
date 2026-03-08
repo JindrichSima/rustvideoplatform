@@ -21,7 +21,7 @@
     <div id="thumbnail-status" class="mt-2"></div>
 </div>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     function showThumbStatus(type, msg) {
         var el = document.getElementById('thumbnail-status');
         var icon = type === 'success' ? 'fa-check' : 'fa-xmark';
@@ -90,5 +90,5 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function() { showThumbStatus('danger', 'Failed to remove thumbnail.'); });
     });
-});
+})();
 </script>

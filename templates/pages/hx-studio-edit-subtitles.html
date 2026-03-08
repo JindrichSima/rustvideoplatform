@@ -120,7 +120,7 @@
     </div>
 </div>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     var subtitles = [];
 
     function renderSubtitles() {
@@ -307,10 +307,10 @@ document.addEventListener('DOMContentLoaded', function() {
             showSubStatus('danger', 'Upload failed.');
         });
     });
-});
+})();
 </script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     function showFontStatus(type, msg) {
         var el = document.getElementById('font-status');
         var icon = type === 'success' ? 'fa-check' : 'fa-xmark';
@@ -374,5 +374,5 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function() { showFontStatus('danger', 'Failed to remove font.'); });
     });
-});
+})();
 </script>

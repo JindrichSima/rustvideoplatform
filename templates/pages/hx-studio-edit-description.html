@@ -22,7 +22,7 @@
             </div>
         </div>
         <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        (function() {
             let quill = new Quill('#medium_description_editor', {
                 theme: 'snow'
             });
@@ -45,7 +45,7 @@
                 let delta = quill.getContents();
                 descriptionInput.value = JSON.stringify(delta);
             });
-        });
+        })();
         </script>
         <div class="form-group row my-3">
             <label for="medium_visibility" class="col-4 col-form-label">Visibility</label>
@@ -69,7 +69,7 @@
             </div>
         </div>
         <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        (function() {
             var visTomSelect = new TomSelect('#medium_visibility', { create: false });
             var groupTomSelect = new TomSelect('#medium_restricted_group', { create: false, allowEmptyOption: true });
             var noGroupsHint = document.getElementById('no-groups-hint');
@@ -91,7 +91,7 @@
             }
             updateGroupVisibility();
             document.getElementById('medium_visibility').addEventListener('change', updateGroupVisibility);
-        });
+        })();
         </script>
         <div class="form-group row my-3">
             <div class="offset-4 col-8">
