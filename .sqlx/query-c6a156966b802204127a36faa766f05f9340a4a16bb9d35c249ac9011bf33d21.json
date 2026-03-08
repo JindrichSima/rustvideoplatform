@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT processed FROM media_concepts WHERE id=$1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "processed",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c6a156966b802204127a36faa766f05f9340a4a16bb9d35c249ac9011bf33d21"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO list_items (list_id, media_id, position) VALUES ($1, $2, 0);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6831474682f862e7c37488d271bf067a0dad4288aba3446886fd7775e28f4f83"
+}
