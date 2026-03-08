@@ -220,7 +220,39 @@ struct StudioEditTemplate {
     config: Config,
     medium: MediumEdit,
     common_headers: CommonHeaders,
+    active_tab: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-studio-edit-description.html", escape = "none")]
+struct HXStudioEditDescriptionTemplate {
+    medium: MediumEdit,
     owner_groups: Vec<UserGroup>,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-studio-edit-chapters.html", escape = "none")]
+struct HXStudioEditChaptersTemplate {
+    medium_id: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-studio-edit-subtitles.html", escape = "none")]
+struct HXStudioEditSubtitlesTemplate {
+    medium_id: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-studio-edit-thumbnail.html", escape = "none")]
+struct HXStudioEditThumbnailTemplate {
+    medium_id: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-studio-edit-danger.html", escape = "none")]
+struct HXStudioEditDangerTemplate {
+    medium_id: String,
+    medium_name: String,
 }
 async fn studio_edit(
     Extension(config): Extension<Config>,
@@ -254,22 +286,6 @@ async fn studio_edit(
                 ));
             }
 
-            // Fetch user's groups for the dropdown (system groups + user groups)
-            let mut owner_groups = system_groups_for_owner(&user_info.login);
-            let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-                .bind(&user_info.login)
-                .map(|row: sqlx::postgres::PgRow| {
-                    UserGroup {
-                        id: row.get("id"),
-                        name: row.get("name"),
-                        owner: row.get("owner"),
-                    }
-                })
-                .fetch_all(&pool)
-                .await
-                .unwrap_or_default();
-            owner_groups.extend(user_groups);
-
             let sidebar = generate_sidebar(&config, "studio".to_owned());
             let common_headers = extract_common_headers(&headers).unwrap();
             let template = StudioEditTemplate {
@@ -283,7 +299,7 @@ async fn studio_edit(
                     medium_type: record.get("type"),
                 },
                 common_headers,
-                owner_groups,
+                active_tab: "description".to_owned(),
             };
             Html(minifi_html(template.render().unwrap()))
         }
@@ -417,4 +433,173 @@ async fn hx_delete_video(
     let _ = fs::remove_dir_all(&source_path).await;
 
     Redirect::to("/studio")
+}
+
+async fn hx_studio_edit_description(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let medium = sqlx::query(
+        "SELECT id,name,owner,visibility,restricted_to_group,type FROM media WHERE id=$1;"
+    )
+    .bind(&mediumid)
+    .fetch_one(&pool)
+    .await;
+
+    match medium {
+        Ok(record) => {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
+                return Html(minifi_html("".to_owned()));
+            }
+
+            let mut owner_groups = system_groups_for_owner(&user_info.login);
+            let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+                .bind(&user_info.login)
+                .map(|row: sqlx::postgres::PgRow| {
+                    UserGroup {
+                        id: row.get("id"),
+                        name: row.get("name"),
+                        owner: row.get("owner"),
+                    }
+                })
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default();
+            owner_groups.extend(user_groups);
+
+            let template = HXStudioEditDescriptionTemplate {
+                medium: MediumEdit {
+                    id: record.get("id"),
+                    name: record.get("name"),
+                    visibility: record.get("visibility"),
+                    restricted_to_group: record.get::<Option<String>, _>("restricted_to_group").unwrap_or_default(),
+                    medium_type: record.get("type"),
+                },
+                owner_groups,
+            };
+            Html(minifi_html(template.render().unwrap()))
+        }
+        Err(_) => Html(minifi_html("".to_owned())),
+    }
+}
+
+async fn hx_studio_edit_chapters_tab(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let owner: Option<String> = sqlx::query_scalar("SELECT owner FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
+        .await
+        .unwrap_or(None);
+
+    if owner.as_deref() != Some(user_info.login.as_str()) {
+        return Html(minifi_html("".to_owned()));
+    }
+
+    let template = HXStudioEditChaptersTemplate { medium_id: mediumid };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+async fn hx_studio_edit_subtitles_tab(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let owner: Option<String> = sqlx::query_scalar("SELECT owner FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
+        .await
+        .unwrap_or(None);
+
+    if owner.as_deref() != Some(user_info.login.as_str()) {
+        return Html(minifi_html("".to_owned()));
+    }
+
+    let template = HXStudioEditSubtitlesTemplate { medium_id: mediumid };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+async fn hx_studio_edit_thumbnail_tab(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let owner: Option<String> = sqlx::query_scalar("SELECT owner FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
+        .await
+        .unwrap_or(None);
+
+    if owner.as_deref() != Some(user_info.login.as_str()) {
+        return Html(minifi_html("".to_owned()));
+    }
+
+    let template = HXStudioEditThumbnailTemplate { medium_id: mediumid };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+async fn hx_studio_edit_danger_tab(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let row = sqlx::query("SELECT owner, name FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
+        .await
+        .unwrap_or(None);
+
+    match row {
+        Some(record) => {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
+                return Html(minifi_html("".to_owned()));
+            }
+            let medium_name: String = record.get("name");
+            let template = HXStudioEditDangerTemplate { medium_id: mediumid, medium_name };
+            Html(minifi_html(template.render().unwrap()))
+        }
+        None => Html(minifi_html("".to_owned())),
+    }
 }

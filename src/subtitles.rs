@@ -406,6 +406,40 @@ async fn studio_subtitle_font_delete(
         .unwrap()
 }
 
+async fn studio_subtitles_translate_status(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> Json<serde_json::Value> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Json(serde_json::json!({ "in_progress": false }));
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) if record.owner == user_info.login => {}
+        _ => return Json(serde_json::json!({ "in_progress": false })),
+    }
+
+    let concept_id = format!("{}_translate", mediumid);
+    let result = sqlx::query!("SELECT processed FROM media_concepts WHERE id=$1;", concept_id)
+        .fetch_optional(&pool)
+        .await;
+
+    let in_progress = match result {
+        Ok(Some(row)) => !row.processed,
+        _ => false,
+    };
+
+    Json(serde_json::json!({ "in_progress": in_progress }))
+}
+
 #[derive(Deserialize)]
 struct SubtitleTranslateForm {
     source_label: String,
