@@ -1,19 +1,23 @@
 struct CaptionEntry {
     label: String,
     filename: String,
+    is_ass: bool,
 }
 
 fn parse_caption_entry(entry: &str) -> CaptionEntry {
     let entry = entry.trim();
+    let is_ass = entry.ends_with(".ass") || entry.ends_with(".ssa");
     if let Some(dot_pos) = entry.rfind('.') {
         CaptionEntry {
             label: entry[..dot_pos].to_string(),
             filename: entry.to_string(),
+            is_ass,
         }
     } else {
         CaptionEntry {
             label: entry.to_string(),
             filename: format!("{}.vtt", entry),
+            is_ass: false,
         }
     }
 }
@@ -32,6 +36,7 @@ struct MediumTemplate {
     medium_type: String,
     medium_captions_exist: bool,
     medium_captions_list: Vec<CaptionEntry>,
+    medium_has_ass_captions: bool,
     medium_custom_font: bool,
     medium_chapters_exist: bool,
     medium_previews_exist: bool,
@@ -107,6 +112,7 @@ async fn medium(
         medium_captions_exist = false;
     }
 
+    let medium_has_ass_captions = medium_captions_list.iter().any(|c| c.is_ass);
     let medium_custom_font =
         std::path::Path::new(&format!("source/{}/captions/font.woff2", medium_id)).exists();
 
@@ -144,6 +150,7 @@ async fn medium(
         medium_type: medium.get("type"),
         medium_captions_exist,
         medium_captions_list,
+        medium_has_ass_captions,
         medium_custom_font,
         medium_chapters_exist,
         medium_previews_exist,
