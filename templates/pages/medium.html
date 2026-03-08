@@ -100,8 +100,6 @@
                     "SubtitleFont", var(--bs-font-sans-serif) !important;
             }
         </style>
-        {% endif %} {% if medium_has_ass_captions %}
-        <script src="https://cdn.jsdelivr.net/npm/jassub/dist/jassub.umd.js"></script>
         {% endif %}
     </head>
 
@@ -151,6 +149,14 @@
                                     label="{{ caption.label }}"
                                     lang="{{ caption.label }}"
                                 />
+                                {% else %}
+                                <track
+                                    src="{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption.filename }}"
+                                    kind="subtitles"
+                                    label="{{ caption.label }}"
+                                    lang="{{ caption.label }}"
+                                    data-type="ass"
+                                />
                                 {% endif %} {% endfor %} {% endif %} {% if
                                 medium_chapters_exist %}
                                 <track
@@ -179,141 +185,30 @@
                         <script>
                             document.addEventListener("DOMContentLoaded", function () {
                                 var player = document.querySelector("media-player");
-                                if (!player || typeof JASSUB === "undefined") return;
+                                if (!player) return;
 
-                                var assSubtitles = [
-                                    {% for caption in medium_captions_list %}{% if caption.is_ass %}
-                                    { label: "{{ caption.label }}", url: "{{ config.source_server_url }}/source/{{ medium_id }}/captions/{{ caption.filename }}" },
-                                    {% endif %}{% endfor %}
-                                ];
+                                // importScripts-based blob URL bypasses cross-origin Worker restriction
+                                // while preserving the CDN script's own base URL for WASM/font resolution.
+                                var workerBlobUrl = URL.createObjectURL(
+                                    new Blob(
+                                        ['importScripts("https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js")'],
+                                        { type: 'text/javascript' }
+                                    )
+                                );
 
-                                if (assSubtitles.length === 0) return;
-
-                                var jassubInstance = null;
-                                var currentAssTrack = null;
-
-                                // Fetch the worker as a blob URL to satisfy same-origin Worker restrictions.
-                                // jsdelivr allows cross-origin fetch (CORS *) but browsers block new Worker(cross-origin-url).
-                                var workerUrlPromise = fetch("https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js")
-                                    .then(function(r) { return r.blob(); })
-                                    .then(function(blob) { return URL.createObjectURL(blob); });
-
-                                function getVideoElement() {
-                                    var provider = player.querySelector("media-provider");
-                                    if (provider) {
-                                        var video = provider.querySelector("video");
-                                        if (video) return video;
-                                    }
-                                    return player.querySelector("video");
-                                }
-
-                                function initJassub(trackUrl) {
-                                    var video = getVideoElement();
-                                    if (!video) {
-                                        setTimeout(function() { initJassub(trackUrl); }, 200);
-                                        return;
-                                    }
-
-                                    if (jassubInstance) {
-                                        jassubInstance.setTrackByUrl(trackUrl);
-                                        currentAssTrack = trackUrl;
-                                        return;
-                                    }
-
-                                    workerUrlPromise.then(function(workerUrl) {
-                                        var options = {
-                                            video: video,
-                                            subUrl: trackUrl,
-                                            workerUrl: workerUrl,
-                                            wasmUrl: "https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm",
-                                            availableFonts: {},
-                                            prescaleFactor: 0.8,
-                                            onDemandRender: false
-                                        };
-
-                                        {% if medium_custom_font %}
-                                        options.availableFonts = { "default": "{{ config.source_server_url }}/source/{{ medium_id }}/captions/font.woff2" };
-                                        options.fallbackFont = "default";
-                                        {% endif %}
-
-                                        jassubInstance = new JASSUB(options);
-                                        currentAssTrack = trackUrl;
-                                    });
-                                }
-
-                                function destroyJassub() {
-                                    if (jassubInstance) {
-                                        jassubInstance.destroy();
-                                        jassubInstance = null;
-                                        currentAssTrack = null;
-                                    }
-                                }
-
-                                // Listen for Vidstack text track changes
-                                player.addEventListener("text-track-change", function (event) {
-                                    var track = event.detail;
-                                    if (!track || track.mode !== "showing") {
-                                        // Track was disabled
-                                        destroyJassub();
-                                        return;
-                                    }
-
-                                    // Check if the selected track matches an ASS subtitle
-                                    var matchedAss = null;
-                                    for (var i = 0; i < assSubtitles.length; i++) {
-                                        if (assSubtitles[i].label === track.label) {
-                                            matchedAss = assSubtitles[i];
-                                            break;
-                                        }
-                                    }
-
-                                    if (matchedAss) {
-                                        initJassub(matchedAss.url);
-                                    } else {
-                                        destroyJassub();
-                                    }
+                                import('https://cdn.vidstack.io/player').then(function (vidstack) {
+                                    var options = { workerUrl: workerBlobUrl };
+                                    {% if medium_custom_font %}
+                                    options.availableFonts = { "default": "{{ config.source_server_url }}/source/{{ medium_id }}/captions/font.woff2" };
+                                    options.fallbackFont = "default";
+                                    {% endif %}
+                                    player.textRenderers.add(
+                                        new vidstack.LibASSTextRenderer(
+                                            function () { return import('https://cdn.jsdelivr.net/npm/jassub'); },
+                                            options
+                                        )
+                                    );
                                 });
-
-                                // Add ASS tracks to Vidstack's text track list so they appear in the subtitle menu
-                                player.addEventListener("can-play", function () {
-                                    import('https://cdn.vidstack.io/player').then(function(vidstack) {
-                                        for (var i = 0; i < assSubtitles.length; i++) {
-                                            var textTrack = new vidstack.TextTrack({
-                                                kind: "subtitles",
-                                                label: assSubtitles[i].label,
-                                                language: assSubtitles[i].label,
-                                                type: "ass"
-                                            });
-                                            textTrack._assUrl = assSubtitles[i].url;
-                                            player.textTracks.add(textTrack);
-                                        }
-                                    });
-                                }, { once: true });
-
-                                // Also listen on textTracks mode changes for ASS tracks
-                                player.addEventListener("can-play", function () {
-                                    var tracks = player.textTracks;
-                                    if (!tracks) return;
-
-                                    var observer = new MutationObserver(function() {});
-
-                                    setInterval(function() {
-                                        var activeAss = null;
-                                        for (var i = 0; i < tracks.length; i++) {
-                                            var t = tracks[i];
-                                            if (t.mode === "showing" && t._assUrl) {
-                                                activeAss = t._assUrl;
-                                                break;
-                                            }
-                                        }
-
-                                        if (activeAss && activeAss !== currentAssTrack) {
-                                            initJassub(activeAss);
-                                        } else if (!activeAss && currentAssTrack) {
-                                            destroyJassub();
-                                        }
-                                    }, 500);
-                                }, { once: true });
                             });
                         </script>
                         {% endif %}
