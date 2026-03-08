@@ -2,7 +2,7 @@
     <h5><i class="fa-solid fa-image"></i>&nbsp;Thumbnail</h5>
     <p class="text-secondary">Upload a custom thumbnail image. It will be converted to AVIF and JPEG at 1280×720 resolution.</p>
     <div id="thumbnail-current" class="mb-2" style="display:none">
-        <img id="thumbnail-preview" src="/source/{{ medium_id }}/thumbnail.jpg" alt="Current thumbnail" style="max-width:320px;max-height:180px;border-radius:4px;border:1px solid #444;" class="mb-2 d-block" />
+        <img id="thumbnail-preview" src="/source/{{ medium_id }}/thumbnail.avif" alt="Current thumbnail" style="max-width:320px;max-height:180px;border-radius:4px;border:1px solid #444;" class="mb-2 d-block" />
         <button type="button" class="btn btn-sm btn-outline-danger" id="delete-thumbnail-btn">
             <i class="fa-solid fa-trash"></i>&nbsp;Remove Custom Thumbnail
         </button>
@@ -33,7 +33,7 @@
         document.getElementById('thumbnail-current').style.display = exists ? '' : 'none';
         if (exists) {
             var img = document.getElementById('thumbnail-preview');
-            img.src = '/source/{{ medium_id }}/thumbnail.jpg?' + Date.now();
+            img.src = '/source/{{ medium_id }}/thumbnail.avif?' + Date.now();
         }
     }
 
