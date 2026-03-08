@@ -192,6 +192,12 @@
                                 var jassubInstance = null;
                                 var currentAssTrack = null;
 
+                                // Fetch the worker as a blob URL to satisfy same-origin Worker restrictions.
+                                // jsdelivr allows cross-origin fetch (CORS *) but browsers block new Worker(cross-origin-url).
+                                var workerUrlPromise = fetch("https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js")
+                                    .then(function(r) { return r.blob(); })
+                                    .then(function(blob) { return URL.createObjectURL(blob); });
+
                                 function getVideoElement() {
                                     var provider = player.querySelector("media-provider");
                                     if (provider) {
@@ -210,11 +216,15 @@
 
                                     if (jassubInstance) {
                                         jassubInstance.setTrackByUrl(trackUrl);
-                                    } else {
+                                        currentAssTrack = trackUrl;
+                                        return;
+                                    }
+
+                                    workerUrlPromise.then(function(workerUrl) {
                                         var options = {
                                             video: video,
                                             subUrl: trackUrl,
-                                            workerUrl: "https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.js",
+                                            workerUrl: workerUrl,
                                             wasmUrl: "https://cdn.jsdelivr.net/npm/jassub/dist/jassub-worker.wasm",
                                             availableFonts: {},
                                             prescaleFactor: 0.8,
@@ -227,8 +237,8 @@
                                         {% endif %}
 
                                         jassubInstance = new JASSUB(options);
-                                    }
-                                    currentAssTrack = trackUrl;
+                                        currentAssTrack = trackUrl;
+                                    });
                                 }
 
                                 function destroyJassub() {
