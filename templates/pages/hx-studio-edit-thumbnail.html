@@ -1,0 +1,94 @@
+<div class="col-12 mx-3">
+    <h5><i class="fa-solid fa-image"></i>&nbsp;Thumbnail</h5>
+    <p class="text-secondary">Upload a custom thumbnail image. It will be converted to AVIF and JPEG at 1280×720 resolution.</p>
+    <div id="thumbnail-current" class="mb-2" style="display:none">
+        <img id="thumbnail-preview" src="/source/{{ medium_id }}/thumbnail.jpg" alt="Current thumbnail" style="max-width:320px;max-height:180px;border-radius:4px;border:1px solid #444;" class="mb-2 d-block" />
+        <button type="button" class="btn btn-sm btn-outline-danger" id="delete-thumbnail-btn">
+            <i class="fa-solid fa-trash"></i>&nbsp;Remove Custom Thumbnail
+        </button>
+    </div>
+    <div id="thumbnail-upload-row" class="row g-2 align-items-end">
+        <div class="col-sm-7">
+            <label for="thumbnail-file-input" class="form-label">Image File (PNG, JPG, WEBP, etc.)</label>
+            <input type="file" class="form-control form-control-sm" id="thumbnail-file-input" accept="image/*" />
+        </div>
+        <div class="col-sm-3">
+            <button type="button" class="btn btn-primary btn-sm w-100" id="upload-thumbnail-btn">
+                <i class="fa-solid fa-upload"></i>&nbsp;Upload
+            </button>
+        </div>
+    </div>
+    <div id="thumbnail-status" class="mt-2"></div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function showThumbStatus(type, msg) {
+        var el = document.getElementById('thumbnail-status');
+        var icon = type === 'success' ? 'fa-check' : 'fa-xmark';
+        el.innerHTML = '<span class="text-' + type + '"><i class="fa-solid ' + icon + '"></i> ' + msg + '</span>';
+        setTimeout(function() { el.innerHTML = ''; }, 4000);
+    }
+
+    function setThumbnailExists(exists) {
+        document.getElementById('thumbnail-current').style.display = exists ? '' : 'none';
+        if (exists) {
+            var img = document.getElementById('thumbnail-preview');
+            img.src = '/source/{{ medium_id }}/thumbnail.jpg?' + Date.now();
+        }
+    }
+
+    fetch('/studio/edit/{{ medium_id }}/thumbnail.json')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { setThumbnailExists(data.exists); })
+        .catch(function() {});
+
+    document.getElementById('upload-thumbnail-btn').addEventListener('click', function() {
+        var btn = this;
+        var fileInput = document.getElementById('thumbnail-file-input');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showThumbStatus('danger', 'Please select an image file.');
+            return;
+        }
+        var formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        btn.disabled = true;
+        showThumbStatus('warning', 'Uploading and converting...');
+        fetch('/studio/edit/{{ medium_id }}/thumbnail', {
+            method: 'POST',
+            body: formData
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.ok) {
+                fileInput.value = '';
+                setThumbnailExists(true);
+                showThumbStatus('success', 'Thumbnail uploaded and converted!');
+            } else {
+                showThumbStatus('danger', data.error || 'Upload failed.');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            showThumbStatus('danger', 'Upload failed.');
+        });
+    });
+
+    document.getElementById('delete-thumbnail-btn').addEventListener('click', function() {
+        if (!confirm('Remove custom thumbnail?')) return;
+        fetch('/studio/edit/{{ medium_id }}/thumbnail/delete', {
+            method: 'POST'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                setThumbnailExists(false);
+                showThumbStatus('success', 'Thumbnail removed.');
+            } else {
+                showThumbStatus('danger', data.error || 'Failed to remove thumbnail.');
+            }
+        })
+        .catch(function() { showThumbStatus('danger', 'Failed to remove thumbnail.'); });
+    });
+});
+</script>
