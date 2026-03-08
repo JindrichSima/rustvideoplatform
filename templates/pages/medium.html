@@ -266,16 +266,18 @@
 
                                 // Add ASS tracks to Vidstack's text track list so they appear in the subtitle menu
                                 player.addEventListener("can-play", function () {
-                                    for (var i = 0; i < assSubtitles.length; i++) {
-                                        var textTrack = new TextTrack({
-                                            kind: "subtitles",
-                                            label: assSubtitles[i].label,
-                                            language: assSubtitles[i].label,
-                                            type: "ass"
-                                        });
-                                        textTrack._assUrl = assSubtitles[i].url;
-                                        player.textTracks.add(textTrack);
-                                    }
+                                    import('https://cdn.vidstack.io/player').then(function(vidstack) {
+                                        for (var i = 0; i < assSubtitles.length; i++) {
+                                            var textTrack = new vidstack.TextTrack({
+                                                kind: "subtitles",
+                                                label: assSubtitles[i].label,
+                                                language: assSubtitles[i].label,
+                                                type: "ass"
+                                            });
+                                            textTrack._assUrl = assSubtitles[i].url;
+                                            player.textTracks.add(textTrack);
+                                        }
+                                    });
                                 }, { once: true });
 
                                 // Also listen on textTracks mode changes for ASS tracks
