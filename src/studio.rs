@@ -227,7 +227,6 @@ struct StudioEditTemplate {
 #[template(path = "pages/hx-studio-edit-description.html", escape = "none")]
 struct HXStudioEditDescriptionTemplate {
     medium: MediumEdit,
-    owner_groups: Vec<UserGroup>,
 }
 
 #[derive(Template)]
@@ -253,6 +252,13 @@ struct HXStudioEditThumbnailTemplate {
 struct HXStudioEditDangerTemplate {
     medium_id: String,
     medium_name: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-studio-edit-permissions.html", escape = "none")]
+struct HXStudioEditPermissionsTemplate {
+    medium: MediumEdit,
+    owner_groups: Vec<UserGroup>,
 }
 async fn studio_edit(
     Extension(config): Extension<Config>,
@@ -313,6 +319,10 @@ async fn studio_edit(
 struct EditForm {
     medium_name: String,
     medium_description: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PermissionsEditForm {
     medium_visibility: String,
     medium_restricted_group: Option<String>,
 }
@@ -344,27 +354,14 @@ async fn studio_edit_save(
         }
     }
 
-    let visibility = match form.medium_visibility.as_str() {
-        "public" | "hidden" | "restricted" => form.medium_visibility.clone(),
-        _ => "hidden".to_owned(),
-    };
-    let ispublic = visibility == "public";
-    let restricted_to_group = if visibility == "restricted" {
-        form.medium_restricted_group.clone().filter(|g| !g.is_empty())
-    } else {
-        None
-    };
     let description: serde_json::Value =
         serde_json::from_str(&form.medium_description).unwrap_or(serde_json::Value::Null);
 
     let update_result = sqlx::query(
-        "UPDATE media SET name=$1, description=$2, public=$3, visibility=$4, restricted_to_group=$5 WHERE id=$6;"
+        "UPDATE media SET name=$1, description=$2 WHERE id=$3;"
     )
     .bind(&form.medium_name)
     .bind(&description)
-    .bind(ispublic)
-    .bind(&visibility)
-    .bind(&restricted_to_group)
     .bind(&mediumid)
     .execute(&pool)
     .await;
@@ -462,21 +459,6 @@ async fn hx_studio_edit_description(
                 return Html(minifi_html("".to_owned()));
             }
 
-            let mut owner_groups = system_groups_for_owner(&user_info.login);
-            let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-                .bind(&user_info.login)
-                .map(|row: sqlx::postgres::PgRow| {
-                    UserGroup {
-                        id: row.get("id"),
-                        name: row.get("name"),
-                        owner: row.get("owner"),
-                    }
-                })
-                .fetch_all(&pool)
-                .await
-                .unwrap_or_default();
-            owner_groups.extend(user_groups);
-
             let template = HXStudioEditDescriptionTemplate {
                 medium: MediumEdit {
                     id: record.get("id"),
@@ -485,7 +467,6 @@ async fn hx_studio_edit_description(
                     restricted_to_group: record.get::<Option<String>, _>("restricted_to_group").unwrap_or_default(),
                     medium_type: record.get("type"),
                 },
-                owner_groups,
             };
             Html(minifi_html(template.render().unwrap()))
         }
@@ -602,4 +583,124 @@ async fn hx_studio_edit_danger_tab(
         }
         None => Html(minifi_html("".to_owned())),
     }
+}
+
+async fn hx_studio_edit_permissions_tab(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let medium = sqlx::query(
+        "SELECT id,name,owner,visibility,restricted_to_group,type FROM media WHERE id=$1;"
+    )
+    .bind(&mediumid)
+    .fetch_one(&pool)
+    .await;
+
+    match medium {
+        Ok(record) => {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
+                return Html(minifi_html("".to_owned()));
+            }
+
+            let mut owner_groups = system_groups_for_owner(&user_info.login);
+            let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+                .bind(&user_info.login)
+                .map(|row: sqlx::postgres::PgRow| {
+                    UserGroup {
+                        id: row.get("id"),
+                        name: row.get("name"),
+                        owner: row.get("owner"),
+                    }
+                })
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default();
+            owner_groups.extend(user_groups);
+
+            let template = HXStudioEditPermissionsTemplate {
+                medium: MediumEdit {
+                    id: record.get("id"),
+                    name: record.get("name"),
+                    visibility: record.get("visibility"),
+                    restricted_to_group: record.get::<Option<String>, _>("restricted_to_group").unwrap_or_default(),
+                    medium_type: record.get("type"),
+                },
+                owner_groups,
+            };
+            Html(minifi_html(template.render().unwrap()))
+        }
+        Err(_) => Html(minifi_html("".to_owned())),
+    }
+}
+
+async fn studio_edit_permissions_save(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+    Form(form): Form<PermissionsEditForm>,
+) -> axum::response::Html<String> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
+    }
+    let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
+            }
+        }
+        Err(_) => {
+            return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
+        }
+    }
+
+    let visibility = match form.medium_visibility.as_str() {
+        "public" | "hidden" | "restricted" => form.medium_visibility.clone(),
+        _ => "hidden".to_owned(),
+    };
+    let ispublic = visibility == "public";
+    let restricted_to_group = if visibility == "restricted" {
+        form.medium_restricted_group.clone().filter(|g| !g.is_empty())
+    } else {
+        None
+    };
+
+    let update_result = sqlx::query(
+        "UPDATE media SET public=$1, visibility=$2, restricted_to_group=$3 WHERE id=$4;"
+    )
+    .bind(ispublic)
+    .bind(&visibility)
+    .bind(&restricted_to_group)
+    .bind(&mediumid)
+    .execute(&pool)
+    .await;
+
+    if update_result.is_err() {
+        return Html(format!(
+            "<b class=\"text-danger\">Failed to save changes.</b><script>setTimeout(function(){{window.location.replace(\"/studio/edit/{}\");}},2000);</script>",
+            mediumid
+        ));
+    }
+
+    Html(format!(
+        "<script>window.location.replace(\"/studio/edit/{}\");</script>",
+        mediumid
+    ))
 }
