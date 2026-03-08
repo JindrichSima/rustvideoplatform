@@ -35,10 +35,14 @@
         </div>
         <div id="subtitles-status" class="mt-2"></div>
     </div>
-    <div class="border rounded p-3 mt-3">
+    <div class="border rounded p-3 mt-3" id="translate-section">
         <h6><i class="fa-solid fa-language"></i>&nbsp;Translate Subtitle</h6>
         <p class="text-secondary mb-2">Request an AI translation of an existing subtitle track into another language. The translation will be queued and processed automatically.</p>
-        <div class="row g-2 align-items-end">
+        <div id="translate-locked" style="display:none" class="py-2">
+            <span class="text-warning"><i class="fa-solid fa-hourglass-half fa-bounce"></i>&nbsp;Translation in progress&hellip;</span>
+            <p class="text-secondary mb-0 mt-1" style="font-size:0.875em">Another translation is already queued for this media. Please wait until it finishes before requesting a new one.</p>
+        </div>
+        <div id="translate-inputs-row" class="row g-2 align-items-end">
             <div class="col-sm-4">
                 <label for="translate-source-select" class="form-label">Source Subtitle</label>
                 <select class="form-select form-select-sm" id="translate-source-select">
@@ -212,6 +216,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function setTranslateLocked(locked) {
+        document.getElementById('translate-locked').style.display = locked ? '' : 'none';
+        document.getElementById('translate-inputs-row').style.display = locked ? 'none' : '';
+        document.getElementById('translate-subtitle-btn').disabled = locked;
+    }
+
+    fetch('/studio/edit/{{ medium_id }}/subtitles/translate/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { setTranslateLocked(data.in_progress); })
+        .catch(function() {});
+
     document.getElementById('translate-subtitle-btn').addEventListener('click', function() {
         var btn = this;
         var sourceLabel = document.getElementById('translate-source-select').value;
@@ -235,10 +250,11 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            btn.disabled = false;
             if (data.ok) {
-                showTranslateStatus('success', 'Translation queued! It will appear in the subtitle list when complete.');
+                setTranslateLocked(true);
+                document.getElementById('translate-status').innerHTML = '';
             } else {
+                btn.disabled = false;
                 showTranslateStatus('danger', data.error || 'Failed to queue translation.');
             }
         })

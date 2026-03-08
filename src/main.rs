@@ -150,6 +150,7 @@ async fn main() {
         .route("/studio/edit/{mediumid}/chapters", post(studio_chapters_save))
         .route("/studio/edit/{mediumid}/subtitles.json", get(studio_subtitles_get))
         .route("/studio/edit/{mediumid}/subtitles/add", post(studio_subtitles_add))
+        .route("/studio/edit/{mediumid}/subtitles/translate/status", get(studio_subtitles_translate_status))
         .route("/studio/edit/{mediumid}/subtitles/translate", post(studio_subtitles_translate))
         .route("/studio/edit/{mediumid}/subtitles/delete", post(studio_subtitles_delete))
         .route("/studio/edit/{mediumid}/subtitles/font.json", get(studio_subtitle_font_get))
