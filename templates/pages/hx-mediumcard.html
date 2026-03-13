@@ -47,7 +47,11 @@
                         </div>
                         {% if item.type == "video" %}
                         <img
-                            src="{{ config.source_server_url }}/source/{{ item.id }}/showcase.avif"
+                            hx-get="{{ config.source_server_url }}/source/{{ item.id }}/showcase.avif"
+                            hx-trigger="mouseenter once from:closest a"
+                            hx-swap="none"
+                            data-showcase-src="{{ config.source_server_url }}/source/{{ item.id }}/showcase.avif"
+                            onhtmx:beforeRequest="if (!this.getAttribute('src')) this.setAttribute('src', this.dataset.showcaseSrc)"
                             class="rounded thumbnail-animated"
                             width="176"
                             height="99"
