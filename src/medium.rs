@@ -56,6 +56,8 @@ struct Medium {
     views: i64,
     r#type: String,
     sprite_filename: Option<String>,
+    sprite_x: i32,
+    sprite_y: i32,
 }
 
 async fn medium(
@@ -245,6 +247,8 @@ struct HXMediumCardTemplate {
     page: i64,
     has_more: bool,
     next_url: String,
+    showcase_width: i32,
+    showcase_height: i32,
 }
 
 #[derive(Template)]
@@ -254,4 +258,6 @@ struct HXMediumListTemplate {
     list_id: String,
     media: Vec<Medium>,
     config: Config,
+    showcase_width: i32,
+    showcase_height: i32,
 }

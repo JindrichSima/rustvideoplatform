@@ -61,6 +61,8 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
         .await
         .ok()
         .flatten();
+    let sprite_width = 352;
+    let sprite_height = 198;
 
     // Pipeline: fetch metadata for all IDs in a single round-trip
     let mut pipe = redis::pipe();
@@ -76,6 +78,8 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
         if info.is_empty() {
             continue;
         }
+        let index = media.len() as i32;
+        let columns = 4;
         media.push(Medium {
             id,
             name: info.get("name").cloned().unwrap_or_default(),
@@ -86,6 +90,8 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
                 .unwrap_or(0),
             r#type: info.get("type").cloned().unwrap_or_default(),
             sprite_filename: sprite_filename.clone(),
+            sprite_x: -((index % columns) * sprite_width),
+            sprite_y: -((index / columns) * sprite_height),
         });
     }
 
@@ -127,6 +133,8 @@ async fn hx_trending_inner(
                     views: row.get("views"),
                     r#type: row.get("type"),
                     sprite_filename: None,
+                    sprite_x: 0,
+                    sprite_y: 0,
                 }
             })
             .fetch_all(&pool)
@@ -142,6 +150,14 @@ async fn hx_trending_inner(
     let next_page = page + 1;
     let next_url = format!("/hx/trending/{}", next_page);
 
-    let template = HXMediumCardTemplate { media, config, page, has_more, next_url };
+    let template = HXMediumCardTemplate {
+        media,
+        config,
+        page,
+        has_more,
+        next_url,
+        showcase_width: 352,
+        showcase_height: 198,
+    };
     Html(minifi_html(template.render().unwrap()))
 }

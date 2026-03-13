@@ -303,6 +303,8 @@ async fn hx_list_items_inner(
             views: row.get("views"),
             r#type: row.get("type"),
             sprite_filename: None,
+            sprite_x: 0,
+            sprite_y: 0,
         }
     })
     .fetch_all(&pool)
@@ -334,7 +336,7 @@ async fn hx_list_sidebar(
 ) -> axum::response::Html<Vec<u8>> {
     let media: Vec<Medium> = sqlx::query_as!(
         Medium,
-        "SELECT m.id, m.name, m.owner, m.views, m.type, NULL as sprite_filename FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC;",
+        "SELECT m.id, m.name, m.owner, m.views, m.type, NULL as sprite_filename, 0::int4 as \"sprite_x!\", 0::int4 as \"sprite_y!\" FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC;",
         listid
     )
     .fetch_all(&pool)
@@ -345,7 +347,9 @@ async fn hx_list_sidebar(
         media,
         current_medium_id: mediumid,
         list_id: listid,
-        config
+        config,
+        showcase_width: 352,
+        showcase_height: 198,
     };
     Html(minifi_html(template.render().unwrap()))
 }

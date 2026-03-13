@@ -21,6 +21,8 @@ async fn hx_recommended(
             views: row.get("views"),
             r#type: row.get("type"),
             sprite_filename: None,
+            sprite_x: 0,
+            sprite_y: 0,
         }
     })
     .fetch_all(&pool)
@@ -36,7 +38,9 @@ async fn hx_recommended(
         current_medium_id: mediumid,
         list_id: String::new(),
         media,
-        config
+        config,
+        showcase_width: 352,
+        showcase_height: 198,
     };
     match template.render() {
         Ok(rendered) => Ok(Html(minifi_html(rendered))),
