@@ -1,17 +1,96 @@
-async fn compose_mp4_sm(
-    Extension(pool): Extension<PgPool>,
-    Extension(redis): Extension<RedisConn>,
-    headers: HeaderMap,
-    Path(mediumid): Path<String>,
-) -> Response<Body> {
-    let medium_id = mediumid.to_ascii_lowercase();
+/// Parses an HLS master playlist and returns the URI of the variant with either the lowest
+/// or highest BANDWIDTH. Returns the master path unchanged if it is not a master playlist
+/// or cannot be read.
+fn hls_variant_for_quality(master_path: &str, lowest: bool) -> String {
+    let Ok(content) = std::fs::read_to_string(master_path) else {
+        return master_path.to_string();
+    };
+    if !content.contains("#EXT-X-STREAM-INF:") {
+        return master_path.to_string();
+    }
+    let base = std::path::Path::new(master_path)
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default();
 
-    // Verify the medium exists and is a video, and that the user has access
+    let mut best: Option<(u64, String)> = None;
+    let mut pending_bw: Option<u64> = None;
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with("#EXT-X-STREAM-INF:") {
+            pending_bw = line["#EXT-X-STREAM-INF:".len()..]
+                .split(',')
+                .find_map(|attr| attr.trim().strip_prefix("BANDWIDTH=")?.parse::<u64>().ok());
+        } else if !line.is_empty() && !line.starts_with('#') {
+            if let Some(bw) = pending_bw.take() {
+                let uri = if line.starts_with('/') || line.contains("://") {
+                    line.to_string()
+                } else {
+                    base.join(line).to_string_lossy().into_owned()
+                };
+                let is_better = best
+                    .as_ref()
+                    .map_or(true, |(b, _)| if lowest { bw < *b } else { bw > *b });
+                if is_better {
+                    best = Some((bw, uri));
+                }
+            }
+        }
+    }
+
+    best.map(|(_, p)| p).unwrap_or_else(|| master_path.to_string())
+}
+
+/// Parses a DASH MPD and returns the 0-based index (as FFmpeg numbers it) of the video stream
+/// with the lowest bandwidth. Returns 0 on parse failure or when only one stream exists.
+fn mpd_lowest_video_stream_idx(mpd_path: &str) -> usize {
+    let Ok(content) = std::fs::read_to_string(mpd_path) else {
+        return 0;
+    };
+    let mut in_video_set = false;
+    let mut stream_idx = 0usize;
+    let mut best: Option<(u64, usize)> = None;
+
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with("<AdaptationSet") {
+            in_video_set = t.contains(r#"contentType="video""#)
+                || t.contains(r#"mimeType="video/"#);
+        } else if t.starts_with("</AdaptationSet") {
+            in_video_set = false;
+        } else if in_video_set && t.starts_with("<Representation") {
+            if let Some(bw) = xml_attr(t, "bandwidth").and_then(|v| v.parse::<u64>().ok()) {
+                if best.map_or(true, |(b, _)| bw < b) {
+                    best = Some((bw, stream_idx));
+                }
+                stream_idx += 1;
+            }
+        }
+    }
+
+    best.map(|(_, i)| i).unwrap_or(0)
+}
+
+fn xml_attr<'a>(element: &'a str, attr: &str) -> Option<&'a str> {
+    let pat = [attr, "=\""].concat();
+    let start = element.find(pat.as_str())? + pat.len();
+    let end = start + element[start..].find('"')?;
+    Some(&element[start..end])
+}
+
+async fn stream_video_as_mp4(
+    pool: &PgPool,
+    redis: RedisConn,
+    headers: HeaderMap,
+    medium_id: &str,
+    lowest_quality: bool,
+) -> Response<Body> {
     let medium_row = sqlx::query(
         "SELECT m.id, m.name, m.type, m.visibility, m.restricted_to_group, m.owner FROM media m WHERE m.id=$1;"
     )
-    .bind(&medium_id)
-    .fetch_optional(&pool)
+    .bind(medium_id)
+    .fetch_optional(pool)
     .await;
 
     let medium = match medium_row {
@@ -20,7 +99,7 @@ async fn compose_mp4_sm(
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::empty())
-                .unwrap();
+                .unwrap()
         }
     };
 
@@ -36,23 +115,36 @@ async fn compose_mp4_sm(
     let visibility: String = medium.get("visibility");
     let restricted_to_group: Option<String> = medium.get("restricted_to_group");
     let owner: String = medium.get("owner");
-    let user = get_user_login(headers, &pool, redis.clone()).await;
+    let user = get_user_login(headers, pool, redis.clone()).await;
 
-    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
+    if !can_access_restricted(
+        pool,
+        &visibility,
+        restricted_to_group.as_deref(),
+        &owner,
+        &user,
+        redis.clone(),
+    )
+    .await
+    {
         return Response::builder()
             .status(StatusCode::FORBIDDEN)
             .body(Body::empty())
             .unwrap();
     }
 
-    // Determine input source: prefer HLS (m3u8), fall back to DASH (mpd)
     let m3u8_path = format!("source/{}/video/video.m3u8", medium_id);
     let mpd_path = format!("source/{}/video/video.mpd", medium_id);
 
     let (input_path, is_hls) = if std::path::Path::new(&m3u8_path).exists() {
-        (m3u8_path, true)
+        let path = if lowest_quality {
+            hls_variant_for_quality(&m3u8_path, true)
+        } else {
+            m3u8_path
+        };
+        (path, true)
     } else if std::path::Path::new(&mpd_path).exists() {
-        (mpd_path, false)
+        (mpd_path.clone(), false)
     } else {
         return Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -60,25 +152,32 @@ async fn compose_mp4_sm(
             .unwrap();
     };
 
-    // Build ffmpeg command to transcode to lowest possible quality for Open Graph Protocol
     let mut cmd = tokio::process::Command::new("ffmpeg");
-    cmd.arg("-hide_banner")
-        .arg("-loglevel").arg("error");
+    cmd.arg("-hide_banner").arg("-loglevel").arg("error");
 
     if is_hls {
-        cmd.arg("-protocol_whitelist").arg("file,pipe,crypto,data")
-            .arg("-allowed_extensions").arg("ALL");
+        cmd.arg("-protocol_whitelist")
+            .arg("file,pipe,crypto,data")
+            .arg("-allowed_extensions")
+            .arg("ALL");
     }
 
-    cmd.arg("-i").arg(&input_path)
-        .arg("-vf").arg("scale=480:-2")
-        .arg("-c:v").arg("libx264")
-        .arg("-crf").arg("28")
-        .arg("-preset").arg("fast")
-        .arg("-c:a").arg("aac")
-        .arg("-b:a").arg("64k")
-        .arg("-movflags").arg("frag_keyframe+empty_moov")
-        .arg("-f").arg("mp4")
+    cmd.arg("-i").arg(&input_path);
+
+    // For DASH with lowest quality, explicitly map the lowest-bandwidth video stream.
+    // For HLS, quality selection is done by passing the variant playlist directly as input.
+    if !is_hls && lowest_quality {
+        let idx = mpd_lowest_video_stream_idx(&mpd_path);
+        cmd.arg("-map").arg(format!("0:v:{}", idx))
+            .arg("-map").arg("0:a:0");
+    }
+
+    cmd.arg("-c")
+        .arg("copy")
+        .arg("-movflags")
+        .arg("frag_keyframe+empty_moov")
+        .arg("-f")
+        .arg("mp4")
         .arg("pipe:1")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -89,20 +188,17 @@ async fn compose_mp4_sm(
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body(Body::from("Failed to start video composition"))
-                .unwrap();
+                .unwrap()
         }
     };
 
     let stdout = child.stdout.take().unwrap();
-    let stream = tokio_util::io::ReaderStream::new(stdout);
-    let body = Body::from_stream(stream);
+    let body = Body::from_stream(tokio_util::io::ReaderStream::new(stdout));
 
-    // Wait for the child process in the background to avoid zombies
     tokio::spawn(async move {
         let _ = child.wait().await;
     });
 
-    // Build a safe filename from the medium name
     let medium_name: String = medium.get("name");
     let safe_filename: String = medium_name
         .chars()
@@ -115,14 +211,29 @@ async fn compose_mp4_sm(
         })
         .collect();
 
+    let disposition_filename = if lowest_quality {
+        format!("{}-sm.mp4", safe_filename)
+    } else {
+        format!("{}.mp4", safe_filename)
+    };
+
     Response::builder()
         .header("Content-Type", "video/mp4")
         .header(
             "Content-Disposition",
-            format!("inline; filename=\"{}-sm.mp4\"", safe_filename),
+            format!("inline; filename=\"{}\"", disposition_filename),
         )
         .body(body)
         .unwrap()
+}
+
+async fn compose_mp4_sm(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Path(mediumid): Path<String>,
+) -> Response<Body> {
+    stream_video_as_mp4(&pool, redis, headers, &mediumid.to_ascii_lowercase(), true).await
 }
 
 async fn compose_mp4(
@@ -131,118 +242,5 @@ async fn compose_mp4(
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    let medium_id = mediumid.to_ascii_lowercase();
-
-    // Verify the medium exists and is a video, and that the user has access
-    let medium_row = sqlx::query(
-        "SELECT m.id, m.name, m.type, m.visibility, m.restricted_to_group, m.owner FROM media m WHERE m.id=$1;"
-    )
-    .bind(&medium_id)
-    .fetch_optional(&pool)
-    .await;
-
-    let medium = match medium_row {
-        Ok(Some(row)) => row,
-        _ => {
-            return Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::empty())
-                .unwrap();
-        }
-    };
-
-    use sqlx::Row;
-    let medium_type: String = medium.get("type");
-    if medium_type != "video" {
-        return Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap();
-    }
-
-    let visibility: String = medium.get("visibility");
-    let restricted_to_group: Option<String> = medium.get("restricted_to_group");
-    let owner: String = medium.get("owner");
-    let user = get_user_login(headers, &pool, redis.clone()).await;
-
-    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
-        return Response::builder()
-            .status(StatusCode::FORBIDDEN)
-            .body(Body::empty())
-            .unwrap();
-    }
-
-    // Determine input source: prefer HLS (m3u8), fall back to DASH (mpd)
-    let m3u8_path = format!("source/{}/video/video.m3u8", medium_id);
-    let mpd_path = format!("source/{}/video/video.mpd", medium_id);
-
-    let (input_path, is_hls) = if std::path::Path::new(&m3u8_path).exists() {
-        (m3u8_path, true)
-    } else if std::path::Path::new(&mpd_path).exists() {
-        (mpd_path, false)
-    } else {
-        return Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
-            .unwrap();
-    };
-
-    // Build ffmpeg command to remux DASH/HLS CMAF segments into a streamable MP4
-    let mut cmd = tokio::process::Command::new("ffmpeg");
-    cmd.arg("-hide_banner")
-        .arg("-loglevel").arg("error");
-
-    if is_hls {
-        cmd.arg("-protocol_whitelist").arg("file,pipe,crypto,data")
-            .arg("-allowed_extensions").arg("ALL");
-    }
-
-    cmd.arg("-i").arg(&input_path)
-        .arg("-c").arg("copy")
-        .arg("-movflags").arg("frag_keyframe+empty_moov")
-        .arg("-f").arg("mp4")
-        .arg("pipe:1")
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(_) => {
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from("Failed to start video composition"))
-                .unwrap();
-        }
-    };
-
-    let stdout = child.stdout.take().unwrap();
-    let stream = tokio_util::io::ReaderStream::new(stdout);
-    let body = Body::from_stream(stream);
-
-    // Wait for the child process in the background to avoid zombies
-    tokio::spawn(async move {
-        let _ = child.wait().await;
-    });
-
-    // Build a safe filename from the medium name
-    let medium_name: String = medium.get("name");
-    let safe_filename: String = medium_name
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' || c == '.' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-
-    Response::builder()
-        .header("Content-Type", "video/mp4")
-        .header(
-            "Content-Disposition",
-            format!("inline; filename=\"{}.mp4\"", safe_filename),
-        )
-        .body(body)
-        .unwrap()
+    stream_video_as_mp4(&pool, redis, headers, &mediumid.to_ascii_lowercase(), false).await
 }
