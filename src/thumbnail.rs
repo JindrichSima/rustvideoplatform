@@ -93,12 +93,14 @@ async fn studio_thumbnail_upload(
             .unwrap();
     }
 
-    // Convert to thumbnail.jpg and thumbnail.avif at 1280x720 using FFmpeg
+    // Convert to thumbnail.jpg, thumbnail.avif at 1280x720, and thumbnail-sm.avif at 352x198 using FFmpeg
     let avif_path = format!("source/{}/thumbnail.avif", mediumid);
     let jpg_path = format!("source/{}/thumbnail.jpg", mediumid);
+    let sm_avif_path = format!("source/{}/thumbnail-sm.avif", mediumid);
     let temp_path_clone = temp_path.clone();
     let avif_path_clone = avif_path.clone();
     let jpg_path_clone = jpg_path.clone();
+    let sm_avif_path_clone = sm_avif_path.clone();
 
     let result = tokio::task::spawn_blocking(move || {
         use std::process::Command;
@@ -128,32 +130,50 @@ async fn studio_thumbnail_upload(
             ])
             .status();
 
+        let sm_avif_status = Command::new("ffmpeg")
+            .args([
+                "-nostdin", "-y",
+                "-i", &temp_path_clone,
+                "-vf", "scale=352:198:force_original_aspect_ratio=decrease,pad=352:198:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p",
+                "-frames:v", "1",
+                "-c:v", "libsvtav1",
+                "-svtav1-params", "avif=1",
+                "-crf", "28",
+                "-update", "1",
+                &sm_avif_path_clone,
+            ])
+            .status();
+
         let jpg_ok = jpg_status.map(|s| s.success()).unwrap_or(false);
         let avif_ok = avif_status.map(|s| s.success()).unwrap_or(false);
-        (jpg_ok, avif_ok)
+        let sm_avif_ok = sm_avif_status.map(|s| s.success()).unwrap_or(false);
+        (jpg_ok, avif_ok, sm_avif_ok)
     }).await;
 
     // Clean up temp file
     let _ = tokio::fs::remove_file(&temp_path).await;
 
     match result {
-        Ok((true, true)) => {
+        Ok((true, true, _)) => {
             Response::builder()
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
                 .body(Body::from("{\"ok\":true}"))
                 .unwrap()
         }
-        Ok((jpg_ok, avif_ok)) => {
+        Ok((jpg_ok, avif_ok, sm_avif_ok)) => {
             let msg = if !jpg_ok && !avif_ok {
                 "{\"error\":\"thumbnail conversion failed\"}"
             } else if !jpg_ok {
                 "{\"error\":\"JPG thumbnail conversion failed\"}"
-            } else {
+            } else if !avif_ok {
                 "{\"error\":\"AVIF thumbnail conversion failed\"}"
+            } else {
+                "{\"error\":\"small AVIF thumbnail conversion failed\"}"
             };
             // Clean up any partial output
             if !jpg_ok { let _ = tokio::fs::remove_file(&jpg_path).await; }
             if !avif_ok { let _ = tokio::fs::remove_file(&avif_path).await; }
+            if !sm_avif_ok { let _ = tokio::fs::remove_file(&sm_avif_path).await; }
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -211,6 +231,7 @@ async fn studio_thumbnail_delete(
 
     let _ = tokio::fs::remove_file(format!("source/{}/thumbnail.avif", mediumid)).await;
     let _ = tokio::fs::remove_file(format!("source/{}/thumbnail.jpg", mediumid)).await;
+    let _ = tokio::fs::remove_file(format!("source/{}/thumbnail-sm.avif", mediumid)).await;
 
     Response::builder()
         .header(axum::http::header::CONTENT_TYPE, "application/json")
