@@ -16324,15 +16324,19 @@ body.sidebar-collapsed .sidebarbackground {
 }
 
 .thumbnail-sprite {
-    position: absolute;
-    top: 0;
-    left: 0;
+  position: absolute;
+  width: 176px;
+  height: 99px;
+  background-repeat: no-repeat;
+  background-position: var(--sprite-x) var(--sprite-y);
+  background-size: calc(var(--sprite-sheet-width) / 2) calc(var(--sprite-sheet-height) / 2);
+}
+
+.thumbnail-container {
+    position: relative;
     width: 176px;
     height: 99px;
-    background-repeat: no-repeat;
-    background-position: var(--sprite-x, 0) var(--sprite-y, 0);
-    background-size: auto;
-    transition: opacity 0.3s;
+    overflow: hidden;
 }
 
 .thumbnail-container:hover .thumbnail-static {
