@@ -39,8 +39,6 @@ async fn hx_recommended(
         list_id: String::new(),
         media,
         config,
-        showcase_width: 352,
-        showcase_height: 198,
     };
     match template.render() {
         Ok(rendered) => Ok(Html(minifi_html(rendered))),

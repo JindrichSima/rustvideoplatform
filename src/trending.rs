@@ -156,8 +156,6 @@ async fn hx_trending_inner(
         page,
         has_more,
         next_url,
-        showcase_width: 352,
-        showcase_height: 198,
     };
     Html(minifi_html(template.render().unwrap()))
 }

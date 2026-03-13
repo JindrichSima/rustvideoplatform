@@ -149,8 +149,6 @@ async fn hx_search_suggestions(
                 list_id: String::new(),
                 media,
                 config,
-                showcase_width: 352,
-                showcase_height: 198,
             };
             Html(template.render().unwrap())
         }

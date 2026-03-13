@@ -247,8 +247,6 @@ struct HXMediumCardTemplate {
     page: i64,
     has_more: bool,
     next_url: String,
-    showcase_width: i32,
-    showcase_height: i32,
 }
 
 #[derive(Template)]
@@ -258,6 +256,4 @@ struct HXMediumListTemplate {
     list_id: String,
     media: Vec<Medium>,
     config: Config,
-    showcase_width: i32,
-    showcase_height: i32,
 }

@@ -348,8 +348,6 @@ async fn hx_list_sidebar(
         current_medium_id: mediumid,
         list_id: listid,
         config,
-        showcase_width: 352,
-        showcase_height: 198,
     };
     Html(minifi_html(template.render().unwrap()))
 }
