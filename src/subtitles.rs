@@ -331,8 +331,16 @@ async fn studio_subtitle_font_upload(
     }
 
     let woff2_content = if is_ttf {
-        match ttf2woff2::encode(&font_content, ttf2woff2::BrotliQuality::default()) {
-            Ok(converted) => converted,
+        use tokio::io::AsyncWriteExt;
+
+        let mut child = match tokio::process::Command::new("woff2_compress")
+            .arg("/dev/stdin")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            Ok(child) => child,
             Err(_) => {
                 return Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
@@ -340,7 +348,49 @@ async fn studio_subtitle_font_upload(
                     .body(Body::from("{\"error\":\"TTF to WOFF2 conversion failed\"}"))
                     .unwrap();
             }
+        };
+
+        if let Some(mut stdin) = child.stdin.take() {
+            if stdin.write_all(&font_content).await.is_err() {
+                return Response::builder()
+                    .status(StatusCode::UNPROCESSABLE_ENTITY)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"TTF to WOFF2 conversion failed\"}"))
+                    .unwrap();
+            }
+        } else {
+            return Response::builder()
+                .status(StatusCode::UNPROCESSABLE_ENTITY)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"TTF to WOFF2 conversion failed\"}"))
+                .unwrap();
         }
+
+        let status = child.wait().await;
+        if !matches!(status, Ok(status) if status.success()) {
+            return Response::builder()
+                .status(StatusCode::UNPROCESSABLE_ENTITY)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"TTF to WOFF2 conversion failed\"}"))
+                .unwrap();
+        }
+
+        let mut converted_path = std::env::temp_dir();
+        converted_path.push(format!("stdin.woff2"));
+
+        let converted = match tokio::fs::read(&converted_path).await {
+            Ok(content) => content,
+            Err(_) => {
+                return Response::builder()
+                    .status(StatusCode::UNPROCESSABLE_ENTITY)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"error\":\"TTF to WOFF2 conversion failed\"}"))
+                    .unwrap();
+            }
+        };
+
+        let _ = tokio::fs::remove_file(&converted_path).await;
+        converted
     } else {
         font_content
     };

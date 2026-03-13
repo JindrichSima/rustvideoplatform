@@ -26,4 +26,3 @@ argon2 = "0.5"
 rand = "0.10"
 meilisearch-sdk = "0.32"
 redis = { version = "1.0", features = ["tokio-comp", "connection-manager"] }
-ttf2woff2 = { version = "0.10", default-features = false }

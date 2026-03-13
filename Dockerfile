@@ -1,6 +1,6 @@
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig nodejs npm
+RUN apk add --no-cache musl-dev openssl-dev pkgconfig nodejs npm woff2
 
 RUN mkdir /src
 COPY ./ /src/rustvideoplatform
@@ -10,7 +10,7 @@ RUN cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --r
 
 
 FROM alpine:latest
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg woff2
 COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
 
 EXPOSE 8080
