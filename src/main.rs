@@ -120,6 +120,7 @@ async fn main() {
             get(medium_description_prepare),
         )
         .route("/m/{mediumid}/video.mp4", get(compose_mp4))
+        .route("/m/{mediumid}/video-sm.mp4", get(compose_mp4_sm))
         .route("/hx/comments/{mediumid}", get(hx_comments))
         .route("/hx/comments/{mediumid}/add", post(hx_add_comment))
         .route("/hx/comment/{commentid}/delta.json", get(comment_delta))
