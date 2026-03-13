@@ -56,6 +56,12 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
         return Some(Vec::new());
     }
 
+    let sprite_filename: Option<String> = redis
+        .get::<_, Option<String>>("cache:trending:sprite")
+        .await
+        .ok()
+        .flatten();
+
     // Pipeline: fetch metadata for all IDs in a single round-trip
     let mut pipe = redis::pipe();
     for id in &ids {
@@ -79,6 +85,7 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0),
             r#type: info.get("type").cloned().unwrap_or_default(),
+            sprite_filename: sprite_filename.clone(),
         });
     }
 
@@ -119,6 +126,7 @@ async fn hx_trending_inner(
                     owner: row.get("owner"),
                     views: row.get("views"),
                     r#type: row.get("type"),
+                    sprite_filename: None,
                 }
             })
             .fetch_all(&pool)

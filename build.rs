@@ -12,6 +12,10 @@ fn run_cmd(program: &str, args: &[&str], description: &str) {
     }
 }
 
+fn command_exists(program: &str) -> bool {
+    Command::new(program).arg("--version").output().is_ok()
+}
+
 fn main() {
     // --- Git commit hash ---
     let output = Command::new("git")
@@ -42,49 +46,63 @@ fn main() {
     let processed_dir = Path::new("assets/processed");
     fs::create_dir_all(processed_dir).expect("Failed to create assets/processed directory");
 
-    // Install npm dependencies if node_modules missing
-    if !Path::new("node_modules/.package-lock.json").exists() {
-        println!("cargo:warning=Installing npm dependencies for CSS/JS optimization...");
-        run_cmd("npm", &["install", "--ignore-scripts"], "npm install");
+    let npm_available = command_exists("npm");
+    let npx_available = command_exists("npx");
+
+    if !npm_available || !npx_available {
+        println!(
+            "cargo:warning=Skipping CSS/JS optimization because npm or npx is unavailable"
+        );
+
+        fs::copy("assets/static/style.css", "assets/processed/style.css")
+            .expect("Failed to copy fallback CSS asset");
+        fs::copy("assets/static/script.js", "assets/processed/script.js")
+            .expect("Failed to copy fallback JS asset");
+    } else {
+        // Install npm dependencies if node_modules missing
+        if !Path::new("node_modules/.package-lock.json").exists() {
+            println!("cargo:warning=Installing npm dependencies for CSS/JS optimization...");
+            run_cmd("npm", &["install", "--ignore-scripts"], "npm install");
+        }
+
+        // Step 1: PurgeCSS — remove unused CSS by scanning templates
+        println!("cargo:warning=Running PurgeCSS...");
+        run_cmd(
+            "npx",
+            &[
+                "purgecss",
+                "--config", "purgecss.config.cjs",
+                "--output", "assets/processed",
+            ],
+            "PurgeCSS",
+        );
+
+        // Step 2: Minify CSS with csso
+        println!("cargo:warning=Minifying CSS...");
+        run_cmd(
+            "npx",
+            &[
+                "csso",
+                "assets/processed/style.css",
+                "--output", "assets/processed/style.css",
+            ],
+            "csso CSS minification",
+        );
+
+        // Step 3: Minify JS with terser
+        println!("cargo:warning=Minifying JS...");
+        run_cmd(
+            "npx",
+            &[
+                "terser",
+                "assets/static/script.js",
+                "--compress",
+                "--mangle",
+                "--output", "assets/processed/script.js",
+            ],
+            "terser JS minification",
+        );
     }
-
-    // Step 1: PurgeCSS — remove unused CSS by scanning templates
-    println!("cargo:warning=Running PurgeCSS...");
-    run_cmd(
-        "npx",
-        &[
-            "purgecss",
-            "--config", "purgecss.config.cjs",
-            "--output", "assets/processed",
-        ],
-        "PurgeCSS",
-    );
-
-    // Step 2: Minify CSS with csso
-    println!("cargo:warning=Minifying CSS...");
-    run_cmd(
-        "npx",
-        &[
-            "csso",
-            "assets/processed/style.css",
-            "--output", "assets/processed/style.css",
-        ],
-        "csso CSS minification",
-    );
-
-    // Step 3: Minify JS with terser
-    println!("cargo:warning=Minifying JS...");
-    run_cmd(
-        "npx",
-        &[
-            "terser",
-            "assets/static/script.js",
-            "--compress",
-            "--mangle",
-            "--output", "assets/processed/script.js",
-        ],
-        "terser JS minification",
-    );
 
     // Report sizes
     if let (Ok(orig_css), Ok(new_css)) = (

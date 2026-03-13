@@ -25,6 +25,7 @@ impl From<MeiliMedia> for Medium {
             owner: media.owner,
             views: media.views,
             r#type: media.r#type,
+            sprite_filename: None,
         }
     }
 }

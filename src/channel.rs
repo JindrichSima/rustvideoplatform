@@ -106,6 +106,7 @@ async fn hx_usermedia_inner(
             owner: row.get("owner"),
             views: row.get("views"),
             r#type: row.get("type"),
+            sprite_filename: None,
         }
     })
     .fetch_all(&pool)
