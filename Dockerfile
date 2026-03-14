@@ -6,9 +6,11 @@ RUN mkdir /src
 COPY ./ /src/rustvideoplatform
 
 ARG TARGETARCH
-RUN cd /src/rustvideoplatform && npm install --ignore-scripts && \
-    if [ "$TARGETARCH" = "amd64" ]; then export RUSTFLAGS="-C target-cpu=x86-64-v3"; fi && \
-    cargo build --release
+RUN case "$TARGETARCH" in \
+        amd64)   export RUSTFLAGS="-C target-cpu=x86-64-v3" ;; \
+        ppc64le) export RUSTFLAGS="-C target-cpu=pwr8" ;; \
+    esac && \
+    cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --release
 
 
 FROM alpine:latest
