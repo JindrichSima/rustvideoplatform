@@ -75,6 +75,32 @@ CREATE TABLE public.media_likes (
 	CONSTRAINT media_likes_pk PRIMARY KEY (media_id, user_login)
 );
 
+-- Two-Factor Authentication tables and columns
+-- Run these migrations on existing databases:
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS totp_secret varchar;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS totp_enabled bool DEFAULT false NOT NULL;
+-- CREATE TABLE IF NOT EXISTS public.webauthn_credentials (
+--     id varchar NOT NULL,
+--     user_login varchar(40) NOT NULL,
+--     credential_name varchar NOT NULL DEFAULT 'Security Key',
+--     passkey jsonb NOT NULL,
+--     created int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
+--     CONSTRAINT webauthn_credentials_pk PRIMARY KEY (id)
+-- );
+
+-- Schema for new installations (these are included in CREATE TABLE statements above):
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS totp_secret varchar;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS totp_enabled bool DEFAULT false NOT NULL;
+
+CREATE TABLE IF NOT EXISTS public.webauthn_credentials (
+	id varchar NOT NULL,
+	user_login varchar(40) NOT NULL,
+	credential_name varchar NOT NULL DEFAULT 'Security Key',
+	passkey jsonb NOT NULL,
+	created int8 DEFAULT EXTRACT(epoch FROM now()) NOT NULL,
+	CONSTRAINT webauthn_credentials_pk PRIMARY KEY (id)
+);
+
 -- Migration for existing data:
 -- UPDATE public.media SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
 -- UPDATE public.lists SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
