@@ -2,7 +2,7 @@
     <h5 class="mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Two-Factor Authentication</h5>
 
     <!-- TOTP Section -->
-    <div class="card bg-secondary mb-4 p-3">
+    <div class="card bg-secondary mb-3 p-3 text-white">
         <h6 class="mb-2"><i class="fa-solid fa-mobile-screen me-2"></i>Authenticator App (TOTP)</h6>
         {% if totp_enabled %}
         <p class="text-success mb-2"><i class="fa-solid fa-circle-check me-1"></i>TOTP is <strong>enabled</strong>.</p>
@@ -12,7 +12,7 @@
             </button>
         </form>
         {% else %}
-        <p class="mb-2 text-muted">Use any TOTP authenticator app (Google Authenticator, Aegis, Bitwarden, etc.) to add a second factor to your login.</p>
+        <p class="mb-2">Use any TOTP authenticator app (Google Authenticator, Aegis, Bitwarden, etc.) to add a second factor to your login.</p>
         <form hx-post="/hx/settings/2fa/totp/setup" hx-target="#2fa-totp-setup-area" hx-swap="innerHTML">
             <button type="submit" class="btn btn-sm btn-primary">
                 <i class="fa-solid fa-qrcode me-1"></i>Set Up TOTP
