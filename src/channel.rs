@@ -106,6 +106,9 @@ async fn hx_usermedia_inner(
             owner: row.get("owner"),
             views: row.get("views"),
             r#type: row.get("type"),
+            sprite_filename: None,
+            sprite_x: 0,
+            sprite_y: 0,
         }
     })
     .fetch_all(&pool)
@@ -119,6 +122,12 @@ async fn hx_usermedia_inner(
     let next_page = page + 1;
     let next_url = format!("/hx/usermedia/{}/{}", userid, next_page);
 
-    let template = HXMediumCardTemplate { media, config, page, has_more, next_url };
+    let template = HXMediumCardTemplate {
+        media,
+        config,
+        page,
+        has_more,
+        next_url,
+    };
     Html(minifi_html(template.render().unwrap()))
 }

@@ -25,6 +25,9 @@ impl From<MeiliMedia> for Medium {
             owner: media.owner,
             views: media.views,
             r#type: media.r#type,
+            sprite_filename: None,
+            sprite_x: 0,
+            sprite_y: 0,
         }
     }
 }
@@ -145,7 +148,7 @@ async fn hx_search_suggestions(
                 current_medium_id: String::new(),
                 list_id: String::new(),
                 media,
-                config
+                config,
             };
             Html(template.render().unwrap())
         }

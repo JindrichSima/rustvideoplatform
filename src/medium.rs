@@ -55,6 +55,9 @@ struct Medium {
     owner: String,
     views: i64,
     r#type: String,
+    sprite_filename: Option<String>,
+    sprite_x: i32,
+    sprite_y: i32,
 }
 
 async fn medium(
