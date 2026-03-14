@@ -1,0 +1,136 @@
+<div class="col-12">
+    <h5 class="mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Two-Factor Authentication</h5>
+
+    <!-- TOTP Section -->
+    <div class="card bg-secondary mb-4 p-3">
+        <h6 class="mb-2"><i class="fa-solid fa-mobile-screen me-2"></i>Authenticator App (TOTP)</h6>
+        {% if totp_enabled %}
+        <p class="text-success mb-2"><i class="fa-solid fa-circle-check me-1"></i>TOTP is <strong>enabled</strong>.</p>
+        <form hx-post="/hx/settings/2fa/totp/disable" hx-target="#2fa-result" hx-swap="innerHTML">
+            <button type="submit" class="btn btn-sm btn-danger">
+                <i class="fa-solid fa-ban me-1"></i>Disable TOTP
+            </button>
+        </form>
+        {% else %}
+        <p class="mb-2 text-muted">Use any TOTP authenticator app (Google Authenticator, Aegis, Bitwarden, etc.) to add a second factor to your login.</p>
+        <form hx-post="/hx/settings/2fa/totp/setup" hx-target="#2fa-totp-setup-area" hx-swap="innerHTML">
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="fa-solid fa-qrcode me-1"></i>Set Up TOTP
+            </button>
+        </form>
+        <div id="2fa-totp-setup-area" class="mt-3"></div>
+        {% endif %}
+    </div>
+
+    <!-- WebAuthn Section -->
+    {% if webauthn_available %}
+    <div class="card bg-secondary mb-4 p-3" id="webauthn-section">
+        <h6 class="mb-2"><i class="fa-solid fa-key me-2"></i>Security Keys / Passkeys (WebAuthn)</h6>
+        <p class="mb-2 text-muted">Register a hardware security key or passkey for <strong>passwordless login</strong>.</p>
+
+        {% if webauthn_creds.is_empty() %}
+        <p class="text-muted"><em>No security keys registered yet.</em></p>
+        {% else %}
+        <ul class="list-group list-group-flush mb-3">
+            {% for cred in webauthn_creds %}
+            <li class="list-group-item bg-transparent text-white d-flex align-items-center justify-content-between">
+                <span><i class="fa-solid fa-key me-2 text-warning"></i>{{ cred.name }}</span>
+                <form hx-post="/hx/settings/2fa/webauthn/delete/{{ cred.id }}" hx-target="#webauthn-result" hx-swap="innerHTML">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="mb-2">
+            <input type="text" id="webauthn-cred-name" class="form-control mb-2" placeholder="Key name (optional, e.g. YubiKey 5)" maxlength="60">
+            <button class="btn btn-sm btn-primary" onclick="startWebAuthnRegistration()">
+                <i class="fa-solid fa-plus me-1"></i>Add Security Key
+            </button>
+        </div>
+        <div id="webauthn-result" class="mt-2"></div>
+    </div>
+
+    <script>
+    async function b64uToArr(b) {
+        const r = b.replace(/-/g,'+').replace(/_/g,'/');
+        const p = '='.repeat((4 - r.length % 4) % 4);
+        const bin = atob(r + p);
+        return Uint8Array.from(bin, c => c.charCodeAt(0));
+    }
+    function arrToB64u(a) {
+        return btoa(String.fromCharCode(...new Uint8Array(a)))
+            .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+
+    async function startWebAuthnRegistration() {
+        const name = document.getElementById('webauthn-cred-name').value;
+        const resultEl = document.getElementById('webauthn-result');
+        resultEl.innerHTML = '<span class="text-muted">Starting registration&hellip;</span>';
+        try {
+            const startResp = await fetch('/hx/webauthn/register/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({credential_name: name || null}),
+            });
+            const startData = await startResp.json();
+            if (!startResp.ok || startData.error) {
+                resultEl.innerHTML = '<b class="text-danger">' + (startData.error || 'Failed to start') + '</b>';
+                return;
+            }
+            const token = startData.token;
+            const challenge = startData.challenge;
+
+            // Convert base64url fields to ArrayBuffer
+            challenge.publicKey.challenge = await b64uToArr(challenge.publicKey.challenge);
+            challenge.publicKey.user.id = await b64uToArr(challenge.publicKey.user.id);
+            if (challenge.publicKey.excludeCredentials) {
+                for (let c of challenge.publicKey.excludeCredentials) {
+                    c.id = await b64uToArr(c.id);
+                }
+            }
+
+            resultEl.innerHTML = '<span class="text-muted">Touch your security key when it flashes&hellip;</span>';
+            const cred = await navigator.credentials.create(challenge);
+
+            const credJson = {
+                id: cred.id,
+                rawId: arrToB64u(cred.rawId),
+                response: {
+                    attestationObject: arrToB64u(cred.response.attestationObject),
+                    clientDataJSON: arrToB64u(cred.response.clientDataJSON),
+                    transports: cred.response.getTransports ? cred.response.getTransports() : [],
+                },
+                type: cred.type,
+                extensions: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+            };
+
+            const finishResp = await fetch('/hx/webauthn/register/finish?token=' + encodeURIComponent(token), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(credJson),
+            });
+            const finishData = await finishResp.json();
+            if (finishData.success) {
+                resultEl.innerHTML = '<b class="text-success">Security key registered!</b>';
+                setTimeout(() => htmx.ajax('GET', '/hx/settings/2fa', {target:'#tab-content', swap:'innerHTML'}), 1200);
+            } else {
+                resultEl.innerHTML = '<b class="text-danger">' + (finishData.error || 'Registration failed') + '</b>';
+            }
+        } catch(e) {
+            resultEl.innerHTML = '<b class="text-danger">Error: ' + e.message + '</b>';
+        }
+    }
+    </script>
+    {% else %}
+    <div class="card bg-secondary mb-4 p-3">
+        <h6 class="mb-2"><i class="fa-solid fa-key me-2"></i>Security Keys / Passkeys (WebAuthn)</h6>
+        <p class="text-muted">WebAuthn is not configured on this server. Set <code>webauthn_rp_id</code> and <code>webauthn_rp_origin</code> in <code>config.json</code> to enable it.</p>
+    </div>
+    {% endif %}
+
+    <div id="2fa-result" class="mt-2"></div>
+</div>

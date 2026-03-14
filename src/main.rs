@@ -49,6 +49,10 @@ struct Config {
     meilisearch_url: String,
     meilisearch_key: Option<String>,
     source_server_url: String,
+    /// WebAuthn Relying Party ID (e.g. "example.com"). Required to enable WebAuthn/passkey login.
+    webauthn_rp_id: Option<String>,
+    /// WebAuthn Relying Party origin (e.g. "https://example.com"). Required to enable WebAuthn/passkey login.
+    webauthn_rp_origin: Option<String>,
 }
 #[tokio::main]
 async fn main() {
@@ -102,6 +106,26 @@ async fn main() {
     let redis_conn = redis_client.get_connection_manager().await.unwrap();
     println!("Redis connected: url={}", &config.redis_url);
 
+    // Build WebAuthn instance (optional – only when rp_id and rp_origin are configured)
+    let webauthn_instance: Option<webauthn_rs::Webauthn> = match (&config.webauthn_rp_id, &config.webauthn_rp_origin) {
+        (Some(rp_id), Some(rp_origin_str)) => {
+            let rp_origin = url::Url::parse(rp_origin_str)
+                .expect("Invalid webauthn_rp_origin in config.json");
+            let webauthn = webauthn_rs::WebauthnBuilder::new(rp_id, &rp_origin)
+                .expect("Invalid WebAuthn configuration")
+                .rp_name(&config.instancename)
+                .build()
+                .expect("Failed to build WebAuthn");
+            println!("WebAuthn enabled: rp_id={}, origin={}", rp_id, rp_origin_str);
+            Some(webauthn)
+        }
+        _ => {
+            println!("WebAuthn disabled (webauthn_rp_id / webauthn_rp_origin not set in config.json)");
+            None
+        }
+    };
+    let webauthn_ext = std::sync::Arc::new(std::sync::RwLock::new(webauthn_instance));
+
     let memory_router = MemoryServe::new(load_assets!("assets/processed")).into_router();
 
     let app = Router::new()
@@ -133,6 +157,7 @@ async fn main() {
         .route("/hx/unsubscribe/{userid}", get(hx_unsubscribe))
         .route("/hx/subscribebutton/{userid}", get(hx_subscribebutton))
         .route("/hx/login", post(hx_login))
+        .route("/hx/login/2fa/totp", post(hx_login_2fa_totp))
         .route("/hx/logout", get(hx_logout))
         .route("/hx/usernav", get(hx_usernav))
         .route("/hx/sidebar/{active_item}", get(hx_sidebar))
@@ -196,6 +221,7 @@ async fn main() {
         .route("/settings/profile-picture", get(settings_profile_picture))
         .route("/settings/channel-picture", get(settings_channel_picture))
         .route("/settings/diagnostics", get(settings_diagnostics))
+        .route("/settings/2fa", get(settings_2fa))
         .route("/hx/settings/channel-name", get(hx_settings_channel_name))
         .route("/hx/settings/channel-name", post(hx_settings_channel_name_save))
         .route("/hx/settings/password", get(hx_settings_password))
@@ -205,6 +231,18 @@ async fn main() {
         .route("/hx/settings/channel-picture", get(hx_settings_channel_picture))
         .route("/hx/settings/channel-picture", post(hx_settings_channel_picture_save))
         .route("/hx/settings/diagnostics", get(hx_settings_diagnostics))
+        // 2FA settings
+        .route("/hx/settings/2fa", get(hx_settings_2fa))
+        .route("/hx/settings/2fa/totp/setup", post(hx_settings_2fa_totp_setup))
+        .route("/hx/settings/2fa/totp/verify-setup", post(hx_settings_2fa_totp_verify_setup))
+        .route("/hx/settings/2fa/totp/disable", post(hx_settings_2fa_totp_disable))
+        .route("/hx/settings/2fa/webauthn/delete/{credid}", post(hx_settings_2fa_webauthn_delete))
+        // WebAuthn registration (for logged-in users)
+        .route("/hx/webauthn/register/start", post(hx_webauthn_register_start))
+        .route("/hx/webauthn/register/finish", post(hx_webauthn_register_finish))
+        // WebAuthn authentication (passwordless login)
+        .route("/hx/webauthn/auth/start", post(hx_webauthn_auth_start))
+        .route("/hx/webauthn/auth/finish", post(hx_webauthn_auth_finish))
         // Group management routes
         .route("/studio/groups", get(studio_groups))
         .route("/hx/studio/groups", get(hx_studio_groups))
@@ -219,6 +257,7 @@ async fn main() {
         .layer(Extension(config))
         .layer(Extension(redis_conn))
         .layer(Extension(Arc::new(meilisearch_client)))
+        .layer(Extension(webauthn_ext))
         .layer(DefaultBodyLimit::disable())
         .merge(memory_router);
 
@@ -252,3 +291,4 @@ include!("mp4_compose.rs");
 include!("lists.rs");
 include!("groups.rs");
 include!("settings.rs");
+include!("two_factor.rs");

@@ -19,12 +19,12 @@
     <div class="row maincontentrow g-3 py-2 ps-2 w-100">
         <div class="col-sm"></div>
         <div class="col-sm">
-            <div class="card py-3 px-3 text-white d-flex justify-content-center text-center">
+            <!-- Password login -->
+            <div class="card py-3 px-3 text-white d-flex justify-content-center text-center mb-3">
                 <h3 class="my-2">{{ config.instancename }}</h3>
                 <hr>
-                <div id="logininfo">
-                </div>
-                <form hx-post="/hx/login" hx-target="#logininfo">
+                <div id="logininfo"></div>
+                <form hx-post="/hx/login" hx-target="#logininfo" hx-swap="innerHTML">
                     <label>User Name</label><br>
                     <input class="form-control" type="text" id="login" name="login"><br>
                     <label>Password</label><br>
@@ -32,9 +32,95 @@
                     <input class="btn btn-lg btn-primary mt-3" type="submit" value="Login" />
                 </form>
             </div>
+
+            <!-- WebAuthn / Passkey login -->
+            <div class="card py-3 px-3 text-white">
+                <h6 class="mb-2"><i class="fa-solid fa-key me-2"></i>Sign in with Security Key</h6>
+                <p class="text-muted small mb-2">Passwordless login using a hardware key or passkey.</p>
+                <input class="form-control mb-2" type="text" id="webauthn-username" placeholder="Username" autocomplete="username">
+                <button class="btn btn-outline-light btn-sm" onclick="startWebAuthnLogin()">
+                    <i class="fa-solid fa-fingerprint me-1"></i>Use Security Key
+                </button>
+                <div id="webauthn-login-result" class="mt-2"></div>
+            </div>
         </div>
         <div class="col-sm"></div>
     </div>
+
+    <script>
+    async function b64uToArr(b) {
+        const r = b.replace(/-/g,'+').replace(/_/g,'/');
+        const p = '='.repeat((4 - r.length % 4) % 4);
+        const bin = atob(r + p);
+        return Uint8Array.from(bin, c => c.charCodeAt(0));
+    }
+    function arrToB64u(a) {
+        return btoa(String.fromCharCode(...new Uint8Array(a)))
+            .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    }
+
+    async function startWebAuthnLogin() {
+        const username = document.getElementById('webauthn-username').value.trim();
+        const resultEl = document.getElementById('webauthn-login-result');
+        if (!username) {
+            resultEl.innerHTML = '<b class="text-danger">Please enter your username.</b>';
+            return;
+        }
+        resultEl.innerHTML = '<span class="text-muted">Starting&hellip;</span>';
+        try {
+            const startResp = await fetch('/hx/webauthn/auth/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username}),
+            });
+            const startData = await startResp.json();
+            if (!startResp.ok || startData.error) {
+                resultEl.innerHTML = '<b class="text-danger">' + (startData.error || 'Failed to start') + '</b>';
+                return;
+            }
+            const token = startData.token;
+            const challenge = startData.challenge;
+
+            challenge.publicKey.challenge = await b64uToArr(challenge.publicKey.challenge);
+            if (challenge.publicKey.allowCredentials) {
+                for (let c of challenge.publicKey.allowCredentials) {
+                    c.id = await b64uToArr(c.id);
+                }
+            }
+
+            resultEl.innerHTML = '<span class="text-muted">Touch your security key&hellip;</span>';
+            const cred = await navigator.credentials.get(challenge);
+
+            const credJson = {
+                id: cred.id,
+                rawId: arrToB64u(cred.rawId),
+                response: {
+                    authenticatorData: arrToB64u(cred.response.authenticatorData),
+                    clientDataJSON: arrToB64u(cred.response.clientDataJSON),
+                    signature: arrToB64u(cred.response.signature),
+                    userHandle: cred.response.userHandle ? arrToB64u(cred.response.userHandle) : null,
+                },
+                type: cred.type,
+                extensions: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+            };
+
+            const finishResp = await fetch('/hx/webauthn/auth/finish?token=' + encodeURIComponent(token), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(credJson),
+            });
+            const finishData = await finishResp.json();
+            if (finishData.success) {
+                resultEl.innerHTML = '<b class="text-success">Authenticated! Redirecting&hellip;</b>';
+                window.location.replace('/');
+            } else {
+                resultEl.innerHTML = '<b class="text-danger">' + (finishData.error || 'Authentication failed') + '</b>';
+            }
+        } catch(e) {
+            resultEl.innerHTML = '<b class="text-danger">Error: ' + e.message + '</b>';
+        }
+    }
+    </script>
 </body>
 
 </html>

@@ -78,6 +78,17 @@
                             <i class="fa-solid fa-stethoscope me-2"></i>Diagnostics
                         </button>
                     </li>
+                    <li class="nav-item">
+                        <button class="nav-link {% if active_tab == "2fa" %}active {% endif %}text-white"
+                                hx-get="/hx/settings/2fa"
+                                hx-target="#tab-content"
+                                hx-swap="innerHTML"
+                                hx-push-url="/settings/2fa"
+                                preload="mouseover"
+                                hx-on:click="document.querySelectorAll('.nav-tabs .nav-link').forEach(t=>t.classList.remove('active'));this.classList.add('active');">
+                            <i class="fa-solid fa-shield-halved me-2"></i>Two-Factor Auth
+                        </button>
+                    </li>
                 </ul>
                 <div id="tab-content" class="row">
                     {% if active_tab == "password" %}
@@ -91,6 +102,9 @@
                     </div>
                     {% else if active_tab == "diagnostics" %}
                     <div hx-get="/hx/settings/diagnostics" hx-trigger="load" class="mb-3 hx-placeholder">
+                    </div>
+                    {% else if active_tab == "2fa" %}
+                    <div hx-get="/hx/settings/2fa" hx-trigger="load" class="mb-3 hx-placeholder">
                     </div>
                     {% else %}
                     <div hx-get="/hx/settings/channel-name" hx-trigger="load" class="mb-3 hx-placeholder">
