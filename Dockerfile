@@ -1,6 +1,6 @@
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev pkgconfig nodejs npm woff2 openssl-dev perl
+RUN apk add --no-cache musl-dev pkgconfig nodejs npm woff2 openssl-dev perl make build-base openssl-dev
 
 RUN mkdir /src
 COPY ./ /src/rustvideoplatform
