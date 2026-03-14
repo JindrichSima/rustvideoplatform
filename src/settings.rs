@@ -118,25 +118,14 @@ async fn settings_diagnostics(
 }
 
 async fn settings_2fa(
-    Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
-) -> axum::response::Html<Vec<u8>> {
+) -> axum::response::Response {
     if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
-        return Html(minifi_html(
-            "<script>window.location.replace(\"/login\");</script>".to_owned(),
-        ));
+        return axum::response::Redirect::to("/login").into_response();
     }
-    let sidebar = generate_sidebar(&config, "settings".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
-    let template = SettingsTemplate {
-        sidebar,
-        config,
-        common_headers,
-        active_tab: "2fa".to_owned(),
-    };
-    Html(minifi_html(template.render().unwrap()))
+    axum::response::Redirect::to("/settings/password").into_response()
 }
 
 // --- HTMX tab content handlers ---

@@ -16,35 +16,31 @@
 </head>
 
 <body>
-    <div class="row maincontentrow g-3 py-2 ps-2 w-100">
-        <div class="col-sm"></div>
-        <div class="col-sm">
-            <!-- Password login -->
-            <div class="card py-3 px-3 text-white d-flex justify-content-center text-center mb-3">
+    <div class="d-flex align-items-center justify-content-center min-vh-100">
+        <div style="width:100%;max-width:420px;padding:1rem;">
+            <div class="card py-4 px-4 text-white text-center">
                 <h3 class="my-2">{{ config.instancename }}</h3>
                 <hr>
                 <div id="logininfo"></div>
                 <form hx-post="/hx/login" hx-target="#logininfo" hx-swap="innerHTML">
-                    <label>User Name</label><br>
-                    <input class="form-control" type="text" id="login" name="login"><br>
-                    <label>Password</label><br>
-                    <input class="form-control" type="password" id="password" name="password">
-                    <input class="btn btn-lg btn-primary mt-3" type="submit" value="Login" />
+                    <div class="mb-3 text-start">
+                        <label class="form-label">User Name</label>
+                        <input class="form-control" type="text" id="login" name="login" autocomplete="username">
+                    </div>
+                    <div class="mb-3 text-start">
+                        <label class="form-label">Password</label>
+                        <div class="input-group">
+                            <input class="form-control" type="password" id="password" name="password" autocomplete="current-password">
+                            <button type="button" class="btn btn-outline-secondary" title="Use Security Key" onclick="startWebAuthnLogin()">
+                                <i class="fa-solid fa-key"></i>
+                            </button>
+                        </div>
+                        <div id="webauthn-login-result" class="mt-2 text-start"></div>
+                    </div>
+                    <input class="btn btn-lg btn-primary w-100" type="submit" value="Login" />
                 </form>
             </div>
-
-            <!-- WebAuthn / Passkey login -->
-            <div class="card py-3 px-3 text-white">
-                <h6 class="mb-2"><i class="fa-solid fa-key me-2"></i>Sign in with Security Key</h6>
-                <p class="text-muted small mb-2">Passwordless login using a hardware key or passkey.</p>
-                <input class="form-control mb-2" type="text" id="webauthn-username" placeholder="Username" autocomplete="username">
-                <button class="btn btn-outline-light btn-sm" onclick="startWebAuthnLogin()">
-                    <i class="fa-solid fa-fingerprint me-1"></i>Use Security Key
-                </button>
-                <div id="webauthn-login-result" class="mt-2"></div>
-            </div>
         </div>
-        <div class="col-sm"></div>
     </div>
 
     <script>
@@ -60,10 +56,10 @@
     }
 
     async function startWebAuthnLogin() {
-        const username = document.getElementById('webauthn-username').value.trim();
+        const username = document.getElementById('login').value.trim();
         const resultEl = document.getElementById('webauthn-login-result');
         if (!username) {
-            resultEl.innerHTML = '<b class="text-danger">Please enter your username.</b>';
+            resultEl.innerHTML = '<b class="text-danger">Please enter your username first.</b>';
             return;
         }
         resultEl.innerHTML = '<span class="text-muted">Starting&hellip;</span>';
