@@ -38,38 +38,50 @@
 
                             <div class="search-filters">
                                 <div class="filter-group">
-                                    <label class="filter-label"><i class="fa-solid fa-photo-film me-1"></i>Type</label>
-                                    <div class="filter-chips" id="typeFilter">
-                                        <button type="button" class="filter-chip active" data-value="">All</button>
-                                        <button type="button" class="filter-chip" data-value="video"><i class="fa-solid fa-video me-1"></i>Video</button>
-                                        <button type="button" class="filter-chip" data-value="audio"><i class="fa-solid fa-music me-1"></i>Audio</button>
-                                        <button type="button" class="filter-chip" data-value="picture"><i class="fa-solid fa-image me-1"></i>Picture</button>
+                                    <label class="filter-label"><i class="fa-solid fa-compass me-1"></i>Search in</label>
+                                    <div class="filter-chips" id="searchInFilter">
+                                        <button type="button" class="filter-chip active" data-value=""><i class="fa-solid fa-photo-film me-1"></i>Media</button>
+                                        <button type="button" class="filter-chip" data-value="lists"><i class="fa-solid fa-list me-1"></i>Lists</button>
+                                        <button type="button" class="filter-chip" data-value="users"><i class="fa-solid fa-users me-1"></i>Users</button>
                                     </div>
-                                    <input type="hidden" name="media_type" id="mediaTypeInput" value="" />
+                                    <input type="hidden" name="search_in" id="searchInInput" value="" />
                                 </div>
 
-                                <div class="filter-group">
-                                    <label class="filter-label"><i class="fa-solid fa-arrow-down-wide-short me-1"></i>Sort by</label>
-                                    <div class="filter-chips" id="sortFilter">
-                                        <button type="button" class="filter-chip active" data-value=""><i class="fa-solid fa-star me-1"></i>Relevance</button>
-                                        <button type="button" class="filter-chip" data-value="newest"><i class="fa-solid fa-clock me-1"></i>Newest</button>
-                                        <button type="button" class="filter-chip" data-value="oldest"><i class="fa-solid fa-clock-rotate-left me-1"></i>Oldest</button>
-                                        <button type="button" class="filter-chip" data-value="views"><i class="fa-solid fa-eye me-1"></i>Most viewed</button>
-                                        <button type="button" class="filter-chip" data-value="likes"><i class="fa-solid fa-heart me-1"></i>Most liked</button>
+                                <div id="mediaSpecificFilters">
+                                    <div class="filter-group">
+                                        <label class="filter-label"><i class="fa-solid fa-photo-film me-1"></i>Type</label>
+                                        <div class="filter-chips" id="typeFilter">
+                                            <button type="button" class="filter-chip active" data-value="">All</button>
+                                            <button type="button" class="filter-chip" data-value="video"><i class="fa-solid fa-video me-1"></i>Video</button>
+                                            <button type="button" class="filter-chip" data-value="audio"><i class="fa-solid fa-music me-1"></i>Audio</button>
+                                            <button type="button" class="filter-chip" data-value="picture"><i class="fa-solid fa-image me-1"></i>Picture</button>
+                                        </div>
+                                        <input type="hidden" name="media_type" id="mediaTypeInput" value="" />
                                     </div>
-                                    <input type="hidden" name="sort_by" id="sortByInput" value="" />
-                                </div>
 
-                                <div class="filter-group">
-                                    <label class="filter-label"><i class="fa-solid fa-calendar me-1"></i>Upload date</label>
-                                    <div class="filter-chips" id="dateFilter">
-                                        <button type="button" class="filter-chip active" data-value="">Any time</button>
-                                        <button type="button" class="filter-chip" data-value="today">Today</button>
-                                        <button type="button" class="filter-chip" data-value="week">This week</button>
-                                        <button type="button" class="filter-chip" data-value="month">This month</button>
-                                        <button type="button" class="filter-chip" data-value="year">This year</button>
+                                    <div class="filter-group">
+                                        <label class="filter-label"><i class="fa-solid fa-arrow-down-wide-short me-1"></i>Sort by</label>
+                                        <div class="filter-chips" id="sortFilter">
+                                            <button type="button" class="filter-chip active" data-value=""><i class="fa-solid fa-star me-1"></i>Relevance</button>
+                                            <button type="button" class="filter-chip" data-value="newest"><i class="fa-solid fa-clock me-1"></i>Newest</button>
+                                            <button type="button" class="filter-chip" data-value="oldest"><i class="fa-solid fa-clock-rotate-left me-1"></i>Oldest</button>
+                                            <button type="button" class="filter-chip" data-value="views"><i class="fa-solid fa-eye me-1"></i>Most viewed</button>
+                                            <button type="button" class="filter-chip" data-value="likes"><i class="fa-solid fa-heart me-1"></i>Most liked</button>
+                                        </div>
+                                        <input type="hidden" name="sort_by" id="sortByInput" value="" />
                                     </div>
-                                    <input type="hidden" name="date_range" id="dateRangeInput" value="" />
+
+                                    <div class="filter-group">
+                                        <label class="filter-label"><i class="fa-solid fa-calendar me-1"></i>Upload date</label>
+                                        <div class="filter-chips" id="dateFilter">
+                                            <button type="button" class="filter-chip active" data-value="">Any time</button>
+                                            <button type="button" class="filter-chip" data-value="today">Today</button>
+                                            <button type="button" class="filter-chip" data-value="week">This week</button>
+                                            <button type="button" class="filter-chip" data-value="month">This month</button>
+                                            <button type="button" class="filter-chip" data-value="year">This year</button>
+                                        </div>
+                                        <input type="hidden" name="date_range" id="dateRangeInput" value="" />
+                                    </div>
                                 </div>
                             </div>
                         </form>
@@ -100,6 +112,17 @@
                     var hiddenInput = group.nextElementSibling;
                     if (hiddenInput) {
                         hiddenInput.value = chip.getAttribute('data-value');
+                    }
+
+                    // Show/hide media-specific filters based on search_in
+                    if (group.id === 'searchInFilter') {
+                        var mediaFilters = document.getElementById('mediaSpecificFilters');
+                        var val = chip.getAttribute('data-value');
+                        if (val === 'lists' || val === 'users') {
+                            mediaFilters.style.display = 'none';
+                        } else {
+                            mediaFilters.style.display = '';
+                        }
                     }
 
                     // Auto-submit if there's a search query

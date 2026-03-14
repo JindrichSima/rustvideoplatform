@@ -173,6 +173,8 @@ struct HXSearchForm {
     sort_by: Option<String>,
     #[serde(default)]
     date_range: Option<String>,
+    #[serde(default)]
+    search_in: Option<String>,
 }
 
 #[derive(Template)]
@@ -186,6 +188,49 @@ struct HXSearchTemplate {
     date_range: String,
     total_hits: usize,
     query_time_ms: usize,
+    is_first_page: bool,
+    has_more: bool,
+    config: Config,
+}
+
+// --- List search ---
+
+#[derive(Debug, Clone)]
+struct ListSearchHit {
+    id: String,
+    name: String,
+    owner: String,
+    item_count: i64,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-search-lists.html", escape = "none")]
+struct HXSearchListsTemplate {
+    search_results: Vec<ListSearchHit>,
+    next_page: usize,
+    search_term: String,
+    total_hits: i64,
+    is_first_page: bool,
+    has_more: bool,
+    config: Config,
+}
+
+// --- User search ---
+
+#[derive(Debug, Clone)]
+struct UserSearchHit {
+    login: String,
+    name: String,
+    profile_picture: Option<String>,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-search-users.html", escape = "none")]
+struct HXSearchUsersTemplate {
+    search_results: Vec<UserSearchHit>,
+    next_page: usize,
+    search_term: String,
+    total_hits: i64,
     is_first_page: bool,
     has_more: bool,
     config: Config,
@@ -217,6 +262,19 @@ async fn hx_search(
         return Html("".to_owned());
     }
 
+    let search_in = form.search_in.clone().unwrap_or_default();
+    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
+
+    match search_in.as_str() {
+        "lists" => {
+            return hx_search_lists_inner(config, pool, user, pageid, form.search).await;
+        }
+        "users" => {
+            return hx_search_users_inner(config, pool, pageid, form.search).await;
+        }
+        _ => {} // "media" or empty — fall through to Meilisearch
+    }
+
     let hits_per_page: usize = 41;
     let offset = pageid * 40;
     let next_page = pageid + 1;
@@ -226,7 +284,6 @@ async fn hx_search(
     let date_range = form.date_range.clone().unwrap_or_default();
 
     // Build filter string with visibility-aware access control
-    let user = get_user_login(headers, &pool, redis).await;
     let visibility_filter = build_visibility_filter(&pool, &user).await;
     let mut filters: Vec<String> = vec![format!("({})", visibility_filter)];
 
@@ -351,6 +408,171 @@ async fn hx_search(
             )
         }
     }
+}
+
+// --- List search inner ---
+
+async fn hx_search_lists_inner(
+    config: Config,
+    pool: PgPool,
+    user: Option<User>,
+    pageid: usize,
+    search_term: String,
+) -> axum::response::Html<String> {
+    let user_login = user.map(|u| u.login).unwrap_or_default();
+    let hits_per_page: i64 = 41;
+    let offset = (pageid * 40) as i64;
+    let search_pattern = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM lists l \
+         WHERE (l.name ILIKE $1 OR l.owner ILIKE $1) \
+         AND (l.visibility = 'public' \
+             OR (l.visibility = 'restricted' AND ( \
+                 l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) \
+                 OR (l.restricted_to_group = '__all_registered__' AND $2 != '') \
+                 OR (l.restricted_to_group = '__subscribers__' AND $2 != '' AND l.owner IN (SELECT target FROM subscriptions WHERE subscriber = $2)) \
+             )) \
+         )",
+    )
+    .bind(&search_pattern)
+    .bind(&user_login)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    let mut results: Vec<ListSearchHit> = sqlx::query(
+        "SELECT l.id, l.name, l.owner, \
+         COALESCE((SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id), 0)::bigint AS item_count \
+         FROM lists l \
+         WHERE (l.name ILIKE $1 OR l.owner ILIKE $1) \
+         AND (l.visibility = 'public' \
+             OR (l.visibility = 'restricted' AND ( \
+                 l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) \
+                 OR (l.restricted_to_group = '__all_registered__' AND $2 != '') \
+                 OR (l.restricted_to_group = '__subscribers__' AND $2 != '' AND l.owner IN (SELECT target FROM subscriptions WHERE subscriber = $2)) \
+             )) \
+         ) \
+         ORDER BY l.name ASC LIMIT $3 OFFSET $4",
+    )
+    .bind(&search_pattern)
+    .bind(&user_login)
+    .bind(hits_per_page)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        ListSearchHit {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            item_count: row.get("item_count"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let has_more = results.len() == 41;
+    if has_more {
+        results.truncate(40);
+    }
+
+    if results.is_empty() && pageid == 0 {
+        return Html(
+            "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
+                .to_owned(),
+        );
+    }
+
+    if results.is_empty() {
+        return Html(
+            "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
+                .to_owned(),
+        );
+    }
+
+    let template = HXSearchListsTemplate {
+        search_results: results,
+        next_page: pageid + 1,
+        search_term,
+        total_hits: total,
+        is_first_page: pageid == 0,
+        has_more,
+        config,
+    };
+    Html(template.render().unwrap())
+}
+
+// --- User search inner ---
+
+async fn hx_search_users_inner(
+    config: Config,
+    pool: PgPool,
+    pageid: usize,
+    search_term: String,
+) -> axum::response::Html<String> {
+    let hits_per_page: i64 = 41;
+    let offset = (pageid * 40) as i64;
+    let search_pattern = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM users WHERE name ILIKE $1 OR login ILIKE $1",
+    )
+    .bind(&search_pattern)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    let mut results: Vec<UserSearchHit> = sqlx::query(
+        "SELECT u.login, u.name, u.profile_picture \
+         FROM users u \
+         WHERE u.name ILIKE $1 OR u.login ILIKE $1 \
+         ORDER BY u.name ASC LIMIT $2 OFFSET $3",
+    )
+    .bind(&search_pattern)
+    .bind(hits_per_page)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        UserSearchHit {
+            login: row.get("login"),
+            name: row.get("name"),
+            profile_picture: row.get("profile_picture"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let has_more = results.len() == 41;
+    if has_more {
+        results.truncate(40);
+    }
+
+    if results.is_empty() && pageid == 0 {
+        return Html(
+            "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
+                .to_owned(),
+        );
+    }
+
+    if results.is_empty() {
+        return Html(
+            "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
+                .to_owned(),
+        );
+    }
+
+    let template = HXSearchUsersTemplate {
+        search_results: results,
+        next_page: pageid + 1,
+        search_term,
+        total_hits: total,
+        is_first_page: pageid == 0,
+        has_more,
+        config,
+    };
+    Html(template.render().unwrap())
 }
 
 // --- Search page ---
