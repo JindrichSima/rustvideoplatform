@@ -195,10 +195,28 @@ struct HXSearchTemplate {
 
 // --- List search ---
 
+/// Meilisearch document shape for the "lists" index.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct MeiliList {
+    id: String,
+    name: String,
+    owner: String,
+    #[serde(default)]
+    visibility: String,
+    #[serde(default)]
+    restricted_to_group: Option<String>,
+    #[serde(default)]
+    item_count: i64,
+    #[serde(default)]
+    created: i64,
+}
+
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ListSearchHit {
     id: String,
     name: String,
+    highlighted_name: String,
     owner: String,
     item_count: i64,
 }
@@ -209,7 +227,8 @@ struct HXSearchListsTemplate {
     search_results: Vec<ListSearchHit>,
     next_page: usize,
     search_term: String,
-    total_hits: i64,
+    total_hits: usize,
+    query_time_ms: usize,
     is_first_page: bool,
     has_more: bool,
     config: Config,
@@ -217,10 +236,21 @@ struct HXSearchListsTemplate {
 
 // --- User search ---
 
+/// Meilisearch document shape for the "users" index.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct MeiliUser {
+    login: String,
+    name: String,
+    #[serde(default)]
+    profile_picture: Option<String>,
+}
+
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct UserSearchHit {
     login: String,
     name: String,
+    highlighted_name: String,
     profile_picture: Option<String>,
 }
 
@@ -230,7 +260,8 @@ struct HXSearchUsersTemplate {
     search_results: Vec<UserSearchHit>,
     next_page: usize,
     search_term: String,
-    total_hits: i64,
+    total_hits: usize,
+    query_time_ms: usize,
     is_first_page: bool,
     has_more: bool,
     config: Config,
@@ -267,10 +298,10 @@ async fn hx_search(
 
     match search_in.as_str() {
         "lists" => {
-            return hx_search_lists_inner(config, pool, user, pageid, form.search).await;
+            return hx_search_lists_inner(config, pool, meili, user, pageid, form.search).await;
         }
         "users" => {
-            return hx_search_users_inner(config, pool, pageid, form.search).await;
+            return hx_search_users_inner(config, meili, pageid, form.search).await;
         }
         _ => {} // "media" or empty — fall through to Meilisearch
     }
@@ -410,169 +441,196 @@ async fn hx_search(
     }
 }
 
-// --- List search inner ---
+// --- List search inner (Meilisearch) ---
 
 async fn hx_search_lists_inner(
     config: Config,
     pool: PgPool,
+    meili: Arc<MeilisearchClient>,
     user: Option<User>,
     pageid: usize,
     search_term: String,
 ) -> axum::response::Html<String> {
-    let user_login = user.map(|u| u.login).unwrap_or_default();
-    let hits_per_page: i64 = 41;
-    let offset = (pageid * 40) as i64;
-    let search_pattern = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
+    let hits_per_page: usize = 41;
+    let offset = pageid * 40;
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM lists l \
-         WHERE (l.name ILIKE $1 OR l.owner ILIKE $1) \
-         AND (l.visibility = 'public' \
-             OR (l.visibility = 'restricted' AND ( \
-                 l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) \
-                 OR (l.restricted_to_group = '__all_registered__' AND $2 != '') \
-                 OR (l.restricted_to_group = '__subscribers__' AND $2 != '' AND l.owner IN (SELECT target FROM subscriptions WHERE subscriber = $2)) \
-             )) \
-         )",
-    )
-    .bind(&search_pattern)
-    .bind(&user_login)
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
+    // Reuse the same visibility filter logic as media search
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let filter_str = format!("({})", visibility_filter);
 
-    let mut results: Vec<ListSearchHit> = sqlx::query(
-        "SELECT l.id, l.name, l.owner, \
-         COALESCE((SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id), 0)::bigint AS item_count \
-         FROM lists l \
-         WHERE (l.name ILIKE $1 OR l.owner ILIKE $1) \
-         AND (l.visibility = 'public' \
-             OR (l.visibility = 'restricted' AND ( \
-                 l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) \
-                 OR (l.restricted_to_group = '__all_registered__' AND $2 != '') \
-                 OR (l.restricted_to_group = '__subscribers__' AND $2 != '' AND l.owner IN (SELECT target FROM subscriptions WHERE subscriber = $2)) \
-             )) \
-         ) \
-         ORDER BY l.name ASC LIMIT $3 OFFSET $4",
-    )
-    .bind(&search_pattern)
-    .bind(&user_login)
-    .bind(hits_per_page)
-    .bind(offset)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        ListSearchHit {
-            id: row.get("id"),
-            name: row.get("name"),
-            owner: row.get("owner"),
-            item_count: row.get("item_count"),
+    let index = meili.index("lists");
+    let results = index
+        .search()
+        .with_query(&search_term)
+        .with_filter(&filter_str)
+        .with_offset(offset)
+        .with_limit(hits_per_page)
+        .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
+        .with_highlight_pre_tag("<mark>")
+        .with_highlight_post_tag("</mark>")
+        .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+            "id", "name", "owner", "item_count",
+        ]))
+        .execute::<MeiliList>()
+        .await;
+
+    match results {
+        Ok(search_results) => {
+            let total_hits = search_results.estimated_total_hits.unwrap_or(0);
+            let query_time_ms = search_results.processing_time_ms;
+
+            let mut hits: Vec<ListSearchHit> = search_results
+                .hits
+                .into_iter()
+                .map(|hit| {
+                    let highlighted_name = hit
+                        .formatted_result
+                        .as_ref()
+                        .and_then(|f| f.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&hit.result.name)
+                        .to_owned();
+                    ListSearchHit {
+                        id: hit.result.id,
+                        name: hit.result.name,
+                        highlighted_name,
+                        owner: hit.result.owner,
+                        item_count: hit.result.item_count,
+                    }
+                })
+                .collect();
+
+            let has_more = hits.len() == 41;
+            if has_more {
+                hits.truncate(40);
+            }
+
+            if hits.is_empty() && pageid == 0 {
+                return Html(
+                    "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            if hits.is_empty() {
+                return Html(
+                    "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            let template = HXSearchListsTemplate {
+                search_results: hits,
+                next_page: pageid + 1,
+                search_term,
+                total_hits,
+                query_time_ms,
+                is_first_page: pageid == 0,
+                has_more,
+                config,
+            };
+            Html(template.render().unwrap())
         }
-    })
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
-
-    let has_more = results.len() == 41;
-    if has_more {
-        results.truncate(40);
+        Err(e) => {
+            eprintln!("Meilisearch list search error: {:?}", e);
+            Html(
+                "<div class=\"search-empty\"><i class=\"fa-solid fa-triangle-exclamation fa-3x mb-3\"></i><h4>Search unavailable</h4><p class=\"text-secondary\">Please try again later</p></div>"
+                    .to_owned(),
+            )
+        }
     }
-
-    if results.is_empty() && pageid == 0 {
-        return Html(
-            "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
-                .to_owned(),
-        );
-    }
-
-    if results.is_empty() {
-        return Html(
-            "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
-                .to_owned(),
-        );
-    }
-
-    let template = HXSearchListsTemplate {
-        search_results: results,
-        next_page: pageid + 1,
-        search_term,
-        total_hits: total,
-        is_first_page: pageid == 0,
-        has_more,
-        config,
-    };
-    Html(template.render().unwrap())
 }
 
-// --- User search inner ---
+// --- User search inner (Meilisearch) ---
 
 async fn hx_search_users_inner(
     config: Config,
-    pool: PgPool,
+    meili: Arc<MeilisearchClient>,
     pageid: usize,
     search_term: String,
 ) -> axum::response::Html<String> {
-    let hits_per_page: i64 = 41;
-    let offset = (pageid * 40) as i64;
-    let search_pattern = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
+    let hits_per_page: usize = 41;
+    let offset = pageid * 40;
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM users WHERE name ILIKE $1 OR login ILIKE $1",
-    )
-    .bind(&search_pattern)
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
+    let index = meili.index("users");
+    let results = index
+        .search()
+        .with_query(&search_term)
+        .with_offset(offset)
+        .with_limit(hits_per_page)
+        .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name", "login"]))
+        .with_highlight_pre_tag("<mark>")
+        .with_highlight_post_tag("</mark>")
+        .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+            "login", "name", "profile_picture",
+        ]))
+        .execute::<MeiliUser>()
+        .await;
 
-    let mut results: Vec<UserSearchHit> = sqlx::query(
-        "SELECT u.login, u.name, u.profile_picture \
-         FROM users u \
-         WHERE u.name ILIKE $1 OR u.login ILIKE $1 \
-         ORDER BY u.name ASC LIMIT $2 OFFSET $3",
-    )
-    .bind(&search_pattern)
-    .bind(hits_per_page)
-    .bind(offset)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        UserSearchHit {
-            login: row.get("login"),
-            name: row.get("name"),
-            profile_picture: row.get("profile_picture"),
+    match results {
+        Ok(search_results) => {
+            let total_hits = search_results.estimated_total_hits.unwrap_or(0);
+            let query_time_ms = search_results.processing_time_ms;
+
+            let mut hits: Vec<UserSearchHit> = search_results
+                .hits
+                .into_iter()
+                .map(|hit| {
+                    let highlighted_name = hit
+                        .formatted_result
+                        .as_ref()
+                        .and_then(|f| f.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&hit.result.name)
+                        .to_owned();
+                    UserSearchHit {
+                        login: hit.result.login,
+                        name: hit.result.name,
+                        highlighted_name,
+                        profile_picture: hit.result.profile_picture,
+                    }
+                })
+                .collect();
+
+            let has_more = hits.len() == 41;
+            if has_more {
+                hits.truncate(40);
+            }
+
+            if hits.is_empty() && pageid == 0 {
+                return Html(
+                    "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            if hits.is_empty() {
+                return Html(
+                    "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            let template = HXSearchUsersTemplate {
+                search_results: hits,
+                next_page: pageid + 1,
+                search_term,
+                total_hits,
+                query_time_ms,
+                is_first_page: pageid == 0,
+                has_more,
+                config,
+            };
+            Html(template.render().unwrap())
         }
-    })
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
-
-    let has_more = results.len() == 41;
-    if has_more {
-        results.truncate(40);
+        Err(e) => {
+            eprintln!("Meilisearch user search error: {:?}", e);
+            Html(
+                "<div class=\"search-empty\"><i class=\"fa-solid fa-triangle-exclamation fa-3x mb-3\"></i><h4>Search unavailable</h4><p class=\"text-secondary\">Please try again later</p></div>"
+                    .to_owned(),
+            )
+        }
     }
-
-    if results.is_empty() && pageid == 0 {
-        return Html(
-            "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
-                .to_owned(),
-        );
-    }
-
-    if results.is_empty() {
-        return Html(
-            "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
-                .to_owned(),
-        );
-    }
-
-    let template = HXSearchUsersTemplate {
-        search_results: results,
-        next_page: pageid + 1,
-        search_term,
-        total_hits: total,
-        is_first_page: pageid == 0,
-        has_more,
-        config,
-    };
-    Html(template.render().unwrap())
 }
 
 // --- Search page ---

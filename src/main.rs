@@ -88,17 +88,19 @@ async fn main() {
         }
     }
 
-    // Verify the 'media' index exists
-    match meilisearch_client.get_index("media").await {
-        Ok(index) => {
-            println!("Meilisearch 'media' index found: uid={}", index.uid);
-        }
-        Err(e) => {
-            eprintln!(
-                "WARNING: Meilisearch 'media' index not accessible: {:?}",
-                e
-            );
-            eprintln!("Ensure the 'media' index is created and populated by the indexer.");
+    // Verify the Meilisearch indexes exist
+    for index_name in &["media", "lists", "users"] {
+        match meilisearch_client.get_index(index_name).await {
+            Ok(index) => {
+                println!("Meilisearch '{}' index found: uid={}", index_name, index.uid);
+            }
+            Err(e) => {
+                eprintln!(
+                    "WARNING: Meilisearch '{}' index not accessible: {:?}",
+                    index_name, e
+                );
+                eprintln!("Ensure the '{}' index is created and populated by the indexer.", index_name);
+            }
         }
     }
 

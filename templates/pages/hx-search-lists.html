@@ -1,6 +1,7 @@
 {% if is_first_page %}
 <div class="search-meta">
     <span class="search-meta-count"><i class="fa-solid fa-hashtag me-1"></i>{{ total_hits }} results</span>
+    <span class="search-meta-time"><i class="fa-solid fa-bolt me-1"></i>{{ query_time_ms }}ms</span>
 </div>
 {% endif %}
 {% for hit in search_results %}
@@ -9,7 +10,7 @@
         <i class="fa-solid fa-list fa-3x text-secondary"></i>
     </div>
     <div class="search-card-info">
-        <h5 class="search-card-title">{{ hit.name }}</h5>
+        <h5 class="search-card-title">{{ hit.highlighted_name }}</h5>
         <div class="search-card-meta">
             <span class="search-card-owner"><i class="fa-solid fa-user me-1"></i>{{ hit.owner }}</span>
             <span class="search-card-views"><i class="fa-solid fa-film me-1"></i>{{ hit.item_count }} items</span>
