@@ -79,7 +79,7 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
             continue;
         }
         let index = media.len() as i32;
-        let columns = 4;
+        let columns = 5;
         media.push(Medium {
             id,
             name: info.get("name").cloned().unwrap_or_default(),
