@@ -61,8 +61,6 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
         .await
         .ok()
         .flatten();
-    let sprite_width = 352;
-    let sprite_height = 198;
 
     // Pipeline: fetch metadata for all IDs in a single round-trip
     let mut pipe = redis::pipe();
@@ -78,8 +76,9 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
         if info.is_empty() {
             continue;
         }
-        let index = media.len() as i32;
-        let columns = 5;
+        // Read sprite positions from cache (set by indexer based on actual sprite layout).
+        // Only assign sprite_filename if positions are present (item is in the sprite).
+        let has_sprite = info.contains_key("sprite_x");
         media.push(Medium {
             id,
             name: info.get("name").cloned().unwrap_or_default(),
@@ -89,9 +88,9 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0),
             r#type: info.get("type").cloned().unwrap_or_default(),
-            sprite_filename: sprite_filename.clone(),
-            sprite_x: -((index % columns) * sprite_width),
-            sprite_y: -((index / columns) * sprite_height),
+            sprite_filename: if has_sprite { sprite_filename.clone() } else { None },
+            sprite_x: info.get("sprite_x").and_then(|v| v.parse().ok()).unwrap_or(0),
+            sprite_y: info.get("sprite_y").and_then(|v| v.parse().ok()).unwrap_or(0),
         });
     }
 
