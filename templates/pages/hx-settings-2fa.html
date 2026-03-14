@@ -6,19 +6,19 @@
         <h6 class="mb-2"><i class="fa-solid fa-mobile-screen me-2"></i>Authenticator App (TOTP)</h6>
         {% if totp_enabled %}
         <p class="text-success mb-2"><i class="fa-solid fa-circle-check me-1"></i>TOTP is <strong>enabled</strong>.</p>
-        <form hx-post="/hx/settings/2fa/totp/disable" hx-target="#2fa-result" hx-swap="innerHTML">
+        <form hx-post="/hx/settings/2fa/totp/disable" hx-target="#twofa-result" hx-swap="innerHTML">
             <button type="submit" class="btn btn-sm btn-danger">
                 <i class="fa-solid fa-ban me-1"></i>Disable TOTP
             </button>
         </form>
         {% else %}
         <p class="mb-2">Use any TOTP authenticator app (Google Authenticator, Aegis, Bitwarden, etc.) to add a second factor to your login.</p>
-        <form hx-post="/hx/settings/2fa/totp/setup" hx-target="#2fa-totp-setup-area" hx-swap="innerHTML">
+        <form hx-post="/hx/settings/2fa/totp/setup" hx-target="#totp-setup-area" hx-swap="innerHTML">
             <button type="submit" class="btn btn-sm btn-primary">
                 <i class="fa-solid fa-qrcode me-1"></i>Set Up TOTP
             </button>
         </form>
-        <div id="2fa-totp-setup-area" class="mt-3"></div>
+        <div id="totp-setup-area" class="mt-3"></div>
         {% endif %}
     </div>
 
@@ -132,5 +132,5 @@
     </div>
     {% endif %}
 
-    <div id="2fa-result" class="mt-2"></div>
+    <div id="twofa-result" class="mt-2"></div>
 </div>
