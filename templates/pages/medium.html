@@ -63,8 +63,10 @@
 
         <title>{{ medium_name }}</title>
 
-        {% include "component-dependencies.html" %} {% if medium_type == "video"
-        || medium_type == "audio" %}
+        {% include "component-dependencies.html" %}
+        {% include "component-dependencies-quill.html" %}
+        {% include "component-dependencies-tomselect.html" %}
+        {% if medium_type == "video" || medium_type == "audio" %}
         <link
             rel="stylesheet"
             href="https://cdn.vidstack.io/player/theme.css"
