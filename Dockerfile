@@ -1,6 +1,6 @@
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig nodejs npm woff2 openssl-dev
+RUN apk add --no-cache musl-dev pkgconfig nodejs npm woff2 openssl-dev
 
 RUN mkdir /src
 COPY ./ /src/rustvideoplatform
@@ -14,7 +14,7 @@ RUN case "$TARGETARCH" in \
 
 
 FROM alpine:latest
-RUN apk add --no-cache ffmpeg woff2 openssl
+RUN apk add --no-cache ffmpeg woff2
 COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
 
 EXPOSE 8080
