@@ -5,7 +5,10 @@ RUN apk add --no-cache musl-dev openssl-dev pkgconfig nodejs npm woff2 openssl-d
 RUN mkdir /src
 COPY ./ /src/rustvideoplatform
 
-RUN cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --release
+ARG TARGETARCH
+RUN cd /src/rustvideoplatform && npm install --ignore-scripts && \
+    if [ "$TARGETARCH" = "amd64" ]; then export RUSTFLAGS="-C target-cpu=x86-64-v3"; fi && \
+    cargo build --release
 
 
 FROM alpine:latest
