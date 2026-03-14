@@ -173,6 +173,8 @@ struct HXSearchForm {
     sort_by: Option<String>,
     #[serde(default)]
     date_range: Option<String>,
+    #[serde(default)]
+    search_in: Option<String>,
 }
 
 #[derive(Template)]
@@ -184,6 +186,80 @@ struct HXSearchTemplate {
     media_type: String,
     sort_by: String,
     date_range: String,
+    total_hits: usize,
+    query_time_ms: usize,
+    is_first_page: bool,
+    has_more: bool,
+    config: Config,
+}
+
+// --- List search ---
+
+/// Meilisearch document shape for the "lists" index.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct MeiliList {
+    id: String,
+    name: String,
+    owner: String,
+    #[serde(default)]
+    visibility: String,
+    #[serde(default)]
+    restricted_to_group: Option<String>,
+    #[serde(default)]
+    item_count: i64,
+    #[serde(default)]
+    created: i64,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct ListSearchHit {
+    id: String,
+    name: String,
+    highlighted_name: String,
+    owner: String,
+    item_count: i64,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-search-lists.html", escape = "none")]
+struct HXSearchListsTemplate {
+    search_results: Vec<ListSearchHit>,
+    next_page: usize,
+    search_term: String,
+    total_hits: usize,
+    query_time_ms: usize,
+    is_first_page: bool,
+    has_more: bool,
+    config: Config,
+}
+
+// --- User search ---
+
+/// Meilisearch document shape for the "users" index.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct MeiliUser {
+    login: String,
+    name: String,
+    #[serde(default)]
+    profile_picture: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct UserSearchHit {
+    login: String,
+    name: String,
+    highlighted_name: String,
+    profile_picture: Option<String>,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-search-users.html", escape = "none")]
+struct HXSearchUsersTemplate {
+    search_results: Vec<UserSearchHit>,
+    next_page: usize,
+    search_term: String,
     total_hits: usize,
     query_time_ms: usize,
     is_first_page: bool,
@@ -217,6 +293,19 @@ async fn hx_search(
         return Html("".to_owned());
     }
 
+    let search_in = form.search_in.clone().unwrap_or_default();
+    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
+
+    match search_in.as_str() {
+        "lists" => {
+            return hx_search_lists_inner(config, pool, meili, user, pageid, form.search).await;
+        }
+        "users" => {
+            return hx_search_users_inner(config, meili, pageid, form.search).await;
+        }
+        _ => {} // "media" or empty — fall through to Meilisearch
+    }
+
     let hits_per_page: usize = 41;
     let offset = pageid * 40;
     let next_page = pageid + 1;
@@ -226,7 +315,6 @@ async fn hx_search(
     let date_range = form.date_range.clone().unwrap_or_default();
 
     // Build filter string with visibility-aware access control
-    let user = get_user_login(headers, &pool, redis).await;
     let visibility_filter = build_visibility_filter(&pool, &user).await;
     let mut filters: Vec<String> = vec![format!("({})", visibility_filter)];
 
@@ -345,6 +433,198 @@ async fn hx_search(
         }
         Err(e) => {
             eprintln!("Meilisearch search error: {:?}", e);
+            Html(
+                "<div class=\"search-empty\"><i class=\"fa-solid fa-triangle-exclamation fa-3x mb-3\"></i><h4>Search unavailable</h4><p class=\"text-secondary\">Please try again later</p></div>"
+                    .to_owned(),
+            )
+        }
+    }
+}
+
+// --- List search inner (Meilisearch) ---
+
+async fn hx_search_lists_inner(
+    config: Config,
+    pool: PgPool,
+    meili: Arc<MeilisearchClient>,
+    user: Option<User>,
+    pageid: usize,
+    search_term: String,
+) -> axum::response::Html<String> {
+    let hits_per_page: usize = 41;
+    let offset = pageid * 40;
+
+    // Reuse the same visibility filter logic as media search
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let filter_str = format!("({})", visibility_filter);
+
+    let index = meili.index("lists");
+    let results = index
+        .search()
+        .with_query(&search_term)
+        .with_filter(&filter_str)
+        .with_offset(offset)
+        .with_limit(hits_per_page)
+        .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
+        .with_highlight_pre_tag("<mark>")
+        .with_highlight_post_tag("</mark>")
+        .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+            "id", "name", "owner", "item_count",
+        ]))
+        .execute::<MeiliList>()
+        .await;
+
+    match results {
+        Ok(search_results) => {
+            let total_hits = search_results.estimated_total_hits.unwrap_or(0);
+            let query_time_ms = search_results.processing_time_ms;
+
+            let mut hits: Vec<ListSearchHit> = search_results
+                .hits
+                .into_iter()
+                .map(|hit| {
+                    let highlighted_name = hit
+                        .formatted_result
+                        .as_ref()
+                        .and_then(|f| f.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&hit.result.name)
+                        .to_owned();
+                    ListSearchHit {
+                        id: hit.result.id,
+                        name: hit.result.name,
+                        highlighted_name,
+                        owner: hit.result.owner,
+                        item_count: hit.result.item_count,
+                    }
+                })
+                .collect();
+
+            let has_more = hits.len() == 41;
+            if has_more {
+                hits.truncate(40);
+            }
+
+            if hits.is_empty() && pageid == 0 {
+                return Html(
+                    "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            if hits.is_empty() {
+                return Html(
+                    "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            let template = HXSearchListsTemplate {
+                search_results: hits,
+                next_page: pageid + 1,
+                search_term,
+                total_hits,
+                query_time_ms,
+                is_first_page: pageid == 0,
+                has_more,
+                config,
+            };
+            Html(template.render().unwrap())
+        }
+        Err(e) => {
+            eprintln!("Meilisearch list search error: {:?}", e);
+            Html(
+                "<div class=\"search-empty\"><i class=\"fa-solid fa-triangle-exclamation fa-3x mb-3\"></i><h4>Search unavailable</h4><p class=\"text-secondary\">Please try again later</p></div>"
+                    .to_owned(),
+            )
+        }
+    }
+}
+
+// --- User search inner (Meilisearch) ---
+
+async fn hx_search_users_inner(
+    config: Config,
+    meili: Arc<MeilisearchClient>,
+    pageid: usize,
+    search_term: String,
+) -> axum::response::Html<String> {
+    let hits_per_page: usize = 41;
+    let offset = pageid * 40;
+
+    let index = meili.index("users");
+    let results = index
+        .search()
+        .with_query(&search_term)
+        .with_offset(offset)
+        .with_limit(hits_per_page)
+        .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name", "login"]))
+        .with_highlight_pre_tag("<mark>")
+        .with_highlight_post_tag("</mark>")
+        .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+            "login", "name", "profile_picture",
+        ]))
+        .execute::<MeiliUser>()
+        .await;
+
+    match results {
+        Ok(search_results) => {
+            let total_hits = search_results.estimated_total_hits.unwrap_or(0);
+            let query_time_ms = search_results.processing_time_ms;
+
+            let mut hits: Vec<UserSearchHit> = search_results
+                .hits
+                .into_iter()
+                .map(|hit| {
+                    let highlighted_name = hit
+                        .formatted_result
+                        .as_ref()
+                        .and_then(|f| f.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&hit.result.name)
+                        .to_owned();
+                    UserSearchHit {
+                        login: hit.result.login,
+                        name: hit.result.name,
+                        highlighted_name,
+                        profile_picture: hit.result.profile_picture,
+                    }
+                })
+                .collect();
+
+            let has_more = hits.len() == 41;
+            if has_more {
+                hits.truncate(40);
+            }
+
+            if hits.is_empty() && pageid == 0 {
+                return Html(
+                    "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            if hits.is_empty() {
+                return Html(
+                    "<div class=\"col-12 text-center my-4\"><p class=\"text-secondary\"><i class=\"fa-solid fa-circle-check me-2\"></i>You have reached the end.</p></div>"
+                        .to_owned(),
+                );
+            }
+
+            let template = HXSearchUsersTemplate {
+                search_results: hits,
+                next_page: pageid + 1,
+                search_term,
+                total_hits,
+                query_time_ms,
+                is_first_page: pageid == 0,
+                has_more,
+                config,
+            };
+            Html(template.render().unwrap())
+        }
+        Err(e) => {
+            eprintln!("Meilisearch user search error: {:?}", e);
             Html(
                 "<div class=\"search-empty\"><i class=\"fa-solid fa-triangle-exclamation fa-3x mb-3\"></i><h4>Search unavailable</h4><p class=\"text-secondary\">Please try again later</p></div>"
                     .to_owned(),

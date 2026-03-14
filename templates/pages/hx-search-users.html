@@ -1,0 +1,36 @@
+{% if is_first_page %}
+<div class="search-meta">
+    <span class="search-meta-count"><i class="fa-solid fa-hashtag me-1"></i>{{ total_hits }} results</span>
+    <span class="search-meta-time"><i class="fa-solid fa-bolt me-1"></i>{{ query_time_ms }}ms</span>
+</div>
+{% endif %}
+{% for hit in search_results %}
+<a href="/u/{{ hit.login }}" class="search-result-card inf-scroll-reveal" preload="mouseover">
+    <div class="search-card-thumbnail" style="display:flex;align-items:center;justify-content:center;">
+        {% if hit.profile_picture.is_some() %}
+        <img src="{{ config.source_server_url }}/source/{{ hit.profile_picture.clone().unwrap() }}/thumbnail-small.avif" loading="lazy" style="width:100%;height:100%;object-fit:cover;" />
+        {% else %}
+        <i class="fa-solid fa-user fa-3x text-secondary"></i>
+        {% endif %}
+    </div>
+    <div class="search-card-info">
+        <h5 class="search-card-title">{{ hit.highlighted_name }}</h5>
+        <div class="search-card-meta">
+            <span class="search-card-owner"><i class="fa-solid fa-at me-1"></i>{{ hit.login }}</span>
+        </div>
+    </div>
+</a>
+{% if loop.index == 15 && has_more %}
+<form style="position:absolute;height:0;width:0;overflow:hidden;visibility:hidden;" hx-post="/hx/search/{{ next_page }}" hx-trigger="revealed" hx-target="#inf-scroll-su-{{ next_page }}" hx-swap="outerHTML" hx-on::after-request="this.remove()">
+    <input type="hidden" name="search" value="{{ search_term }}" />
+    <input type="hidden" name="search_in" value="users" />
+</form>
+{% endif %}
+{% endfor %}
+{% if has_more %}
+<div id="inf-scroll-su-{{ next_page }}" class="my-4 inf-scroll-placeholder"></div>
+{% else %}
+<div class="text-center my-4">
+    <p class="text-secondary"><i class="fa-solid fa-circle-check me-2"></i>You have reached the end.</p>
+</div>
+{% endif %}

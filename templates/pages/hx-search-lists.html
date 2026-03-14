@@ -1,0 +1,33 @@
+{% if is_first_page %}
+<div class="search-meta">
+    <span class="search-meta-count"><i class="fa-solid fa-hashtag me-1"></i>{{ total_hits }} results</span>
+    <span class="search-meta-time"><i class="fa-solid fa-bolt me-1"></i>{{ query_time_ms }}ms</span>
+</div>
+{% endif %}
+{% for hit in search_results %}
+<a href="/l/{{ hit.id }}" class="search-result-card inf-scroll-reveal" preload="mouseover">
+    <div class="search-card-thumbnail" style="display:flex;align-items:center;justify-content:center;">
+        <i class="fa-solid fa-list fa-3x text-secondary"></i>
+    </div>
+    <div class="search-card-info">
+        <h5 class="search-card-title">{{ hit.highlighted_name }}</h5>
+        <div class="search-card-meta">
+            <span class="search-card-owner"><i class="fa-solid fa-user me-1"></i>{{ hit.owner }}</span>
+            <span class="search-card-views"><i class="fa-solid fa-film me-1"></i>{{ hit.item_count }} items</span>
+        </div>
+    </div>
+</a>
+{% if loop.index == 15 && has_more %}
+<form style="position:absolute;height:0;width:0;overflow:hidden;visibility:hidden;" hx-post="/hx/search/{{ next_page }}" hx-trigger="revealed" hx-target="#inf-scroll-sl-{{ next_page }}" hx-swap="outerHTML" hx-on::after-request="this.remove()">
+    <input type="hidden" name="search" value="{{ search_term }}" />
+    <input type="hidden" name="search_in" value="lists" />
+</form>
+{% endif %}
+{% endfor %}
+{% if has_more %}
+<div id="inf-scroll-sl-{{ next_page }}" class="my-4 inf-scroll-placeholder"></div>
+{% else %}
+<div class="text-center my-4">
+    <p class="text-secondary"><i class="fa-solid fa-circle-check me-2"></i>You have reached the end.</p>
+</div>
+{% endif %}
