@@ -1,4 +1,4 @@
-FROM alpine AS builder
+FROM alpine:edge AS builder
 
 RUN apk add --no-cache cargo musl-dev pkgconfig nodejs npm woff2 openssl-dev perl make build-base openssl-dev
 
@@ -13,7 +13,7 @@ RUN case "$TARGETARCH" in \
     cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --release
 
 
-FROM alpine:latest
+FROM alpine:edge
 RUN apk add --no-cache ffmpeg woff2
 COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
 
