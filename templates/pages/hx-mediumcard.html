@@ -10,17 +10,17 @@
             <tr>
                 <td class="d-flex justify-content-center">
                     <div
-                        class="thumbnail-container"
+                        class="thumbnail-container rounded"
                     >
                         {% if item.sprite_filename.is_some() %}
                         <div
-                            class="rounded thumbnail-sprite {% if item.type == "video" %}thumbnail-static{% endif %}"
+                            class="thumbnail-sprite {% if item.type == "video" %}thumbnail-static{% endif %}"
                             style="background-image:url('{{ config.source_server_url }}/source/system_pregen/{{ item.sprite_filename.as_ref().unwrap() }}');--sprite-x:{{ item.sprite_x }}px;--sprite-y:{{ item.sprite_y }}px;"
                         ></div>
                         {% else %}
                         <img
                             src="{{ config.source_server_url }}/source/{{ item.id }}/thumbnail-sm.avif"
-                            class="rounded {% if item.type == "video" %}thumbnail-static{% endif %}"
+                            class="{% if item.type == "video" %}thumbnail-static{% endif %}"
                             width="176"
                             height="99"
                         />
@@ -48,7 +48,7 @@
                         <img
                             data-showcase-src="{{ config.source_server_url }}/source/{{ item.id }}/showcase.avif"
                             onmouseenter="if(!this.dataset.loaded){this.src=this.dataset.showcaseSrc;this.dataset.loaded='true';}"
-                            class="rounded thumbnail-animated"
+                            class="thumbnail-animated"
                             width="176"
                             height="99"
                             loading="lazy"
