@@ -124,18 +124,11 @@ async fn hx_trending_inner(
             let user_login = user.map(|u| u.login).unwrap_or_default();
             let rows: Vec<TrendingRow> = db
                 .query(
-                    "SELECT id, name, owner, views, type, \
-                     array::len((SELECT id FROM media_likes WHERE media_id = id AND reaction = 'like')) AS like_count \
-                     FROM media AS m \
-                     WHERE visibility = 'public' \
-                     OR (visibility = 'restricted' AND ( \
-                         restricted_to_group IN (SELECT VALUE group_id FROM user_group_members WHERE user_login = $user) \
-                         OR (restricted_to_group = '__all_registered__' AND $user != '') \
-                         OR (restricted_to_group = '__subscribers__' AND $user != '' AND owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $user)) \
-                     )) \
-                     ORDER BY like_count DESC \
-                     LIMIT 31 \
-                     START $offset;"
+                    "SELECT id, name, owner, views, type, likes_count AS like_count \
+                     FROM media \
+                     WHERE fn::visible_to(visibility, restricted_to_group, owner, $user) \
+                     ORDER BY likes_count DESC \
+                     LIMIT 31 START $offset"
                 )
                 .bind(("user", user_login))
                 .bind(("offset", offset))

@@ -335,40 +335,22 @@ async fn studio_edit_save(
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT owner FROM media WHERE id = $id;")
-        .bind(("id", &mediumid))
-        .await
-        .expect("Database error");
-
-    let media_owner: Option<OwnerRecord> = resp.take(0).unwrap_or_default();
-
-    match media_owner {
-        Some(record) => {
-            if record.owner != user_info.login {
-                return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
-            }
-        }
-        None => {
-            return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
-        }
-    }
-
     let description: serde_json::Value =
         serde_json::from_str(&form.medium_description).unwrap_or(serde_json::Value::Null);
 
-    let update_result = db
-        .query("UPDATE media SET name = $name, description = $description WHERE id = $id;")
+    // Ownership check + update in one query: returns nothing if id/owner don't match
+    let mut update_resp = db
+        .query("UPDATE media SET name = $name, description = $description WHERE id = $id AND owner = $owner RETURN id")
         .bind(("name", &form.medium_name))
         .bind(("description", &description))
         .bind(("id", &mediumid))
+        .bind(("owner", &user_info.login))
         .await;
 
-    if update_result.is_err() {
-        return Html(format!(
-            "<b class=\"text-danger\">Failed to save changes.</b><script>setTimeout(function(){{window.location.replace(\"/studio/edit/{}\");}},2000);</script>",
-            mediumid
-        ));
+    let updated: Vec<serde_json::Value> = update_resp.as_mut().ok()
+        .and_then(|r| r.take(0).ok()).unwrap_or_default();
+    if updated.is_empty() {
+        return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
     }
 
     Html(format!(
@@ -389,46 +371,24 @@ async fn hx_delete_video(
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT owner FROM media WHERE id = $id;")
+    // Ownership check + delete in one query; returns nothing if not owner
+    let mut del_resp = db
+        .query("DELETE FROM media WHERE id = $id AND owner = $owner RETURN id")
         .bind(("id", &mediumid))
+        .bind(("owner", &user_info.login))
         .await
         .expect("Database error");
 
-    let media_owner: Option<OwnerRecord> = resp.take(0).unwrap_or_default();
-
-    match media_owner {
-        Some(record) => {
-            if record.owner != user_info.login {
-                return Redirect::to("/studio");
-            }
-        }
-        None => {
-            return Redirect::to("/studio");
-        }
-    }
-
-    // Delete associated comments first
-    let _ = db
-        .query("DELETE FROM comments WHERE media = $media;")
-        .bind(("media", &mediumid))
-        .await;
-
-    // Delete from any lists
-    let _ = db
-        .query("DELETE FROM list_items WHERE media_id = $media_id;")
-        .bind(("media_id", &mediumid))
-        .await;
-
-    // Delete the video from database
-    let delete_result = db
-        .query("DELETE FROM media WHERE id = $id;")
-        .bind(("id", &mediumid))
-        .await;
-
-    if delete_result.is_err() {
+    let deleted: Vec<serde_json::Value> = del_resp.take(0).unwrap_or_default();
+    if deleted.is_empty() {
         return Redirect::to("/studio");
     }
+
+    // Media deleted — clean up related records in a single round-trip
+    let _ = db
+        .query("DELETE FROM comments WHERE media = $id; DELETE FROM list_items WHERE media_id = $id")
+        .bind(("id", &mediumid))
+        .await;
 
     // Delete the source directory
     let source_path = format!("source/{}", mediumid);
@@ -490,16 +450,14 @@ async fn hx_studio_edit_chapters_tab(
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT owner FROM media WHERE id = $id;")
+    // Single WHERE clause confirms ownership without a separate read
+    let mut owns_resp = db
+        .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
         .bind(("id", &mediumid))
+        .bind(("owner", &user_info.login))
         .await
         .expect("Database error");
-
-    let owner_record: Option<OwnerRecord> = resp.take(0).unwrap_or_default();
-    let owner = owner_record.map(|r| r.owner);
-
-    if owner.as_deref() != Some(user_info.login.as_str()) {
+    if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
         return Html(minifi_html("".to_owned()));
     }
 
@@ -519,16 +477,14 @@ async fn hx_studio_edit_subtitles_tab(
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT owner FROM media WHERE id = $id;")
+    // Single WHERE clause confirms ownership without a separate read
+    let mut owns_resp = db
+        .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
         .bind(("id", &mediumid))
+        .bind(("owner", &user_info.login))
         .await
         .expect("Database error");
-
-    let owner_record: Option<OwnerRecord> = resp.take(0).unwrap_or_default();
-    let owner = owner_record.map(|r| r.owner);
-
-    if owner.as_deref() != Some(user_info.login.as_str()) {
+    if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
         return Html(minifi_html("".to_owned()));
     }
 
@@ -548,16 +504,14 @@ async fn hx_studio_edit_thumbnail_tab(
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT owner FROM media WHERE id = $id;")
+    // Single WHERE clause confirms ownership without a separate read
+    let mut owns_resp = db
+        .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
         .bind(("id", &mediumid))
+        .bind(("owner", &user_info.login))
         .await
         .expect("Database error");
-
-    let owner_record: Option<OwnerRecord> = resp.take(0).unwrap_or_default();
-    let owner = owner_record.map(|r| r.owner);
-
-    if owner.as_deref() != Some(user_info.login.as_str()) {
+    if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
         return Html(minifi_html("".to_owned()));
     }
 
@@ -669,25 +623,6 @@ async fn studio_edit_permissions_save(
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }
     let user_info = user_info.unwrap();
-
-    let mut resp = db
-        .query("SELECT owner FROM media WHERE id = $id;")
-        .bind(("id", &mediumid))
-        .await
-        .expect("Database error");
-
-    let media_owner: Option<OwnerRecord> = resp.take(0).unwrap_or_default();
-
-    match media_owner {
-        Some(record) => {
-            if record.owner != user_info.login {
-                return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
-            }
-        }
-        None => {
-            return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
-        }
-    }
 
     let visibility = match form.medium_visibility.as_str() {
         "public" | "hidden" | "restricted" => form.medium_visibility.clone(),

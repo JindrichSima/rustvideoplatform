@@ -92,7 +92,7 @@ async fn hx_studio_groups(
     ];
 
     let mut resp = db
-        .query("SELECT id, name, owner, array::len((SELECT id FROM user_group_members WHERE group_id = $parent.id)) AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
+        .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
         .bind(("owner", &user_info.login))
         .await
         .expect("Database error");
@@ -143,7 +143,7 @@ async fn hx_create_group(
     ];
 
     let mut resp = db
-        .query("SELECT id, name, owner, array::len((SELECT id FROM user_group_members WHERE group_id = $parent.id)) AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
+        .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
         .bind(("owner", &user_info.login))
         .await
         .expect("Database error");
@@ -237,7 +237,7 @@ async fn hx_delete_group(
     ];
 
     let mut resp = db
-        .query("SELECT id, name, owner, array::len((SELECT id FROM user_group_members WHERE group_id = $parent.id)) AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
+        .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
         .bind(("owner", &user_info.login))
         .await
         .expect("Database error");

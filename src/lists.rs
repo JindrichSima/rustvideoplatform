@@ -444,7 +444,7 @@ async fn fetch_list_modal_entries(db: &Db, owner: &str, mediumid: &str) -> Vec<L
     }
 
     let mut resp = db
-        .query("SELECT id, name, array::len((SELECT id FROM list_items WHERE list_id = $parent.id AND media_id = $mid)) > 0 AS already_added FROM lists WHERE owner = $owner ORDER BY created DESC")
+        .query("SELECT id, name, (SELECT count() FROM list_items WHERE list_id = $parent.id AND media_id = $mid GROUP ALL)[0].count > 0 AS already_added FROM lists WHERE owner = $owner ORDER BY created DESC")
         .bind(("owner", owner))
         .bind(("mid", mediumid))
         .await
@@ -695,7 +695,7 @@ async fn hx_user_lists_inner(
     let offset = page * 40;
 
     let mut resp = db
-        .query("SELECT id, name, owner, visibility, restricted_to_group, array::len((SELECT id FROM list_items WHERE list_id = $parent.id)) AS item_count FROM lists WHERE owner = $owner AND (visibility = 'public' OR (visibility = 'restricted' AND (restricted_to_group IN (SELECT VALUE group_id FROM user_group_members WHERE user_login = $viewer) OR (restricted_to_group = '__all_registered__' AND string::len($viewer) > 0) OR (restricted_to_group = '__subscribers__' AND string::len($viewer) > 0 AND owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $viewer))))) ORDER BY created DESC LIMIT 41 START $offset")
+        .query("SELECT id, name, owner, visibility, restricted_to_group, (SELECT count() FROM list_items WHERE list_id = $parent.id GROUP ALL)[0].count AS item_count FROM lists WHERE owner = $owner AND fn::visible_to(visibility, restricted_to_group, owner, $viewer) ORDER BY created DESC LIMIT 41 START $offset")
         .bind(("owner", &userid))
         .bind(("viewer", &user_login))
         .bind(("offset", offset))

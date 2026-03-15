@@ -8,6 +8,26 @@
 --     --ns main --db main \
 --     schema.surql
 
+-- ─── Visibility helper function ──────────────────────────────────────────────
+-- Returns true if a resource is visible to $viewer.
+-- $viewer is the user's login string, or '' for anonymous.
+-- Used in WHERE clauses as: fn::visible_to(visibility, restricted_to_group, owner, $viewer)
+DEFINE FUNCTION fn::visible_to(
+    $visibility: string,
+    $rtg: option<string>,
+    $owner: string,
+    $viewer: string
+) {
+    RETURN $visibility = 'public'
+        OR ($visibility = 'restricted' AND (
+            $rtg IN (SELECT VALUE group_id FROM user_group_members WHERE user_login = $viewer)
+            OR ($rtg = '__all_registered__' AND string::len($viewer) > 0)
+            OR ($rtg = '__subscribers__'
+                AND string::len($viewer) > 0
+                AND $owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $viewer))
+        ));
+} PERMISSIONS FULL;
+
 -- ─── Users ───────────────────────────────────────────────────────────────────
 -- Record ID is the login name: users:alice
 DEFINE TABLE users SCHEMAFULL
@@ -39,9 +59,14 @@ DEFINE FIELD restricted_to_group  ON TABLE media TYPE option<string>;
 DEFINE FIELD views                ON TABLE media TYPE int     DEFAULT 0;
 DEFINE FIELD upload               ON TABLE media TYPE int     DEFAULT time::unix(time::now());
 DEFINE FIELD public               ON TABLE media TYPE bool    DEFAULT false;
+-- Denormalized reaction counts kept in sync by the media_likes_changed event below.
+-- Always prefer reading these fields over counting media_likes rows at query time.
+DEFINE FIELD likes_count          ON TABLE media TYPE int     DEFAULT 0;
+DEFINE FIELD dislikes_count       ON TABLE media TYPE int     DEFAULT 0;
 
-DEFINE INDEX media_owner_idx   ON TABLE media FIELDS owner;
-DEFINE INDEX media_upload_idx  ON TABLE media FIELDS upload;
+DEFINE INDEX media_owner_idx      ON TABLE media FIELDS owner;
+DEFINE INDEX media_upload_idx     ON TABLE media FIELDS upload;
+DEFINE INDEX media_likes_idx      ON TABLE media FIELDS likes_count;
 
 -- ─── Media Likes / Dislikes ──────────────────────────────────────────────────
 -- UPSERT media_likes SET media_id=$mid, user_login=$user, reaction='like'
@@ -56,6 +81,17 @@ DEFINE FIELD reaction    ON TABLE media_likes TYPE string;
 
 DEFINE INDEX media_likes_media_user ON TABLE media_likes FIELDS media_id, user_login UNIQUE;
 DEFINE INDEX media_likes_media_idx  ON TABLE media_likes FIELDS media_id;
+
+-- Keep likes_count / dislikes_count on the parent media record up to date
+-- whenever a reaction is inserted, updated, or deleted.
+DEFINE EVENT media_likes_changed ON TABLE media_likes
+  WHEN $event = "CREATE" OR $event = "UPDATE" OR $event = "DELETE"
+  THEN {
+    LET $mid = IF $event = "DELETE" THEN $before.media_id ELSE $after.media_id END;
+    UPDATE type::thing('media', $mid) SET
+      likes_count    = array::len((SELECT id FROM media_likes WHERE media_id = $mid AND reaction = 'like')),
+      dislikes_count = array::len((SELECT id FROM media_likes WHERE media_id = $mid AND reaction = 'dislike'));
+  };
 
 -- ─── Comments ────────────────────────────────────────────────────────────────
 DEFINE TABLE comments SCHEMAFULL

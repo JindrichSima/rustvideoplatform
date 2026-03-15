@@ -73,11 +73,7 @@ async fn hx_subscriptions_inner(
         .query(
             "SELECT id, name, owner, views, type FROM media \
              WHERE owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $user) \
-             AND (visibility = 'public' OR (visibility = 'restricted' AND ( \
-               restricted_to_group IN (SELECT VALUE group_id FROM user_group_members WHERE user_login = $user) \
-               OR restricted_to_group = '__all_registered__' \
-               OR (restricted_to_group = '__subscribers__' AND owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $user)) \
-             ))) \
+             AND fn::visible_to(visibility, restricted_to_group, owner, $user) \
              ORDER BY upload DESC LIMIT $limit START $offset"
         )
         .bind(("user", &user.login))

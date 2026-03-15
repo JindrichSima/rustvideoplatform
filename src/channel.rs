@@ -114,18 +114,10 @@ async fn hx_usermedia_inner(
 
     let mut response = db
         .query(
-            "SELECT id, name, owner, views, type FROM media
-WHERE owner = $owner
-AND (
-    visibility = 'public'
-    OR (visibility = 'restricted' AND (
-        restricted_to_group IN (SELECT VALUE group_id FROM user_group_members WHERE user_login = $user)
-        OR (restricted_to_group = '__all_registered__' AND $user != '')
-        OR (restricted_to_group = '__subscribers__' AND $user != '' AND owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $user))
-    ))
-)
-ORDER BY upload DESC
-LIMIT $lim START $offset;",
+            "SELECT id, name, owner, views, type FROM media \
+             WHERE owner = $owner \
+             AND fn::visible_to(visibility, restricted_to_group, owner, $user) \
+             ORDER BY upload DESC LIMIT $lim START $offset",
         )
         .bind(("owner", &userid))
         .bind(("user", &user_login))
