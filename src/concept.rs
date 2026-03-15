@@ -53,7 +53,7 @@ async fn hx_concepts(
 
     let mut response = db
         .query("SELECT id, name, processed, type FROM media_concepts WHERE owner = $owner;")
-        .bind(("owner", &userinfo.login))
+        .bind(("owner", userinfo.login.clone()))
         .await
         .expect("Database error");
 
@@ -101,7 +101,7 @@ async fn concept(
         .query(
             "SELECT id, name, type, processed FROM media_concepts WHERE owner = $owner AND id = $id AND processed = true;",
         )
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .bind(("id", surrealdb::RecordId::from_table_key("media_concepts", &conceptid)))
         .await
         .expect("Database error");
@@ -127,7 +127,7 @@ async fn concept(
 
     let mut grp_response = db
         .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .await
         .unwrap_or_else(|_| panic!("Database error"));
 
@@ -180,7 +180,7 @@ async fn publish(
         .query(
             "SELECT id, name, type, processed FROM media_concepts WHERE owner = $owner AND id = $id AND processed = true;",
         )
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .bind(("id", surrealdb::RecordId::from_table_key("media_concepts", &conceptid)))
         .await
         .expect("Database error");
@@ -228,13 +228,13 @@ async fn publish(
     upload = time::unix(time::now());",
             )
             .bind(("id", media_record_id))
-            .bind(("name", &form.medium_name))
-            .bind(("description", &description))
-            .bind(("owner", &user_info.login))
+            .bind(("name", form.medium_name.clone()))
+            .bind(("description", description.clone()))
+            .bind(("owner", user_info.login.clone()))
             .bind(("public", ispublic))
-            .bind(("visibility", &visibility))
-            .bind(("restricted_to_group", &restricted_to_group))
-            .bind(("type", &concept.r#type))
+            .bind(("visibility", visibility.clone()))
+            .bind(("restricted_to_group", restricted_to_group.clone()))
+            .bind(("type", concept.r#type.clone()))
             .await;
 
         let concept_record_id =

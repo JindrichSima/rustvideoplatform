@@ -166,13 +166,13 @@ async fn hx_settings_channel_name_save(
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
     let user_info = user_info.unwrap();
-    let new_name = form.channel_name.trim();
+    let new_name = form.channel_name.trim().to_owned();
     if new_name.is_empty() || new_name.len() > 100 {
         return Html(minifi_html("<b class=\"text-danger\">Channel name must be between 1 and 100 characters.</b>".to_owned()));
     }
     let result = db
         .query("UPDATE users SET name = $name WHERE id = $id")
-        .bind(("name", new_name))
+        .bind(("name", new_name.clone()))
         .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {
@@ -253,7 +253,7 @@ async fn hx_settings_password_save(
 
     let result = db
         .query("UPDATE users SET password_hash = $hash WHERE id = $id")
-        .bind(("hash", &new_hash_string))
+        .bind(("hash", new_hash_string.clone()))
         .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {
@@ -300,7 +300,7 @@ async fn hx_settings_profile_picture(
 
     let mut _media_resp = db
         .query("SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media: Vec<PictureMedium> = _media_resp.take(0).unwrap_or_default();
@@ -329,7 +329,7 @@ async fn hx_settings_profile_picture_save(
     #[derive(serde::Deserialize)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
     let mut _mver_resp = db
         .query("SELECT owner, visibility, type FROM media WHERE id = $id")
-        .bind(("id", &form.medium_id))
+        .bind(("id", form.medium_id.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let _medium_ver: Option<MediaVerRow> = _mver_resp.take(0).unwrap_or(None);
@@ -349,14 +349,14 @@ async fn hx_settings_profile_picture_save(
                 return Html(minifi_html("<b class=\"text-danger\">Media must be public or hidden.</b>".to_owned()));
             }
         }
-        Err(_) => {
+        None => {
             return Html(minifi_html("<b class=\"text-danger\">Medium not found.</b>".to_owned()));
         }
     }
 
     let result = db
         .query("UPDATE users SET profile_picture = $pic WHERE id = $id")
-        .bind(("pic", &form.medium_id))
+        .bind(("pic", form.medium_id.clone()))
         .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {
@@ -397,7 +397,7 @@ async fn hx_settings_channel_picture(
 
     let mut _media_resp = db
         .query("SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media: Vec<PictureMedium> = _media_resp.take(0).unwrap_or_default();
@@ -422,7 +422,7 @@ async fn hx_settings_channel_picture_save(
     #[derive(serde::Deserialize)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
     let mut _mver_resp = db
         .query("SELECT owner, visibility, type FROM media WHERE id = $id")
-        .bind(("id", &form.medium_id))
+        .bind(("id", form.medium_id.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let _medium_ver: Option<MediaVerRow> = _mver_resp.take(0).unwrap_or(None);
@@ -442,14 +442,14 @@ async fn hx_settings_channel_picture_save(
                 return Html(minifi_html("<b class=\"text-danger\">Media must be public or hidden.</b>".to_owned()));
             }
         }
-        Err(_) => {
+        None => {
             return Html(minifi_html("<b class=\"text-danger\">Medium not found.</b>".to_owned()));
         }
     }
 
     let result = db
         .query("UPDATE users SET channel_picture = $pic WHERE id = $id")
-        .bind(("pic", &form.medium_id))
+        .bind(("pic", form.medium_id.clone()))
         .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {

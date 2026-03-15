@@ -42,8 +42,8 @@ async fn channel(
 FROM users
 WHERE login = $id;",
         )
-        .bind(("id", &userid))
-        .bind(("owner", &userid))
+        .bind(("id", userid.clone()))
+        .bind(("owner", userid.clone()))
         .await
         .expect("Database error");
 
@@ -119,8 +119,8 @@ async fn hx_usermedia_inner(
              AND fn::visible_to(visibility, restricted_to_group, owner, $user) \
              ORDER BY upload DESC LIMIT $lim START $offset",
         )
-        .bind(("owner", &userid))
-        .bind(("user", &user_login))
+        .bind(("owner", userid.clone()))
+        .bind(("user", user_login.clone()))
         .bind(("lim", limit))
         .bind(("offset", offset))
         .await

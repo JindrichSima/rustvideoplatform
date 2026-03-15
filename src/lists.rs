@@ -78,7 +78,7 @@ async fn list_page(
 ) -> axum::response::Html<Vec<u8>> {
     let mut resp = db
         .query("SELECT id, name, owner, visibility, restricted_to_group FROM lists WHERE id = $id")
-        .bind(("id", &listid))
+        .bind(("id", listid.clone()))
         .await
         .expect("Database error");
 
@@ -142,7 +142,7 @@ async fn medium_in_list(
 ) -> axum::response::Html<Vec<u8>> {
     let mut resp = db
         .query("SELECT id, visibility, restricted_to_group, owner, name FROM lists WHERE id = $id")
-        .bind(("id", &listid))
+        .bind(("id", listid.clone()))
         .await
         .expect("Database error");
 
@@ -335,7 +335,7 @@ async fn hx_list_items_inner(
 
     let mut resp = db
         .query("SELECT media_id.id AS id, media_id.name AS name, media_id.owner AS owner, media_id.views AS views, media_id.type AS type FROM list_items WHERE list_id = $lid ORDER BY position ASC LIMIT 41 START $offset")
-        .bind(("lid", &listid))
+        .bind(("lid", listid.clone()))
         .bind(("offset", offset))
         .await
         .expect("Database error");
@@ -387,7 +387,7 @@ async fn hx_list_sidebar(
 
     let mut resp = db
         .query("SELECT media_id.id AS id, media_id.name AS name, media_id.owner AS owner, media_id.views AS views, media_id.type AS type FROM list_items WHERE list_id = $lid ORDER BY position ASC")
-        .bind(("lid", &listid))
+        .bind(("lid", listid.clone()))
         .await
         .expect("Database error");
 
@@ -445,8 +445,8 @@ async fn fetch_list_modal_entries(db: &Db, owner: &str, mediumid: &str) -> Vec<L
 
     let mut resp = db
         .query("SELECT id, name, (SELECT count() FROM list_items WHERE list_id = $parent.id AND media_id = $mid GROUP ALL)[0].count > 0 AS already_added FROM lists WHERE owner = $owner ORDER BY created DESC")
-        .bind(("owner", owner))
-        .bind(("mid", mediumid))
+        .bind(("owner", owner.to_string()))
+        .bind(("mid", mediumid.to_string()))
         .await
         .expect("Database error");
 
@@ -463,7 +463,7 @@ async fn fetch_owner_groups(db: &Db, owner: &str) -> Vec<UserGroup> {
 
     let mut resp = db
         .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC")
-        .bind(("owner", owner))
+        .bind(("owner", owner.to_string()))
         .await
         .expect("Database error");
 
@@ -500,19 +500,19 @@ async fn hx_create_list(
 
     let _ = db
         .query("CREATE type::thing('lists', $lid) SET name = $name, owner = $owner, public = $public, visibility = $visibility, restricted_to_group = $rtg, created = time::unix(time::now())")
-        .bind(("lid", &list_id))
-        .bind(("name", &form.name))
-        .bind(("owner", &user_info.login))
+        .bind(("lid", list_id.clone()))
+        .bind(("name", form.name.clone()))
+        .bind(("owner", user_info.login.clone()))
         .bind(("public", is_public))
-        .bind(("visibility", visibility))
-        .bind(("rtg", &restricted_to_group))
+        .bind(("visibility", visibility.to_string()))
+        .bind(("rtg", restricted_to_group.clone()))
         .await
         .expect("Database error");
 
     let _ = db
         .query("CREATE list_items SET list_id = $lid, media_id = $mid, position = 0")
-        .bind(("lid", &list_id))
-        .bind(("mid", &mediumid))
+        .bind(("lid", list_id.clone()))
+        .bind(("mid", mediumid.clone()))
         .await
         .expect("Database error");
 
@@ -541,7 +541,7 @@ async fn hx_add_to_list(
 
     let mut owner_resp = db
         .query("SELECT owner FROM lists WHERE id = $id")
-        .bind(("id", &listid))
+        .bind(("id", listid.clone()))
         .await
         .expect("Database error");
 
@@ -556,7 +556,7 @@ async fn hx_add_to_list(
     // Get max position
     let mut pos_resp = db
         .query("SELECT VALUE math::max(position) FROM list_items WHERE list_id = $lid")
-        .bind(("lid", &listid))
+        .bind(("lid", listid.clone()))
         .await
         .expect("Database error");
 
@@ -565,8 +565,8 @@ async fn hx_add_to_list(
 
     let _ = db
         .query("CREATE list_items SET list_id = $lid, media_id = $mid, position = $pos")
-        .bind(("lid", &listid))
-        .bind(("mid", &mediumid))
+        .bind(("lid", listid.clone()))
+        .bind(("mid", mediumid.clone()))
         .bind(("pos", next_pos))
         .await
         .expect("Database error");
@@ -596,7 +596,7 @@ async fn hx_remove_from_list(
 
     let mut owner_resp = db
         .query("SELECT owner FROM lists WHERE id = $id")
-        .bind(("id", &listid))
+        .bind(("id", listid.clone()))
         .await
         .expect("Database error");
 
@@ -610,8 +610,8 @@ async fn hx_remove_from_list(
 
     let _ = db
         .query("DELETE FROM list_items WHERE list_id = $lid AND media_id = $mid")
-        .bind(("lid", &listid))
-        .bind(("mid", &mediumid))
+        .bind(("lid", listid.clone()))
+        .bind(("mid", mediumid.clone()))
         .await
         .expect("Database error");
 
@@ -640,7 +640,7 @@ async fn hx_delete_list(
 
     let mut owner_resp = db
         .query("SELECT owner FROM lists WHERE id = $id")
-        .bind(("id", &listid))
+        .bind(("id", listid.clone()))
         .await
         .expect("Database error");
 
@@ -654,12 +654,12 @@ async fn hx_delete_list(
 
     let _ = db
         .query("DELETE FROM list_items WHERE list_id = $lid")
-        .bind(("lid", &listid))
+        .bind(("lid", listid.clone()))
         .await;
 
     let _ = db
         .query("DELETE FROM lists WHERE id = $id")
-        .bind(("id", &listid))
+        .bind(("id", listid.clone()))
         .await;
 
     Html("<b class=\"text-success\">LIST DELETED</b><script>window.location.replace(\"/\");</script>".to_owned())
@@ -696,8 +696,8 @@ async fn hx_user_lists_inner(
 
     let mut resp = db
         .query("SELECT id, name, owner, visibility, restricted_to_group, (SELECT count() FROM list_items WHERE list_id = $parent.id GROUP ALL)[0].count AS item_count FROM lists WHERE owner = $owner AND fn::visible_to(visibility, restricted_to_group, owner, $viewer) ORDER BY created DESC LIMIT 41 START $offset")
-        .bind(("owner", &userid))
-        .bind(("viewer", &user_login))
+        .bind(("owner", userid.clone()))
+        .bind(("viewer", user_login.clone()))
         .bind(("offset", offset))
         .await
         .expect("Database error");

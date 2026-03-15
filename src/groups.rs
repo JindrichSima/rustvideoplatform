@@ -93,7 +93,7 @@ async fn hx_studio_groups(
 
     let mut resp = db
         .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
 
@@ -120,9 +120,9 @@ async fn hx_create_group(
     let group_id = generate_medium_id();
 
     db.query("CREATE user_groups:[$id] SET name = $name, owner = $owner, created = time::unix(time::now());")
-        .bind(("id", &group_id))
-        .bind(("name", &form.name))
-        .bind(("owner", &user_info.login))
+        .bind(("id", group_id.clone()))
+        .bind(("name", form.name.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
 
@@ -144,7 +144,7 @@ async fn hx_create_group(
 
     let mut resp = db
         .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
 
@@ -181,7 +181,7 @@ async fn hx_delete_group(
 
     let mut resp = db
         .query("SELECT owner FROM user_groups WHERE id = $id;")
-        .bind(("id", &groupid))
+        .bind(("id", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -197,23 +197,23 @@ async fn hx_delete_group(
 
     // Clear group references from media and lists
     db.query("UPDATE media SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid;")
-        .bind(("gid", &groupid))
+        .bind(("gid", groupid.clone()))
         .await
         .expect("Database error");
 
     db.query("UPDATE lists SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid;")
-        .bind(("gid", &groupid))
+        .bind(("gid", groupid.clone()))
         .await
         .expect("Database error");
 
     // Delete members and group
     db.query("DELETE FROM user_group_members WHERE group_id = $gid;")
-        .bind(("gid", &groupid))
+        .bind(("gid", groupid.clone()))
         .await
         .expect("Database error");
 
     db.query("DELETE FROM user_groups WHERE id = $id;")
-        .bind(("id", &groupid))
+        .bind(("id", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -238,7 +238,7 @@ async fn hx_delete_group(
 
     let mut resp = db
         .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
 
@@ -287,7 +287,7 @@ async fn hx_group_members(
 
     let mut resp = db
         .query("SELECT id, name, owner FROM user_groups WHERE id = $id;")
-        .bind(("id", &groupid))
+        .bind(("id", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -302,7 +302,7 @@ async fn hx_group_members(
 
     let mut members_resp = db
         .query("SELECT user_login FROM user_group_members WHERE group_id = $gid ORDER BY user_login;")
-        .bind(("gid", &groupid))
+        .bind(("gid", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -337,7 +337,7 @@ async fn hx_add_group_member(
     // Verify group ownership
     let mut resp = db
         .query("SELECT id, name, owner FROM user_groups WHERE id = $id;")
-        .bind(("id", &groupid))
+        .bind(("id", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -360,7 +360,7 @@ async fn hx_add_group_member(
 
     let mut user_resp = db
         .query("SELECT login FROM users WHERE login = $login;")
-        .bind(("login", &form.user_login))
+        .bind(("login", form.user_login.clone()))
         .await
         .expect("Database error");
 
@@ -370,8 +370,8 @@ async fn hx_add_group_member(
         // Upsert member (ignore if already exists)
         let _ = db
             .query("UPSERT user_group_members:[$gid, $user] SET group_id = $gid, user_login = $user;")
-            .bind(("gid", &groupid))
-            .bind(("user", &form.user_login))
+            .bind(("gid", groupid.clone()))
+            .bind(("user", form.user_login.clone()))
             .await;
 
         // Invalidate Redis group membership cache
@@ -381,7 +381,7 @@ async fn hx_add_group_member(
     // Return updated members list
     let mut members_resp = db
         .query("SELECT user_login FROM user_group_members WHERE group_id = $gid ORDER BY user_login;")
-        .bind(("gid", &groupid))
+        .bind(("gid", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -415,7 +415,7 @@ async fn hx_remove_group_member(
     // Verify group ownership
     let mut resp = db
         .query("SELECT id, name, owner FROM user_groups WHERE id = $id;")
-        .bind(("id", &groupid))
+        .bind(("id", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -431,8 +431,8 @@ async fn hx_remove_group_member(
     }
 
     db.query("DELETE FROM user_group_members WHERE group_id = $gid AND user_login = $user;")
-        .bind(("gid", &groupid))
-        .bind(("user", &login))
+        .bind(("gid", groupid.clone()))
+        .bind(("user", login.clone()))
         .await
         .expect("Database error");
 
@@ -442,7 +442,7 @@ async fn hx_remove_group_member(
     // Return updated members list
     let mut members_resp = db
         .query("SELECT user_login FROM user_group_members WHERE group_id = $gid ORDER BY user_login;")
-        .bind(("gid", &groupid))
+        .bind(("gid", groupid.clone()))
         .await
         .expect("Database error");
 
@@ -471,7 +471,7 @@ async fn hx_user_groups_json(
 
     let mut resp = db
         .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
 

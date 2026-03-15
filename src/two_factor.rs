@@ -43,7 +43,7 @@ async fn load_passkeys(db: &Db, login: &str) -> Vec<(String, Passkey)> {
     struct PasskeyRow { id: surrealdb::RecordId, passkey: serde_json::Value }
     let mut resp = db
         .query("SELECT id, passkey FROM webauthn_credentials WHERE user_login = $user")
-        .bind(("user", login))
+        .bind(("user", login.to_string()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let rows: Vec<PasskeyRow> = resp.take(0).unwrap_or_default();
@@ -289,7 +289,7 @@ async fn hx_settings_2fa_totp_verify_setup(
 
     let result = db
         .query("UPDATE users SET totp_secret = $secret, totp_enabled = true WHERE id = $id")
-        .bind(("secret", &secret_base32))
+        .bind(("secret", secret_base32.clone()))
         .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
 
@@ -391,7 +391,7 @@ async fn hx_settings_2fa(
     struct WebauthnCredRow { id: String, credential_name: String, created: i64 }
     let mut _wc_resp = db
         .query("SELECT id, credential_name, created FROM webauthn_credentials WHERE user_login = $user ORDER BY created ASC")
-        .bind(("user", &user_info.login))
+        .bind(("user", user_info.login.clone()))
         .await
         .expect("db error");
     let webauthn_creds: Vec<WebauthnCredInfo> = _wc_resp
@@ -577,10 +577,10 @@ async fn hx_webauthn_register_finish(
     let passkey_json = serde_json::to_value(&passkey).unwrap_or_default();
     let result = db
         .query("CREATE type::thing('webauthn_credentials', $id) SET user_login = $user, credential_name = $cname, passkey = $passkey, created = time::unix(time::now())")
-        .bind(("id", &record_id))
-        .bind(("user", &user_info.login))
-        .bind(("cname", &cred_name))
-        .bind(("passkey", &passkey_json))
+        .bind(("id", record_id.clone()))
+        .bind(("user", user_info.login.clone()))
+        .bind(("cname", cred_name.clone()))
+        .bind(("passkey", passkey_json.clone()))
         .await;
 
     let _: () = redis
@@ -614,8 +614,8 @@ async fn hx_settings_2fa_webauthn_delete(
 
     let mut _del_resp = db
         .query("DELETE FROM webauthn_credentials WHERE id = $cid AND user_login = $user RETURN id")
-        .bind(("cid", &cred_id))
-        .bind(("user", &user_info.login))
+        .bind(("cid", cred_id.clone()))
+        .bind(("user", user_info.login.clone()))
         .await
         .expect("db error");
     let deleted: Vec<serde_json::Value> = _del_resp.take(0).unwrap_or_default();
@@ -754,8 +754,8 @@ async fn hx_webauthn_auth_finish(
             let passkey_json = serde_json::to_value(&pk).unwrap_or_default();
             let _ = db
                 .query("UPDATE webauthn_credentials SET passkey = $passkey WHERE id = $id")
-                .bind(("passkey", &passkey_json))
-                .bind(("id", &record_id))
+                .bind(("passkey", passkey_json.clone()))
+                .bind(("id", record_id.clone()))
                 .await;
         }
     }

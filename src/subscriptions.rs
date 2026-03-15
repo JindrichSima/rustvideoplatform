@@ -76,7 +76,7 @@ async fn hx_subscriptions_inner(
              AND fn::visible_to(visibility, restricted_to_group, owner, $user) \
              ORDER BY upload DESC LIMIT $limit START $offset"
         )
-        .bind(("user", &user.login))
+        .bind(("user", user.login.clone()))
         .bind(("limit", 31i64))
         .bind(("offset", offset))
         .await
@@ -122,8 +122,8 @@ async fn hx_subscribe(
     db.query(
         "UPSERT subscriptions:[$subscriber, $target] SET subscriber = $subscriber, target = $target"
     )
-    .bind(("subscriber", &user.login))
-    .bind(("target", &userid))
+    .bind(("subscriber", user.login.clone()))
+    .bind(("target", userid.clone()))
     .await
     .expect("Database error");
     Html(format!("<a hx-get=\"/hx/unsubscribe/{}\" hx-swap=\"outerHTML\" class=\"btn btn-secondary\"><i class=\"fa-solid fa-user-minus\"></i>&nbsp;Unsubscribe</a>", userid))
@@ -139,8 +139,8 @@ async fn hx_unsubscribe(
     db.query(
         "DELETE subscriptions WHERE subscriber = $subscriber AND target = $target"
     )
-    .bind(("subscriber", &user.login))
-    .bind(("target", &userid))
+    .bind(("subscriber", user.login.clone()))
+    .bind(("target", userid.clone()))
     .await
     .expect("Database error");
     Html(format!("<a hx-get=\"/hx/subscribe/{}\" hx-swap=\"outerHTML\" class=\"btn btn-primary\"><i class=\"fa-solid fa-user-plus\"></i>&nbsp;Subscribe</a>", userid))

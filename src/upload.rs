@@ -109,7 +109,7 @@ async fn hx_upload(
             "CREATE $id SET name = $name, owner = $owner, type = $type, processed = false;",
         )
         .bind(("id", concept_id))
-        .bind(("name", &file_name))
+        .bind(("name", file_name.clone()))
         .bind(("owner", user_info.clone().unwrap().login))
         .bind(("type", detect_medium_type_mime(file_type)))
         .await

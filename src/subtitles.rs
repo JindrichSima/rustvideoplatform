@@ -42,7 +42,7 @@ async fn studio_subtitles_get(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
@@ -101,7 +101,7 @@ async fn studio_subtitles_add(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
@@ -271,7 +271,7 @@ async fn studio_subtitle_font_get(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
@@ -306,7 +306,7 @@ async fn studio_subtitle_font_upload(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
@@ -452,7 +452,7 @@ async fn studio_subtitle_font_delete(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
@@ -501,7 +501,7 @@ async fn studio_subtitles_translate_status(
     struct OwnerRow2 { owner: String }
     let mut _owner_resp2 = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner2: Option<OwnerRow2> = _owner_resp2.take(0).unwrap_or(None);
@@ -515,7 +515,7 @@ async fn studio_subtitles_translate_status(
     struct ProcessedRow { processed: bool }
     let mut _proc_resp = db
         .query("SELECT processed FROM media_concepts WHERE id = $id")
-        .bind(("id", &concept_id))
+        .bind(("id", concept_id.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let proc_result: Option<ProcessedRow> = _proc_resp.take(0).unwrap_or(None);
@@ -551,7 +551,7 @@ async fn studio_subtitles_translate(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
@@ -628,15 +628,15 @@ async fn studio_subtitles_translate(
     // Upsert concept: delete any existing translation job for this medium, then insert new one
     let _ = db
         .query("DELETE FROM media_concepts WHERE id = $id")
-        .bind(("id", &concept_id))
+        .bind(("id", concept_id.clone()))
         .await;
 
     let concept_name = format!("Translate {} -> {}", source_label, target_language);
     if let Err(_) = db
         .query("UPSERT type::thing('media_concepts', $id) SET name = $name, owner = $owner, type = 'vtt_translate', processed = false")
-        .bind(("id", &concept_id))
-        .bind(("name", &concept_name))
-        .bind(("owner", &user_info.login))
+        .bind(("id", concept_id.clone()))
+        .bind(("name", concept_name.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await
     {
         return Response::builder()
@@ -678,7 +678,7 @@ async fn studio_subtitles_delete(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);

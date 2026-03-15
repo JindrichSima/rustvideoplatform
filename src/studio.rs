@@ -83,7 +83,7 @@ async fn hx_studio_inner(
 
     let mut resp = db
         .query("SELECT id, name, description, views, type FROM media WHERE owner = $owner ORDER BY upload DESC LIMIT 41 START $offset;")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .bind(("offset", offset))
         .await
         .expect("Database error");
@@ -166,7 +166,7 @@ async fn hx_studio_lists_inner(
 
     let mut resp = db
         .query("SELECT id, name, owner, visibility, restricted_to_group, array::len((SELECT id FROM list_items WHERE list_id = $parent.id)) AS item_count FROM lists WHERE owner = $owner ORDER BY created DESC LIMIT 41 START $offset;")
-        .bind(("owner", &user_info.login))
+        .bind(("owner", user_info.login.clone()))
         .bind(("offset", offset))
         .await
         .expect("Database error");
@@ -268,7 +268,7 @@ async fn studio_edit(
 
     let mut resp = db
         .query("SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id;")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .expect("Database error");
 
@@ -341,10 +341,10 @@ async fn studio_edit_save(
     // Ownership check + update in one query: returns nothing if id/owner don't match
     let mut update_resp = db
         .query("UPDATE media SET name = $name, description = $description WHERE id = $id AND owner = $owner RETURN id")
-        .bind(("name", &form.medium_name))
-        .bind(("description", &description))
-        .bind(("id", &mediumid))
-        .bind(("owner", &user_info.login))
+        .bind(("name", form.medium_name.clone()))
+        .bind(("description", description.clone()))
+        .bind(("id", mediumid.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await;
 
     let updated: Vec<serde_json::Value> = update_resp.as_mut().ok()
@@ -374,8 +374,8 @@ async fn hx_delete_video(
     // Ownership check + delete in one query; returns nothing if not owner
     let mut del_resp = db
         .query("DELETE FROM media WHERE id = $id AND owner = $owner RETURN id")
-        .bind(("id", &mediumid))
-        .bind(("owner", &user_info.login))
+        .bind(("id", mediumid.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
 
@@ -387,7 +387,7 @@ async fn hx_delete_video(
     // Media deleted — clean up related records in a single round-trip
     let _ = db
         .query("DELETE FROM comments WHERE media = $id; DELETE FROM list_items WHERE media_id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await;
 
     // Delete the source directory
@@ -411,7 +411,7 @@ async fn hx_studio_edit_description(
 
     let mut resp = db
         .query("SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id;")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .expect("Database error");
 
@@ -453,8 +453,8 @@ async fn hx_studio_edit_chapters_tab(
     // Single WHERE clause confirms ownership without a separate read
     let mut owns_resp = db
         .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
-        .bind(("id", &mediumid))
-        .bind(("owner", &user_info.login))
+        .bind(("id", mediumid.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
     if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
@@ -480,8 +480,8 @@ async fn hx_studio_edit_subtitles_tab(
     // Single WHERE clause confirms ownership without a separate read
     let mut owns_resp = db
         .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
-        .bind(("id", &mediumid))
-        .bind(("owner", &user_info.login))
+        .bind(("id", mediumid.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
     if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
@@ -507,8 +507,8 @@ async fn hx_studio_edit_thumbnail_tab(
     // Single WHERE clause confirms ownership without a separate read
     let mut owns_resp = db
         .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
-        .bind(("id", &mediumid))
-        .bind(("owner", &user_info.login))
+        .bind(("id", mediumid.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
     if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
@@ -539,7 +539,7 @@ async fn hx_studio_edit_danger_tab(
 
     let mut resp = db
         .query("SELECT owner, name FROM media WHERE id = $id;")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .expect("Database error");
 
@@ -572,7 +572,7 @@ async fn hx_studio_edit_permissions_tab(
 
     let mut resp = db
         .query("SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id;")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .expect("Database error");
 
@@ -588,7 +588,7 @@ async fn hx_studio_edit_permissions_tab(
 
             let mut groups_resp = db
                 .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-                .bind(("owner", &user_info.login))
+                .bind(("owner", user_info.login.clone()))
                 .await
                 .expect("Database error");
 
@@ -638,9 +638,9 @@ async fn studio_edit_permissions_save(
     let update_result = db
         .query("UPDATE media SET public = $public, visibility = $visibility, restricted_to_group = $restricted_to_group WHERE id = $id;")
         .bind(("public", ispublic))
-        .bind(("visibility", &visibility))
-        .bind(("restricted_to_group", &restricted_to_group))
-        .bind(("id", &mediumid))
+        .bind(("visibility", visibility.clone()))
+        .bind(("restricted_to_group", restricted_to_group.clone()))
+        .bind(("id", mediumid.clone()))
         .await;
 
     if update_result.is_err() {

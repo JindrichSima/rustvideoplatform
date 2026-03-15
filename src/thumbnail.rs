@@ -49,7 +49,7 @@ async fn studio_thumbnail_upload(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
@@ -219,7 +219,7 @@ async fn studio_thumbnail_delete(
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", &mediumid))
+        .bind(("id", mediumid.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
