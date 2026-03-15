@@ -88,7 +88,7 @@ DEFINE EVENT media_likes_changed ON TABLE media_likes
   WHEN $event = "CREATE" OR $event = "UPDATE" OR $event = "DELETE"
   THEN {
     LET $mid = IF $event = "DELETE" THEN $before.media_id ELSE $after.media_id END;
-    UPDATE type::thing('media', $mid) SET
+    UPDATE type::record('media', $mid) SET
       likes_count    = array::len((SELECT id FROM media_likes WHERE media_id = $mid AND reaction = 'like')),
       dislikes_count = array::len((SELECT id FROM media_likes WHERE media_id = $mid AND reaction = 'dislike'));
   };
