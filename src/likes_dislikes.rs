@@ -31,7 +31,7 @@ async fn get_reaction_state_db(db: &Db, mediumid: &str, user_login: Option<&str>
              FROM media WHERE id = $mid"
         )
         .bind(("mid", surrealdb::RecordId::from_table_key("media", mediumid)))
-        .bind(("user", user))
+        .bind(("user", user.to_string()))
         .await
         .expect("Database error");
 
@@ -56,8 +56,8 @@ async fn get_reaction_state_cached(db: &Db, mediumid: &str, user_login: Option<&
             #[derive(Deserialize)] struct ReactionRow { reaction: String }
             let mut resp = db
                 .query("SELECT reaction FROM media_likes WHERE media_id = $mid AND user_login = $user LIMIT 1")
-                .bind(("mid", mediumid))
-                .bind(("user", user))
+                .bind(("mid", mediumid.to_string()))
+                .bind(("user", user.to_string()))
                 .await
                 .unwrap_or_else(|_| unreachable!());
             let rows: Vec<ReactionRow> = resp.take(0).unwrap_or_default();
@@ -73,7 +73,7 @@ async fn get_reaction_state_cached(db: &Db, mediumid: &str, user_login: Option<&
                  FROM media WHERE id = $mid"
             )
             .bind(("mid", surrealdb::RecordId::from_table_key("media", mediumid)))
-            .bind(("user", user))
+            .bind(("user", user.to_string()))
             .await
             .expect("Database error");
         let rows: Vec<ReactionStateRow> = resp.take(0).unwrap_or_default();
@@ -114,8 +114,8 @@ async fn hx_like(
         if current_reaction.as_deref() == Some("like") {
             // Toggle off — delete the like
             db.query("DELETE media_likes WHERE media_id = $mid AND user_login = $user")
-                .bind(("mid", &mediumid))
-                .bind(("user", &user.login))
+                .bind(("mid", mediumid.clone()))
+                .bind(("user", user.login.clone()))
                 .await
                 .expect("Database error");
         } else {
@@ -124,8 +124,8 @@ async fn hx_like(
             db.query(
                 "UPSERT media_likes SET media_id = $mid, user_login = $user, reaction = 'like'"
             )
-            .bind(("mid", &mediumid))
-            .bind(("user", &user.login))
+            .bind(("mid", mediumid.clone()))
+            .bind(("user", user.login.clone()))
             .await
             .expect("Database error");
         }
@@ -151,16 +151,16 @@ async fn hx_dislike(
 
         if current_reaction.as_deref() == Some("dislike") {
             db.query("DELETE media_likes WHERE media_id = $mid AND user_login = $user")
-                .bind(("mid", &mediumid))
-                .bind(("user", &user.login))
+                .bind(("mid", mediumid.clone()))
+                .bind(("user", user.login.clone()))
                 .await
                 .expect("Database error");
         } else {
             db.query(
                 "UPSERT media_likes SET media_id = $mid, user_login = $user, reaction = 'dislike'"
             )
-            .bind(("mid", &mediumid))
-            .bind(("user", &user.login))
+            .bind(("mid", mediumid.clone()))
+            .bind(("user", user.login.clone()))
             .await
             .expect("Database error");
         }

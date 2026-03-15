@@ -24,7 +24,7 @@ async fn hx_recommended(
              WHERE fn::visible_to(visibility, restricted_to_group, owner, $user) \
              LIMIT 20",
         )
-        .bind(("user", &user_login))
+        .bind(("user", user_login.clone()))
         .await
         .map_err(|_| {
             axum::response::Response::builder()

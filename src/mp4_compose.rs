@@ -96,7 +96,7 @@ async fn stream_video_as_mp4(
 ) -> Response<Body> {
     let mut resp = db
         .query("SELECT id, name, type, visibility, restricted_to_group, owner FROM media WHERE id = $id")
-        .bind(("id", medium_id))
+        .bind(("id", medium_id.to_string()))
         .await
         .unwrap_or_else(|_| unreachable!());
 

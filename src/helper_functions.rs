@@ -296,8 +296,8 @@ fn system_groups_for_owner(owner: &str) -> Vec<UserGroup> {
 async fn is_subscribed(db: &Db, subscriber: &str, target: &str) -> bool {
     let mut resp = db
         .query("SELECT id FROM subscriptions WHERE subscriber = $subscriber AND target = $target LIMIT 1")
-        .bind(("subscriber", subscriber))
-        .bind(("target", target))
+        .bind(("subscriber", subscriber.to_string()))
+        .bind(("target", target.to_string()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let rows: Vec<serde_json::Value> = resp.take(0).unwrap_or_default();
@@ -318,7 +318,7 @@ async fn is_group_member(db: &Db, group_id: &str, user_login: &str, mut redis: R
 
     let mut resp = db
         .query("SELECT user_login FROM user_group_members WHERE group_id = $group_id")
-        .bind(("group_id", group_id))
+        .bind(("group_id", group_id.to_string()))
         .await
         .unwrap_or_else(|_| unreachable!());
     let members: Vec<MemberRow> = resp.take(0).unwrap_or_default();

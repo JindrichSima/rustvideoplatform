@@ -47,7 +47,7 @@ async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
 
         let mut resp = db
             .query("SELECT group_id FROM user_group_members WHERE user_login = $user")
-            .bind(("user", &u.login))
+            .bind(("user", u.login.clone()))
             .await
             .unwrap_or_else(|_| unreachable!());
         let group_rows: Vec<GroupRow> = resp.take(0).unwrap_or_default();
@@ -55,7 +55,7 @@ async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
 
         let mut resp2 = db
             .query("SELECT target FROM subscriptions WHERE subscriber = $user")
-            .bind(("user", &u.login))
+            .bind(("user", u.login.clone()))
             .await
             .unwrap_or_else(|_| unreachable!());
         let target_rows: Vec<TargetRow> = resp2.take(0).unwrap_or_default();

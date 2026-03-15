@@ -90,7 +90,7 @@ async fn hx_usermedia_page(
 }
 
 #[derive(Deserialize)]
-struct MediumRow {
+struct ChannelMediumRow {
     id: surrealdb::RecordId,
     name: String,
     owner: String,
@@ -126,7 +126,7 @@ async fn hx_usermedia_inner(
         .await
         .expect("Database error");
 
-    let rows: Vec<MediumRow> = response.take(0).expect("Database error");
+    let rows: Vec<ChannelMediumRow> = response.take(0).expect("Database error");
     let mut media: Vec<Medium> = rows
         .into_iter()
         .map(|row| Medium {
