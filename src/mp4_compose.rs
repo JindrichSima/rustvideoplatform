@@ -1,6 +1,5 @@
 /// Parses an HLS master playlist and returns the URI of the variant with either the lowest
-/// or highest BANDWIDTH. Returns the master path unchanged if it is not a master playlist
-/// or cannot be read.
+/// or highest BANDWIDTH.
 fn hls_variant_for_quality(master_path: &str, lowest: bool) -> String {
     let Ok(content) = std::fs::read_to_string(master_path) else {
         return master_path.to_string();
@@ -42,8 +41,6 @@ fn hls_variant_for_quality(master_path: &str, lowest: bool) -> String {
     best.map(|(_, p)| p).unwrap_or_else(|| master_path.to_string())
 }
 
-/// Parses a DASH MPD and returns the 0-based index (as FFmpeg numbers it) of the video stream
-/// with the lowest bandwidth. Returns 0 on parse failure or when only one stream exists.
 fn mpd_lowest_video_stream_idx(mpd_path: &str) -> usize {
     let Ok(content) = std::fs::read_to_string(mpd_path) else {
         return 0;
@@ -79,23 +76,35 @@ fn xml_attr<'a>(element: &'a str, attr: &str) -> Option<&'a str> {
     Some(&element[start..end])
 }
 
+#[derive(Deserialize)]
+struct MediaStreamRow {
+    id: String,
+    name: String,
+    #[serde(rename = "type")]
+    r#type: String,
+    visibility: String,
+    restricted_to_group: Option<String>,
+    owner: String,
+}
+
 async fn stream_video_as_mp4(
-    pool: &PgPool,
+    db: &Db,
     redis: RedisConn,
     headers: HeaderMap,
     medium_id: &str,
     lowest_quality: bool,
 ) -> Response<Body> {
-    let medium_row = sqlx::query(
-        "SELECT m.id, m.name, m.type, m.visibility, m.restricted_to_group, m.owner FROM media m WHERE m.id=$1;"
-    )
-    .bind(medium_id)
-    .fetch_optional(pool)
-    .await;
+    let mut resp = db
+        .query("SELECT id, name, type, visibility, restricted_to_group, owner FROM media WHERE id = $id")
+        .bind(("id", medium_id))
+        .await
+        .unwrap_or_else(|_| unreachable!());
 
-    let medium = match medium_row {
-        Ok(Some(row)) => row,
-        _ => {
+    let medium: Option<MediaStreamRow> = resp.take(0).unwrap_or(None);
+
+    let medium = match medium {
+        Some(m) => m,
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::empty())
@@ -103,25 +112,20 @@ async fn stream_video_as_mp4(
         }
     };
 
-    use sqlx::Row;
-    let medium_type: String = medium.get("type");
-    if medium_type != "video" {
+    if medium.r#type != "video" {
         return Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::empty())
             .unwrap();
     }
 
-    let visibility: String = medium.get("visibility");
-    let restricted_to_group: Option<String> = medium.get("restricted_to_group");
-    let owner: String = medium.get("owner");
-    let user = get_user_login(headers, pool, redis.clone()).await;
+    let user = get_user_login(headers, db, redis.clone()).await;
 
     if !can_access_restricted(
-        pool,
-        &visibility,
-        restricted_to_group.as_deref(),
-        &owner,
+        db,
+        &medium.visibility,
+        medium.restricted_to_group.as_deref(),
+        &medium.owner,
         &user,
         redis.clone(),
     )
@@ -164,8 +168,6 @@ async fn stream_video_as_mp4(
 
     cmd.arg("-i").arg(&input_path);
 
-    // For DASH with lowest quality, explicitly map the lowest-bandwidth video stream.
-    // For HLS, quality selection is done by passing the variant playlist directly as input.
     if !is_hls && lowest_quality {
         let idx = mpd_lowest_video_stream_idx(&mpd_path);
         cmd.arg("-map").arg(format!("0:v:{}", idx))
@@ -199,8 +201,7 @@ async fn stream_video_as_mp4(
         let _ = child.wait().await;
     });
 
-    let medium_name: String = medium.get("name");
-    let safe_filename: String = medium_name
+    let safe_filename: String = medium.name
         .chars()
         .map(|c| {
             if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' || c == '.' {
@@ -228,19 +229,19 @@ async fn stream_video_as_mp4(
 }
 
 async fn compose_mp4_sm(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    stream_video_as_mp4(&pool, redis, headers, &mediumid.to_ascii_lowercase(), true).await
+    stream_video_as_mp4(&db, redis, headers, &mediumid.to_ascii_lowercase(), true).await
 }
 
 async fn compose_mp4(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    stream_video_as_mp4(&pool, redis, headers, &mediumid.to_ascii_lowercase(), false).await
+    stream_video_as_mp4(&db, redis, headers, &mediumid.to_ascii_lowercase(), false).await
 }

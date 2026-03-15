@@ -9,11 +9,11 @@ struct SettingsTemplate {
 
 async fn settings(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -31,11 +31,11 @@ async fn settings(
 
 async fn settings_password(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -53,11 +53,11 @@ async fn settings_password(
 
 async fn settings_profile_picture(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -75,11 +75,11 @@ async fn settings_profile_picture(
 
 async fn settings_channel_picture(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -97,11 +97,11 @@ async fn settings_channel_picture(
 
 async fn settings_diagnostics(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -118,11 +118,11 @@ async fn settings_diagnostics(
 }
 
 async fn settings_2fa(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Response {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return axum::response::Redirect::to("/login").into_response();
     }
     axum::response::Redirect::to("/settings/password").into_response()
@@ -136,11 +136,11 @@ struct HXSettingsChannelNameTemplate {
     current_name: String,
 }
 async fn hx_settings_channel_name(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
@@ -156,12 +156,12 @@ struct ChannelNameForm {
     channel_name: String,
 }
 async fn hx_settings_channel_name_save(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Form(form): Form<ChannelNameForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
@@ -170,10 +170,10 @@ async fn hx_settings_channel_name_save(
     if new_name.is_empty() || new_name.len() > 100 {
         return Html(minifi_html("<b class=\"text-danger\">Channel name must be between 1 and 100 characters.</b>".to_owned()));
     }
-    let result = sqlx::query("UPDATE users SET name=$1 WHERE login=$2;")
-        .bind(new_name)
-        .bind(&user_info.login)
-        .execute(&pool)
+    let result = db
+        .query("UPDATE users SET name = $name WHERE id = $id")
+        .bind(("name", new_name))
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update channel name.</b>".to_owned()));
@@ -185,11 +185,11 @@ async fn hx_settings_channel_name_save(
 #[template(path = "pages/hx-settings-password.html", escape = "none")]
 struct HXSettingsPasswordTemplate {}
 async fn hx_settings_password(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
@@ -204,12 +204,12 @@ struct PasswordForm {
     confirm_password: String,
 }
 async fn hx_settings_password_save(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Form(form): Form<PasswordForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
@@ -223,10 +223,14 @@ async fn hx_settings_password_save(
     }
 
     // Verify current password
-    let stored = sqlx::query_scalar::<_, String>("SELECT password_hash FROM users WHERE login=$1")
-        .bind(&user_info.login)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)] struct HashRow { password_hash: String }
+    let mut _hash_resp = db
+        .query("SELECT password_hash FROM users WHERE id = $id")
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let _hash_row: Option<HashRow> = _hash_resp.take(0).unwrap_or(None);
+    let stored: Result<String, ()> = _hash_row.map(|r| r.password_hash).ok_or(());
     if stored.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to verify current password.</b>".to_owned()));
     }
@@ -247,10 +251,10 @@ async fn hx_settings_password_save(
     }
     let new_hash_string = new_hash.unwrap().to_string();
 
-    let result = sqlx::query("UPDATE users SET password_hash=$1 WHERE login=$2;")
-        .bind(&new_hash_string)
-        .bind(&user_info.login)
-        .execute(&pool)
+    let result = db
+        .query("UPDATE users SET password_hash = $hash WHERE id = $id")
+        .bind(("hash", &new_hash_string))
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update password.</b>".to_owned()));
@@ -275,37 +279,31 @@ struct HXSettingsProfilePictureTemplate {
 }
 async fn hx_settings_profile_picture(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    let current_picture: Option<String> = sqlx::query_scalar("SELECT profile_picture FROM users WHERE login=$1")
-        .bind(&user_info.login)
-        .fetch_one(&pool)
+    #[derive(serde::Deserialize)] struct PicRow { profile_picture: Option<String> }
+    let mut _pic_resp = db
+        .query("SELECT profile_picture FROM users WHERE id = $id")
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await
-        .unwrap_or(None);
+        .unwrap_or_else(|_| unreachable!());
+    let _pic_row: Option<PicRow> = _pic_resp.take(0).unwrap_or(None);
+    let current_picture: Option<String> = _pic_row.and_then(|r| r.profile_picture);
 
-    let media: Vec<PictureMedium> = sqlx::query(
-        "SELECT id, name, visibility FROM media WHERE owner=$1 AND type='picture' AND (visibility='public' OR visibility='hidden') ORDER BY upload DESC;"
-    )
-    .bind(&user_info.login)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        PictureMedium {
-            id: row.get("id"),
-            name: row.get("name"),
-            visibility: row.get("visibility"),
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+    let mut _media_resp = db
+        .query("SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC")
+        .bind(("owner", &user_info.login))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media: Vec<PictureMedium> = _media_resp.take(0).unwrap_or_default();
 
     let template = HXSettingsProfilePictureTemplate { media, current_picture, config };
     Html(minifi_html(template.render().unwrap()))
@@ -316,28 +314,31 @@ struct PictureForm {
     medium_id: String,
 }
 async fn hx_settings_profile_picture_save(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Form(form): Form<PictureForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
     let user_info = user_info.unwrap();
 
     // Verify the medium belongs to this user, is an image, and is public or hidden
-    let medium = sqlx::query("SELECT owner, visibility, type FROM media WHERE id=$1")
-        .bind(&form.medium_id)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
+    let mut _mver_resp = db
+        .query("SELECT owner, visibility, type FROM media WHERE id = $id")
+        .bind(("id", &form.medium_id))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let _medium_ver: Option<MediaVerRow> = _mver_resp.take(0).unwrap_or(None);
+    let medium = _medium_ver;
     match medium {
-        Ok(record) => {
-            use sqlx::Row;
-            let owner: String = record.get("owner");
-            let visibility: String = record.get("visibility");
-            let medium_type: String = record.get("type");
+        Some(record) => {
+            let owner = record.owner;
+            let visibility = record.visibility;
+            let medium_type = record.r#type;
             if owner != user_info.login {
                 return Html(minifi_html("<b class=\"text-danger\">You can only use your own media.</b>".to_owned()));
             }
@@ -353,10 +354,10 @@ async fn hx_settings_profile_picture_save(
         }
     }
 
-    let result = sqlx::query("UPDATE users SET profile_picture=$1 WHERE login=$2;")
-        .bind(&form.medium_id)
-        .bind(&user_info.login)
-        .execute(&pool)
+    let result = db
+        .query("UPDATE users SET profile_picture = $pic WHERE id = $id")
+        .bind(("pic", &form.medium_id))
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update profile picture.</b>".to_owned()));
@@ -375,65 +376,62 @@ struct HXSettingsChannelPictureTemplate {
 }
 async fn hx_settings_channel_picture(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    let current_picture: Option<String> = sqlx::query_scalar("SELECT channel_picture FROM users WHERE login=$1")
-        .bind(&user_info.login)
-        .fetch_one(&pool)
+    #[derive(serde::Deserialize)] struct ChanPicRow { channel_picture: Option<String> }
+    let mut _cpic_resp = db
+        .query("SELECT channel_picture FROM users WHERE id = $id")
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await
-        .unwrap_or(None);
+        .unwrap_or_else(|_| unreachable!());
+    let _cpic_row: Option<ChanPicRow> = _cpic_resp.take(0).unwrap_or(None);
+    let current_picture: Option<String> = _cpic_row.and_then(|r| r.channel_picture);
 
-    let media: Vec<PictureMedium> = sqlx::query(
-        "SELECT id, name, visibility FROM media WHERE owner=$1 AND type='picture' AND (visibility='public' OR visibility='hidden') ORDER BY upload DESC;"
-    )
-    .bind(&user_info.login)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        PictureMedium {
-            id: row.get("id"),
-            name: row.get("name"),
-            visibility: row.get("visibility"),
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+    let mut _media_resp = db
+        .query("SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC")
+        .bind(("owner", &user_info.login))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media: Vec<PictureMedium> = _media_resp.take(0).unwrap_or_default();
 
     let template = HXSettingsChannelPictureTemplate { media, current_picture, config };
     Html(minifi_html(template.render().unwrap()))
 }
 
 async fn hx_settings_channel_picture_save(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Form(form): Form<PictureForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }
     let user_info = user_info.unwrap();
 
     // Verify the medium belongs to this user, is an image, and is public or hidden
-    let medium = sqlx::query("SELECT owner, visibility, type FROM media WHERE id=$1")
-        .bind(&form.medium_id)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
+    let mut _mver_resp = db
+        .query("SELECT owner, visibility, type FROM media WHERE id = $id")
+        .bind(("id", &form.medium_id))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let _medium_ver: Option<MediaVerRow> = _mver_resp.take(0).unwrap_or(None);
+    let medium = _medium_ver;
     match medium {
-        Ok(record) => {
-            use sqlx::Row;
-            let owner: String = record.get("owner");
-            let visibility: String = record.get("visibility");
-            let medium_type: String = record.get("type");
+        Some(record) => {
+            let owner = record.owner;
+            let visibility = record.visibility;
+            let medium_type = record.r#type;
             if owner != user_info.login {
                 return Html(minifi_html("<b class=\"text-danger\">You can only use your own media.</b>".to_owned()));
             }
@@ -449,10 +447,10 @@ async fn hx_settings_channel_picture_save(
         }
     }
 
-    let result = sqlx::query("UPDATE users SET channel_picture=$1 WHERE login=$2;")
-        .bind(&form.medium_id)
-        .bind(&user_info.login)
-        .execute(&pool)
+    let result = db
+        .query("UPDATE users SET channel_picture = $pic WHERE id = $id")
+        .bind(("pic", &form.medium_id))
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update channel picture.</b>".to_owned()));
@@ -496,11 +494,11 @@ struct HXSettingsDiagnosticsTemplate {
     os_arch: String,
 }
 async fn hx_settings_diagnostics(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
     }

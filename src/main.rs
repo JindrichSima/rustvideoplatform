@@ -28,18 +28,28 @@ use meilisearch_sdk::client::Client as MeilisearchClient;
 use redis::AsyncCommands;
 use serde::Deserialize;
 use serde::Serialize;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::PgPool;
+use surrealdb::engine::remote::ws::{Client as WsClient, Ws};
+use surrealdb::opt::auth::Root;
+use surrealdb::Surreal;
 use std::io::BufRead;
 use std::sync::Arc;
 use tokio::{fs, io, io::AsyncWriteExt};
 use tower_http::services::ServeDir;
 
 type RedisConn = redis::aio::ConnectionManager;
+type Db = Surreal<WsClient>;
 
 #[derive(Deserialize, Clone)]
 struct Config {
-    dbconnection: String,
+    surrealdb_url: String,
+    #[serde(default = "default_surreal_ns")]
+    surrealdb_ns: String,
+    #[serde(default = "default_surreal_db")]
+    surrealdb_db: String,
+    #[serde(default = "default_surreal_user")]
+    surrealdb_user: String,
+    #[serde(default = "default_surreal_pass")]
+    surrealdb_pass: String,
     redis_url: String,
     instancename: String,
     welcome: String,
@@ -54,16 +64,37 @@ struct Config {
     /// WebAuthn Relying Party origin (e.g. "https://example.com"). Required to enable WebAuthn/passkey login.
     webauthn_rp_origin: Option<String>,
 }
+
+fn default_surreal_ns() -> String { "platform".to_string() }
+fn default_surreal_db() -> String { "platform".to_string() }
+fn default_surreal_user() -> String { "root".to_string() }
+fn default_surreal_pass() -> String { "root".to_string() }
+
 #[tokio::main]
 async fn main() {
     let config: Config =
         serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
 
-    let pool = PgPoolOptions::new()
-        .max_connections(100)
-        .connect(&config.dbconnection)
+    let db: Db = Surreal::new::<Ws>(&config.surrealdb_url)
         .await
-        .unwrap();
+        .expect("Failed to connect to SurrealDB");
+
+    db.signin(Root {
+        username: &config.surrealdb_user,
+        password: &config.surrealdb_pass,
+    })
+    .await
+    .expect("Failed to authenticate with SurrealDB");
+
+    db.use_ns(&config.surrealdb_ns)
+        .use_db(&config.surrealdb_db)
+        .await
+        .expect("Failed to select SurrealDB namespace/database");
+
+    println!(
+        "SurrealDB connected: url={}, ns={}, db={}",
+        &config.surrealdb_url, &config.surrealdb_ns, &config.surrealdb_db
+    );
 
     let meilisearch_client = MeilisearchClient::new(
         &config.meilisearch_url,
@@ -255,7 +286,7 @@ async fn main() {
         .route("/hx/group/{groupid}/removemember/{login}", get(hx_remove_group_member))
         .route("/hx/usergroups.json", get(hx_user_groups_json))
         .nest("/source", static_router("source"))
-        .layer(Extension(pool))
+        .layer(Extension(db))
         .layer(Extension(config))
         .layer(Extension(redis_conn))
         .layer(Extension(Arc::new(meilisearch_client)))

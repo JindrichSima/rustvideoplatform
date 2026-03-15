@@ -71,44 +71,35 @@ struct HXUserListsTemplate {
 
 async fn list_page(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(listid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let list_row = sqlx::query(
-        "SELECT id, name, owner, visibility, restricted_to_group FROM lists WHERE id=$1;"
-    )
-    .bind(&listid)
-    .fetch_one(&pool)
-    .await;
+    let mut resp = db
+        .query("SELECT id, name, owner, visibility, restricted_to_group FROM lists WHERE id = $id")
+        .bind(("id", &listid))
+        .await
+        .expect("Database error");
 
-    let list = match list_row {
-        Ok(row) => {
-            use sqlx::Row;
-            List {
-                id: row.get("id"),
-                name: row.get("name"),
-                owner: row.get("owner"),
-                visibility: row.get("visibility"),
-                restricted_to_group: row.get("restricted_to_group"),
-            }
-        }
-        Err(_) => {
+    let list: Option<List> = resp.take(0).expect("Deserialize error");
+    let list = match list {
+        Some(l) => l,
+        None => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
             ));
         }
     };
 
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     let is_owner = user_info
         .as_ref()
         .map(|u| u.login == list.owner)
         .unwrap_or(false);
 
     // Access control for restricted lists
-    if !is_owner && !can_access_restricted(&pool, &list.visibility, list.restricted_to_group.as_deref(), &list.owner, &user_info, redis.clone()).await {
+    if !is_owner && !can_access_restricted(&db, &list.visibility, list.restricted_to_group.as_deref(), &list.owner, &user_info, redis.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/\");</script>".to_owned(),
         ));
@@ -126,44 +117,60 @@ async fn list_page(
     Html(minifi_html(template.render().unwrap()))
 }
 
+#[derive(Deserialize)]
+struct MediaWithOwner {
+    id: String,
+    name: String,
+    description: String,
+    upload: i64,
+    owner: String,
+    owner_name: String,
+    owner_picture: Option<String>,
+    views: i64,
+    #[serde(rename = "type")]
+    media_type: String,
+    visibility: String,
+    restricted_to_group: Option<String>,
+}
+
 async fn medium_in_list(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let list_row = sqlx::query(
-        "SELECT id, visibility, restricted_to_group, owner, name FROM lists WHERE id=$1;"
-    )
-    .bind(&listid)
-    .fetch_one(&pool)
-    .await;
+    let mut resp = db
+        .query("SELECT id, visibility, restricted_to_group, owner, name FROM lists WHERE id = $id")
+        .bind(("id", &listid))
+        .await
+        .expect("Database error");
 
-    let list = match list_row {
-        Ok(row) => {
-            use sqlx::Row;
-            (
-                row.get::<String, _>("id"),
-                row.get::<String, _>("visibility"),
-                row.get::<Option<String>, _>("restricted_to_group"),
-                row.get::<String, _>("owner"),
-                row.get::<String, _>("name"),
-            )
-        }
-        Err(_) => {
+    #[derive(Deserialize)]
+    struct ListBasic {
+        id: String,
+        visibility: String,
+        restricted_to_group: Option<String>,
+        owner: String,
+        name: String,
+    }
+
+    let list: Option<ListBasic> = resp.take(0).expect("Deserialize error");
+    let list = match list {
+        Some(l) => l,
+        None => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
             ));
         }
     };
 
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     let is_logged_in = user_info.is_some();
 
     // Access control for restricted lists
-    let is_owner = user_info.as_ref().map(|u| u.login == list.3).unwrap_or(false);
-    if !is_owner && !can_access_restricted(&pool, &list.1, list.2.as_deref(), &list.3, &user_info, redis.clone()).await {
+    let is_owner = user_info.as_ref().map(|u| u.login == list.owner).unwrap_or(false);
+    if !is_owner && !can_access_restricted(&db, &list.visibility, list.restricted_to_group.as_deref(), &list.owner, &user_info, redis.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/\");</script>".to_owned(),
         ));
@@ -171,35 +178,62 @@ async fn medium_in_list(
 
     let common_headers = extract_common_headers(&headers).unwrap();
 
-    // Also check media access
-    let medium_row = sqlx::query(
-        "SELECT m.id, m.name, m.description, m.upload, m.owner, m.views, m.type, m.visibility, m.restricted_to_group, u.name as owner_name, u.profile_picture as owner_picture FROM media m LEFT JOIN users u ON m.owner = u.login WHERE m.id=$1;"
-    )
-    .bind(mediumid.to_ascii_lowercase())
-    .fetch_one(&pool)
-    .await;
+    // Fetch media record
+    let mut media_resp = db
+        .query("SELECT id, name, description, upload, owner, views, type, visibility, restricted_to_group FROM media WHERE id = $id")
+        .bind(("id", mediumid.to_ascii_lowercase()))
+        .await
+        .expect("Database error");
 
-    let medium = match medium_row {
-        Ok(row) => row,
-        Err(_) => {
+    #[derive(Deserialize)]
+    struct MediaBasic {
+        id: String,
+        name: String,
+        description: String,
+        upload: i64,
+        owner: String,
+        views: i64,
+        #[serde(rename = "type")]
+        media_type: String,
+        visibility: String,
+        restricted_to_group: Option<String>,
+    }
+
+    let medium: Option<MediaBasic> = media_resp.take(0).expect("Deserialize error");
+    let medium = match medium {
+        Some(m) => m,
+        None => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
             ));
         }
     };
 
-    use sqlx::Row;
-    let m_visibility: String = medium.get("visibility");
-    let m_restricted: Option<String> = medium.get("restricted_to_group");
-    let m_owner: String = medium.get("owner");
-
-    if !can_access_restricted(&pool, &m_visibility, m_restricted.as_deref(), &m_owner, &user_info, redis.clone()).await {
+    if !can_access_restricted(&db, &medium.visibility, medium.restricted_to_group.as_deref(), &medium.owner, &user_info, redis.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/\");</script>".to_owned(),
         ));
     }
 
-    let medium_id: String = medium.get("id");
+    // Fetch owner info
+    let mut owner_resp = db
+        .query("SELECT name, profile_picture FROM users WHERE id = $id")
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &medium.owner)))
+        .await
+        .expect("Database error");
+
+    #[derive(Deserialize)]
+    struct OwnerInfo {
+        name: String,
+        profile_picture: Option<String>,
+    }
+
+    let owner_info: Option<OwnerInfo> = owner_resp.take(0).unwrap_or(None);
+    let (owner_name, owner_picture) = owner_info
+        .map(|o| (o.name, o.profile_picture))
+        .unwrap_or_else(|| (medium.owner.clone(), None));
+
+    let medium_id = medium.id.clone();
     let medium_captions_exist: bool;
     let mut medium_captions_list: Vec<CaptionEntry> = Vec::new();
     if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
@@ -242,13 +276,13 @@ async fn medium_in_list(
     let template = MediumTemplate {
         sidebar,
         medium_id,
-        medium_name: medium.get("name"),
-        medium_owner: medium.get("owner"),
-        medium_owner_name: medium.get("owner_name"),
-        medium_owner_picture: medium.get("owner_picture"),
-        medium_upload: prettyunixtime(medium.get("upload")).await,
-        medium_views: medium.get("views"),
-        medium_type: medium.get("type"),
+        medium_name: medium.name,
+        medium_owner: medium.owner,
+        medium_owner_name: owner_name,
+        medium_owner_picture: owner_picture,
+        medium_upload: prettyunixtime(medium.upload).await,
+        medium_views: medium.views,
+        medium_type: medium.media_type,
         medium_captions_exist,
         medium_captions_list,
         medium_has_ass_captions,
@@ -260,56 +294,63 @@ async fn medium_in_list(
         common_headers,
         is_logged_in,
         list_id: listid,
-        list_name: list.4,
+        list_name: list.name,
     };
     Html(minifi_html(template.render().unwrap()))
 }
 
 async fn hx_list_items(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path(listid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_list_items_inner(config, pool, listid, 0).await
+    hx_list_items_inner(config, db, listid, 0).await
 }
 
 async fn hx_list_items_page(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path((listid, page)): Path<(String, i64)>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_list_items_inner(config, pool, listid, page).await
+    hx_list_items_inner(config, db, listid, page).await
 }
 
 async fn hx_list_items_inner(
     config: Config,
-    pool: PgPool,
+    db: Db,
     listid: String,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
     let offset = page * 40;
 
-    let mut items: Vec<Medium> = sqlx::query(
-        "SELECT m.id, m.name, m.owner, m.views, m.type FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC LIMIT 41 OFFSET $2;"
-    )
-    .bind(&listid)
-    .bind(offset)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        Medium {
-            id: row.get("id"),
-            name: row.get("name"),
-            owner: row.get("owner"),
-            views: row.get("views"),
-            r#type: row.get("type"),
-            sprite_filename: None,
-            sprite_x: 0,
-            sprite_y: 0,
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    #[derive(Deserialize)]
+    struct ListItemMedia {
+        id: String,
+        name: String,
+        owner: String,
+        views: i64,
+        #[serde(rename = "type")]
+        media_type: String,
+    }
+
+    let mut resp = db
+        .query("SELECT media_id.id AS id, media_id.name AS name, media_id.owner AS owner, media_id.views AS views, media_id.type AS type FROM list_items WHERE list_id = $lid ORDER BY position ASC LIMIT 41 START $offset")
+        .bind(("lid", &listid))
+        .bind(("offset", offset))
+        .await
+        .expect("Database error");
+
+    let raw: Vec<ListItemMedia> = resp.take(0).expect("Deserialize error");
+    let mut items: Vec<Medium> = raw.into_iter().map(|r| Medium {
+        id: r.id,
+        name: r.name,
+        owner: r.owner,
+        views: r.views,
+        r#type: r.media_type,
+        sprite_filename: None,
+        sprite_x: 0,
+        sprite_y: 0,
+    }).collect();
 
     let has_more = items.len() == 41;
     if has_more {
@@ -331,17 +372,36 @@ async fn hx_list_items_inner(
 
 async fn hx_list_sidebar(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let media: Vec<Medium> = sqlx::query_as!(
-        Medium,
-        "SELECT m.id, m.name, m.owner, m.views, m.type, NULL as sprite_filename, 0::int4 as \"sprite_x!\", 0::int4 as \"sprite_y!\" FROM list_items li INNER JOIN media m ON li.media_id = m.id WHERE li.list_id = $1 ORDER BY li.position ASC;",
-        listid
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    #[derive(Deserialize)]
+    struct ListItemMedia {
+        id: String,
+        name: String,
+        owner: String,
+        views: i64,
+        #[serde(rename = "type")]
+        media_type: String,
+    }
+
+    let mut resp = db
+        .query("SELECT media_id.id AS id, media_id.name AS name, media_id.owner AS owner, media_id.views AS views, media_id.type AS type FROM list_items WHERE list_id = $lid ORDER BY position ASC")
+        .bind(("lid", &listid))
+        .await
+        .expect("Database error");
+
+    let raw: Vec<ListItemMedia> = resp.take(0).expect("Deserialize error");
+    let media: Vec<Medium> = raw.into_iter().map(|r| Medium {
+        id: r.id,
+        name: r.name,
+        owner: r.owner,
+        views: r.views,
+        r#type: r.media_type,
+        sprite_filename: None,
+        sprite_x: 0,
+        sprite_y: 0,
+    }).collect();
 
     let template = HXMediumListTemplate {
         media,
@@ -353,43 +413,19 @@ async fn hx_list_sidebar(
 }
 
 async fn hx_list_modal(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
     let user_info = user_info.unwrap();
 
-    let lists = sqlx::query_as!(
-        ListModalEntry,
-        "SELECT l.id, l.name, EXISTS(SELECT 1 FROM list_items li WHERE li.list_id = l.id AND li.media_id = $2) AS \"already_added!\" FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;",
-        user_info.login,
-        mediumid
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
-
-    // Fetch user's groups for visibility selection in create form (system groups + user groups)
-    let mut owner_groups = system_groups_for_owner(&user_info.login);
-    let user_groups_list: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-        .bind(&user_info.login)
-        .map(|row: sqlx::postgres::PgRow| {
-            use sqlx::Row;
-            UserGroup {
-                id: row.get("id"),
-                name: row.get("name"),
-                owner: row.get("owner"),
-            }
-        })
-        .fetch_all(&pool)
-        .await
-        .unwrap_or_default();
-    owner_groups.extend(user_groups_list);
+    let lists = fetch_list_modal_entries(&db, &user_info.login, &mediumid).await;
+    let owner_groups = fetch_owner_groups(&db, &user_info.login).await;
 
     let template = HXListModalTemplate {
         lists,
@@ -399,14 +435,51 @@ async fn hx_list_modal(
     Html(minifi_html(template.render().unwrap()))
 }
 
+async fn fetch_list_modal_entries(db: &Db, owner: &str, mediumid: &str) -> Vec<ListModalEntry> {
+    #[derive(Deserialize)]
+    struct ListRow {
+        id: String,
+        name: String,
+        already_added: bool,
+    }
+
+    let mut resp = db
+        .query("SELECT id, name, array::len((SELECT id FROM list_items WHERE list_id = $parent.id AND media_id = $mid)) > 0 AS already_added FROM lists WHERE owner = $owner ORDER BY created DESC")
+        .bind(("owner", owner))
+        .bind(("mid", mediumid))
+        .await
+        .expect("Database error");
+
+    let rows: Vec<ListRow> = resp.take(0).unwrap_or_default();
+    rows.into_iter().map(|r| ListModalEntry {
+        id: r.id,
+        name: r.name,
+        already_added: r.already_added,
+    }).collect()
+}
+
+async fn fetch_owner_groups(db: &Db, owner: &str) -> Vec<UserGroup> {
+    let mut groups = system_groups_for_owner(owner);
+
+    let mut resp = db
+        .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC")
+        .bind(("owner", owner))
+        .await
+        .expect("Database error");
+
+    let user_groups: Vec<UserGroup> = resp.take(0).unwrap_or_default();
+    groups.extend(user_groups);
+    groups
+}
+
 async fn hx_create_list(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Form(form): Form<CreateListForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -425,54 +498,26 @@ async fn hx_create_list(
         None
     };
 
-    sqlx::query(
-        "INSERT INTO lists (id, name, owner, public, visibility, restricted_to_group) VALUES ($1, $2, $3, $4, $5, $6);"
-    )
-    .bind(&list_id)
-    .bind(&form.name)
-    .bind(&user_info.login)
-    .bind(is_public)
-    .bind(visibility)
-    .bind(&restricted_to_group)
-    .execute(&pool)
-    .await
-    .expect("Database error");
-
-    sqlx::query!(
-        "INSERT INTO list_items (list_id, media_id, position) VALUES ($1, $2, 0);",
-        list_id,
-        mediumid
-    )
-    .execute(&pool)
-    .await
-    .expect("Database error");
-
-    let lists = sqlx::query_as!(
-        ListModalEntry,
-        "SELECT l.id, l.name, EXISTS(SELECT 1 FROM list_items li WHERE li.list_id = l.id AND li.media_id = $2) AS \"already_added!\" FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;",
-        user_info.login,
-        mediumid
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
-
-    // Fetch user's groups for visibility selection in create form (system groups + user groups)
-    let mut owner_groups = system_groups_for_owner(&user_info.login);
-    let user_groups_list: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-        .bind(&user_info.login)
-        .map(|row: sqlx::postgres::PgRow| {
-            use sqlx::Row;
-            UserGroup {
-                id: row.get("id"),
-                name: row.get("name"),
-                owner: row.get("owner"),
-            }
-        })
-        .fetch_all(&pool)
+    let _ = db
+        .query("CREATE type::thing('lists', $lid) SET name = $name, owner = $owner, public = $public, visibility = $visibility, restricted_to_group = $rtg, created = time::unix(time::now())")
+        .bind(("lid", &list_id))
+        .bind(("name", &form.name))
+        .bind(("owner", &user_info.login))
+        .bind(("public", is_public))
+        .bind(("visibility", visibility))
+        .bind(("rtg", &restricted_to_group))
         .await
-        .unwrap_or_default();
-    owner_groups.extend(user_groups_list);
+        .expect("Database error");
+
+    let _ = db
+        .query("CREATE list_items SET list_id = $lid, media_id = $mid, position = 0")
+        .bind(("lid", &list_id))
+        .bind(("mid", &mediumid))
+        .await
+        .expect("Database error");
+
+    let lists = fetch_list_modal_entries(&db, &user_info.login, &mediumid).await;
+    let owner_groups = fetch_owner_groups(&db, &user_info.login).await;
 
     let template = HXListModalTemplate {
         lists,
@@ -483,68 +528,51 @@ async fn hx_create_list(
 }
 
 async fn hx_add_to_list(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
     let user_info = user_info.unwrap();
 
-    let list = sqlx::query!("SELECT owner FROM lists WHERE id=$1;", listid)
-        .fetch_one(&pool)
+    let mut owner_resp = db
+        .query("SELECT owner FROM lists WHERE id = $id")
+        .bind(("id", &listid))
         .await
         .expect("Database error");
-    if list.owner != user_info.login {
-        return Html("".as_bytes().to_vec());
+
+    #[derive(Deserialize)]
+    struct OwnerRow { owner: String }
+    let owner_row: Option<OwnerRow> = owner_resp.take(0).expect("Deserialize error");
+    match owner_row {
+        Some(r) if r.owner == user_info.login => {}
+        _ => return Html("".as_bytes().to_vec()),
     }
 
-    let max_pos = sqlx::query!(
-        "SELECT COALESCE(MAX(position), -1) AS max_pos FROM list_items WHERE list_id=$1;",
-        listid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
-
-    let next_pos = max_pos.max_pos.unwrap_or(-1) + 1;
-
-    sqlx::query!(
-        "INSERT INTO list_items (list_id, media_id, position) VALUES ($1, $2, $3);",
-        listid,
-        mediumid,
-        next_pos
-    )
-    .execute(&pool)
-    .await
-    .expect("Database error");
-
-    let lists = sqlx::query_as!(
-        ListModalEntry,
-        "SELECT l.id, l.name, EXISTS(SELECT 1 FROM list_items li WHERE li.list_id = l.id AND li.media_id = $2) AS \"already_added!\" FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;",
-        user_info.login,
-        mediumid
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
-
-    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-        .bind(&user_info.login)
-        .map(|row: sqlx::postgres::PgRow| {
-            use sqlx::Row;
-            UserGroup {
-                id: row.get("id"),
-                name: row.get("name"),
-                owner: row.get("owner"),
-            }
-        })
-        .fetch_all(&pool)
+    // Get max position
+    let mut pos_resp = db
+        .query("SELECT VALUE math::max(position) FROM list_items WHERE list_id = $lid")
+        .bind(("lid", &listid))
         .await
-        .unwrap_or_default();
+        .expect("Database error");
+
+    let max_pos: Option<i64> = pos_resp.take(0).unwrap_or(None);
+    let next_pos = max_pos.unwrap_or(-1) + 1;
+
+    let _ = db
+        .query("CREATE list_items SET list_id = $lid, media_id = $mid, position = $pos")
+        .bind(("lid", &listid))
+        .bind(("mid", &mediumid))
+        .bind(("pos", next_pos))
+        .await
+        .expect("Database error");
+
+    let lists = fetch_list_modal_entries(&db, &user_info.login, &mediumid).await;
+    let owner_groups = fetch_owner_groups(&db, &user_info.login).await;
 
     let template = HXListModalTemplate {
         lists,
@@ -555,57 +583,40 @@ async fn hx_add_to_list(
 }
 
 async fn hx_remove_from_list(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
     let user_info = user_info.unwrap();
 
-    let list = sqlx::query!("SELECT owner FROM lists WHERE id=$1;", listid)
-        .fetch_one(&pool)
+    let mut owner_resp = db
+        .query("SELECT owner FROM lists WHERE id = $id")
+        .bind(("id", &listid))
         .await
         .expect("Database error");
-    if list.owner != user_info.login {
-        return Html("".as_bytes().to_vec());
+
+    #[derive(Deserialize)]
+    struct OwnerRow { owner: String }
+    let owner_row: Option<OwnerRow> = owner_resp.take(0).expect("Deserialize error");
+    match owner_row {
+        Some(r) if r.owner == user_info.login => {}
+        _ => return Html("".as_bytes().to_vec()),
     }
 
-    sqlx::query!(
-        "DELETE FROM list_items WHERE list_id=$1 AND media_id=$2;",
-        listid,
-        mediumid
-    )
-    .execute(&pool)
-    .await
-    .expect("Database error");
-
-    let lists = sqlx::query_as!(
-        ListModalEntry,
-        "SELECT l.id, l.name, EXISTS(SELECT 1 FROM list_items li WHERE li.list_id = l.id AND li.media_id = $2) AS \"already_added!\" FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC;",
-        user_info.login,
-        mediumid
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
-
-    let owner_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-        .bind(&user_info.login)
-        .map(|row: sqlx::postgres::PgRow| {
-            use sqlx::Row;
-            UserGroup {
-                id: row.get("id"),
-                name: row.get("name"),
-                owner: row.get("owner"),
-            }
-        })
-        .fetch_all(&pool)
+    let _ = db
+        .query("DELETE FROM list_items WHERE list_id = $lid AND media_id = $mid")
+        .bind(("lid", &listid))
+        .bind(("mid", &mediumid))
         .await
-        .unwrap_or_default();
+        .expect("Database error");
+
+    let lists = fetch_list_modal_entries(&db, &user_info.login, &mediumid).await;
+    let owner_groups = fetch_owner_groups(&db, &user_info.login).await;
 
     let template = HXListModalTemplate {
         lists,
@@ -616,96 +627,82 @@ async fn hx_remove_from_list(
 }
 
 async fn hx_delete_list(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(listid): Path<String>,
 ) -> axum::response::Html<String> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }
     let user_info = user_info.unwrap();
 
-    let list = sqlx::query!("SELECT owner FROM lists WHERE id=$1;", listid)
-        .fetch_one(&pool)
-        .await;
+    let mut owner_resp = db
+        .query("SELECT owner FROM lists WHERE id = $id")
+        .bind(("id", &listid))
+        .await
+        .expect("Database error");
 
-    match list {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Html(
-                    "<script>window.location.replace(\"/\");</script>".to_owned(),
-                );
-            }
-        }
-        Err(_) => {
-            return Html(
-                "<script>window.location.replace(\"/\");</script>".to_owned(),
-            );
-        }
+    #[derive(Deserialize)]
+    struct OwnerRow { owner: String }
+    let owner_row: Option<OwnerRow> = owner_resp.take(0).expect("Deserialize error");
+    match owner_row {
+        Some(r) if r.owner == user_info.login => {}
+        _ => return Html("<script>window.location.replace(\"/\");</script>".to_owned()),
     }
 
-    let _ = sqlx::query!("DELETE FROM list_items WHERE list_id=$1;", listid)
-        .execute(&pool)
+    let _ = db
+        .query("DELETE FROM list_items WHERE list_id = $lid")
+        .bind(("lid", &listid))
         .await;
 
-    let _ = sqlx::query!("DELETE FROM lists WHERE id=$1;", listid)
-        .execute(&pool)
+    let _ = db
+        .query("DELETE FROM lists WHERE id = $id")
+        .bind(("id", &listid))
         .await;
 
     Html("<b class=\"text-success\">LIST DELETED</b><script>window.location.replace(\"/\");</script>".to_owned())
 }
 
 async fn hx_user_lists(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_user_lists_inner(pool, redis, headers, userid, 0).await
+    hx_user_lists_inner(db, redis, headers, userid, 0).await
 }
 
 async fn hx_user_lists_page(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((userid, page)): Path<(String, i64)>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_user_lists_inner(pool, redis, headers, userid, page).await
+    hx_user_lists_inner(db, redis, headers, userid, page).await
 }
 
 async fn hx_user_lists_inner(
-    pool: PgPool,
+    db: Db,
     redis: RedisConn,
     headers: HeaderMap,
     userid: String,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers, &pool, redis.clone()).await;
+    let user = get_user_login(headers, &db, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
     let offset = page * 40;
 
-    let mut lists: Vec<ListWithCount> = sqlx::query(
-        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 AND (l.visibility = 'public' OR (l.visibility = 'restricted' AND (l.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) OR (l.restricted_to_group = '__all_registered__' AND $2 != '') OR (l.restricted_to_group = '__subscribers__' AND $2 != '' AND l.owner IN (SELECT target FROM subscriptions WHERE subscriber = $2))))) ORDER BY l.created DESC LIMIT 41 OFFSET $3;"
-    )
-    .bind(&userid)
-    .bind(&user_login)
-    .bind(offset)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        ListWithCount {
-            id: row.get("id"),
-            name: row.get("name"),
-            owner: row.get("owner"),
-            visibility: row.get("visibility"),
-            restricted_to_group: row.get("restricted_to_group"),
-            item_count: row.get("item_count"),
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    let mut resp = db
+        .query("SELECT id, name, owner, visibility, restricted_to_group, array::len((SELECT id FROM list_items WHERE list_id = $parent.id)) AS item_count FROM lists WHERE owner = $owner AND (visibility = 'public' OR (visibility = 'restricted' AND (restricted_to_group IN (SELECT VALUE group_id FROM user_group_members WHERE user_login = $viewer) OR (restricted_to_group = '__all_registered__' AND string::len($viewer) > 0) OR (restricted_to_group = '__subscribers__' AND string::len($viewer) > 0 AND owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $viewer))))) ORDER BY created DESC LIMIT 41 START $offset")
+        .bind(("owner", &userid))
+        .bind(("viewer", &user_login))
+        .bind(("offset", offset))
+        .await
+        .expect("Database error");
+
+    let mut lists: Vec<ListWithCount> = resp.take(0).unwrap_or_default();
 
     let has_more = lists.len() == 41;
     if has_more {

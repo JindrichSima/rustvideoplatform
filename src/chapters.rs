@@ -5,28 +5,33 @@ struct ChapterData {
 }
 
 async fn studio_chapters_get(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::Value::Array(vec![]));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Json(serde_json::Value::Array(vec![]));
             }
         }
-        Err(_) => {
+        None => {
             return Json(serde_json::Value::Array(vec![]));
         }
     }
@@ -42,13 +47,13 @@ async fn studio_chapters_get(
 }
 
 async fn studio_chapters_save(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(chapters): Json<Vec<ChapterData>>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -58,12 +63,17 @@ async fn studio_chapters_save(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -72,7 +82,7 @@ async fn studio_chapters_save(
                     .unwrap();
             }
         }
-        Err(_) => {
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")

@@ -27,28 +27,33 @@ async fn convert_subtitle_to_vtt(content: Vec<u8>, input_format: &str) -> Option
 }
 
 async fn studio_subtitles_get(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::Value::Array(vec![]));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Json(serde_json::Value::Array(vec![]));
             }
         }
-        Err(_) => {
+        None => {
             return Json(serde_json::Value::Array(vec![]));
         }
     }
@@ -76,13 +81,13 @@ async fn studio_subtitles_get(
 }
 
 async fn studio_subtitles_add(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     mut multipart: Multipart,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -92,12 +97,17 @@ async fn studio_subtitles_add(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -106,7 +116,7 @@ async fn studio_subtitles_add(
                     .unwrap();
             }
         }
-        Err(_) => {
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -246,23 +256,27 @@ async fn studio_subtitles_add(
 }
 
 async fn studio_subtitle_font_get(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::json!({ "exists": false }));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
-
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
     match media_owner {
-        Ok(record) if record.owner == user_info.login => {}
+        Some(record) if record.owner == user_info.login => {}
         _ => return Json(serde_json::json!({ "exists": false })),
     }
 
@@ -272,13 +286,13 @@ async fn studio_subtitle_font_get(
 }
 
 async fn studio_subtitle_font_upload(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     mut multipart: Multipart,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -288,12 +302,17 @@ async fn studio_subtitle_font_upload(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -302,7 +321,7 @@ async fn studio_subtitle_font_upload(
                     .unwrap();
             }
         }
-        Err(_) => {
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -414,12 +433,12 @@ async fn studio_subtitle_font_upload(
 }
 
 async fn studio_subtitle_font_delete(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -429,12 +448,17 @@ async fn studio_subtitle_font_delete(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -443,7 +467,7 @@ async fn studio_subtitle_font_delete(
                     .unwrap();
             }
         }
-        Err(_) => {
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -462,35 +486,40 @@ async fn studio_subtitle_font_delete(
 }
 
 async fn studio_subtitles_translate_status(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::json!({ "in_progress": false }));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
-
-    match media_owner {
-        Ok(record) if record.owner == user_info.login => {}
+    #[derive(serde::Deserialize)]
+    struct OwnerRow2 { owner: String }
+    let mut _owner_resp2 = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner2: Option<OwnerRow2> = _owner_resp2.take(0).unwrap_or(None);
+    match media_owner2 {
+        Some(record) if record.owner == user_info.login => {}
         _ => return Json(serde_json::json!({ "in_progress": false })),
     }
 
     let concept_id = format!("{}_translate", mediumid);
-    let result = sqlx::query!("SELECT processed FROM media_concepts WHERE id=$1;", concept_id)
-        .fetch_optional(&pool)
-        .await;
-
-    let in_progress = match result {
-        Ok(Some(row)) => !row.processed,
-        _ => false,
-    };
+    #[derive(serde::Deserialize)]
+    struct ProcessedRow { processed: bool }
+    let mut _proc_resp = db
+        .query("SELECT processed FROM media_concepts WHERE id = $id")
+        .bind(("id", &concept_id))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let proc_result: Option<ProcessedRow> = _proc_resp.take(0).unwrap_or(None);
+    let in_progress = proc_result.map(|r| !r.processed).unwrap_or(false);
 
     Json(serde_json::json!({ "in_progress": in_progress }))
 }
@@ -502,13 +531,13 @@ struct SubtitleTranslateForm {
 }
 
 async fn studio_subtitles_translate(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(form): Json<SubtitleTranslateForm>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -518,12 +547,17 @@ async fn studio_subtitles_translate(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -532,7 +566,7 @@ async fn studio_subtitles_translate(
                     .unwrap();
             }
         }
-        Err(_) => {
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -592,20 +626,18 @@ async fn studio_subtitles_translate(
     }
 
     // Upsert concept: delete any existing translation job for this medium, then insert new one
-    let _ = sqlx::query("DELETE FROM media_concepts WHERE id=$1;")
-        .bind(&concept_id)
-        .execute(&pool)
+    let _ = db
+        .query("DELETE FROM media_concepts WHERE id = $id")
+        .bind(("id", &concept_id))
         .await;
 
     let concept_name = format!("Translate {} -> {}", source_label, target_language);
-    if let Err(_) = sqlx::query(
-        "INSERT INTO media_concepts (id, name, owner, type, processed) VALUES ($1, $2, $3, 'vtt_translate', false)"
-    )
-    .bind(&concept_id)
-    .bind(&concept_name)
-    .bind(&user_info.login)
-    .execute(&pool)
-    .await
+    if let Err(_) = db
+        .query("UPSERT type::thing('media_concepts', $id) SET name = $name, owner = $owner, type = 'vtt_translate', processed = false")
+        .bind(("id", &concept_id))
+        .bind(("name", &concept_name))
+        .bind(("owner", &user_info.login))
+        .await
     {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -626,13 +658,13 @@ struct SubtitleDeleteForm {
 }
 
 async fn studio_subtitles_delete(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(form): Json<SubtitleDeleteForm>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -642,12 +674,17 @@ async fn studio_subtitles_delete(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    #[derive(serde::Deserialize)]
+    struct OwnerRow { owner: String }
+    let mut _owner_resp = db
+        .query("SELECT owner FROM media WHERE id = $id")
+        .bind(("id", &mediumid))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
 
     match media_owner {
-        Ok(record) => {
+        Some(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -656,7 +693,7 @@ async fn studio_subtitles_delete(
                     .unwrap();
             }
         }
-        Err(_) => {
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")

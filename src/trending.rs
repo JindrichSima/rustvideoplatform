@@ -21,21 +21,21 @@ async fn trending(
 
 async fn hx_trending(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, pool, redis, headers, 0).await
+    hx_trending_inner(config, db, redis, headers, 0).await
 }
 
 async fn hx_trending_page(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(page): Path<i64>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, pool, redis, headers, page).await
+    hx_trending_inner(config, db, redis, headers, page).await
 }
 
 /// Try to load a page of trending media from the Redis cache.
@@ -97,9 +97,18 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
     Some(media)
 }
 
+#[derive(Deserialize)]
+struct TrendingRow {
+    id: String,
+    name: String,
+    owner: String,
+    views: i64,
+    r#type: String,
+}
+
 async fn hx_trending_inner(
     config: Config,
-    pool: PgPool,
+    db: Db,
     mut redis: RedisConn,
     headers: HeaderMap,
     page: i64,
@@ -111,34 +120,40 @@ async fn hx_trending_inner(
         Some(cached) => cached,
         None => {
             // Cache not available — fall back to direct DB query
-            let user = get_user_login(headers, &pool, redis.clone()).await;
+            let user = get_user_login(headers, &db, redis.clone()).await;
             let user_login = user.map(|u| u.login).unwrap_or_default();
-            sqlx::query(
-                "SELECT m.id, m.name, m.owner, m.views, m.type \
-                 FROM media m \
-                 LEFT JOIN media_likes ml ON m.id = ml.media_id \
-                 WHERE m.visibility = 'public' OR (m.visibility = 'restricted' AND (m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1) OR (m.restricted_to_group = '__all_registered__' AND $1 != '') OR (m.restricted_to_group = '__subscribers__' AND $1 != '' AND m.owner IN (SELECT target FROM subscriptions WHERE subscriber = $1)))) \
-                 GROUP BY m.id, m.name, m.owner, m.views, m.type \
-                 ORDER BY COUNT(*) FILTER (WHERE ml.reaction = 'like') DESC LIMIT 31 OFFSET $2;"
-            )
-            .bind(&user_login)
-            .bind(offset)
-            .map(|row: sqlx::postgres::PgRow| {
-                use sqlx::Row;
-                Medium {
-                    id: row.get("id"),
-                    name: row.get("name"),
-                    owner: row.get("owner"),
-                    views: row.get("views"),
-                    r#type: row.get("type"),
+            let rows: Vec<TrendingRow> = db
+                .query(
+                    "SELECT id, name, owner, views, type, \
+                     array::len((SELECT id FROM media_likes WHERE media_id = id AND reaction = 'like')) AS like_count \
+                     FROM media AS m \
+                     WHERE visibility = 'public' \
+                     OR (visibility = 'restricted' AND ( \
+                         restricted_to_group IN (SELECT VALUE group_id FROM user_group_members WHERE user_login = $user) \
+                         OR (restricted_to_group = '__all_registered__' AND $user != '') \
+                         OR (restricted_to_group = '__subscribers__' AND $user != '' AND owner IN (SELECT VALUE target FROM subscriptions WHERE subscriber = $user)) \
+                     )) \
+                     ORDER BY like_count DESC \
+                     LIMIT 31 \
+                     START $offset;"
+                )
+                .bind(("user", user_login))
+                .bind(("offset", offset))
+                .await
+                .and_then(|mut r| r.take(0))
+                .expect("Database error");
+            rows.into_iter()
+                .map(|row| Medium {
+                    id: row.id,
+                    name: row.name,
+                    owner: row.owner,
+                    views: row.views,
+                    r#type: row.r#type,
                     sprite_filename: None,
                     sprite_x: 0,
                     sprite_y: 0,
-                }
-            })
-            .fetch_all(&pool)
-            .await
-            .expect("Database error")
+                })
+                .collect()
         }
     };
 
