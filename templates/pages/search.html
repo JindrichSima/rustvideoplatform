@@ -40,14 +40,15 @@
                                 <div class="filter-group">
                                     <label class="filter-label"><i class="fa-solid fa-compass me-1"></i>Search in</label>
                                     <div class="filter-chips" id="searchInFilter">
-                                        <button type="button" class="filter-chip active" data-value=""><i class="fa-solid fa-photo-film me-1"></i>Media</button>
+                                        <button type="button" class="filter-chip active" data-value="all"><i class="fa-solid fa-magnifying-glass me-1"></i>All</button>
+                                        <button type="button" class="filter-chip" data-value="media"><i class="fa-solid fa-photo-film me-1"></i>Media</button>
                                         <button type="button" class="filter-chip" data-value="lists"><i class="fa-solid fa-list me-1"></i>Lists</button>
                                         <button type="button" class="filter-chip" data-value="users"><i class="fa-solid fa-users me-1"></i>Users</button>
                                     </div>
-                                    <input type="hidden" name="search_in" id="searchInInput" value="" />
+                                    <input type="hidden" name="search_in" id="searchInInput" value="all" />
                                 </div>
 
-                                <div id="mediaSpecificFilters">
+                                <div id="mediaSpecificFilters" style="display:none;">
                                     <div class="filter-group">
                                         <label class="filter-label"><i class="fa-solid fa-photo-film me-1"></i>Type</label>
                                         <div class="filter-chips" id="typeFilter">
@@ -118,10 +119,10 @@
                     if (group.id === 'searchInFilter') {
                         var mediaFilters = document.getElementById('mediaSpecificFilters');
                         var val = chip.getAttribute('data-value');
-                        if (val === 'lists' || val === 'users') {
-                            mediaFilters.style.display = 'none';
-                        } else {
+                        if (val === 'media') {
                             mediaFilters.style.display = '';
+                        } else {
+                            mediaFilters.style.display = 'none';
                         }
                     }
 
@@ -162,6 +163,31 @@
 
             searchInput.focus();
         }
+
+        // "See all" buttons in combined results switch to specific tab
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.search-see-all-btn');
+            if (!btn) return;
+            var searchIn = btn.getAttribute('data-search-in');
+            var filterGroup = document.getElementById('searchInFilter');
+            if (filterGroup) {
+                filterGroup.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
+                var target = filterGroup.querySelector('[data-value="' + searchIn + '"]');
+                if (target) {
+                    target.classList.add('active');
+                }
+            }
+            var hiddenInput = document.getElementById('searchInInput');
+            if (hiddenInput) hiddenInput.value = searchIn;
+            var mediaFilters = document.getElementById('mediaSpecificFilters');
+            if (mediaFilters) {
+                mediaFilters.style.display = (searchIn === 'media') ? '' : 'none';
+            }
+            var si = document.getElementById('searchMainInput');
+            if (si && si.value.trim().length > 0) {
+                htmx.trigger('#searchForm', 'submit');
+            }
+        });
     });
     </script>
 </body>

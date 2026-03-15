@@ -1,0 +1,98 @@
+<div class="search-meta">
+    <span class="search-meta-count"><i class="fa-solid fa-hashtag me-1"></i>{{ users_total + lists_total + media_total }} results</span>
+    <span class="search-meta-time"><i class="fa-solid fa-bolt me-1"></i>{{ query_time_ms }}ms</span>
+</div>
+
+{% if !users.is_empty() %}
+<div class="search-section-header">
+    <h5 class="search-section-title"><i class="fa-solid fa-users me-2"></i>Users <span class="text-secondary">({{ users_total }})</span></h5>
+</div>
+{% for hit in users %}
+<a href="/u/{{ hit.login }}" class="search-result-card inf-scroll-reveal" preload="mouseover">
+    <div class="search-card-thumbnail" style="display:flex;align-items:center;justify-content:center;">
+        {% if hit.profile_picture.is_some() %}
+        <img src="{{ config.source_server_url }}/source/{{ hit.profile_picture.clone().unwrap() }}/thumbnail-small.avif" loading="lazy" style="width:100%;height:100%;object-fit:cover;" />
+        {% else %}
+        <i class="fa-solid fa-user fa-3x text-secondary"></i>
+        {% endif %}
+    </div>
+    <div class="search-card-info">
+        <h5 class="search-card-title">{{ hit.highlighted_name }}</h5>
+        <div class="search-card-meta">
+            <span class="search-card-owner"><i class="fa-solid fa-at me-1"></i>{{ hit.login }}</span>
+        </div>
+    </div>
+</a>
+{% endfor %}
+{% if users_total > 10 %}
+<div class="search-section-more" style="grid-column: 1 / -1; text-align: center; padding: 0.5rem;">
+    <button type="button" class="btn btn-outline-secondary btn-sm search-see-all-btn" data-search-in="users">
+        <i class="fa-solid fa-arrow-right me-1"></i>See all {{ users_total }} users
+    </button>
+</div>
+{% endif %}
+{% endif %}
+
+{% if !lists.is_empty() %}
+<div class="search-section-header">
+    <h5 class="search-section-title"><i class="fa-solid fa-list me-2"></i>Lists <span class="text-secondary">({{ lists_total }})</span></h5>
+</div>
+{% for hit in lists %}
+<a href="/l/{{ hit.id }}" class="search-result-card inf-scroll-reveal" preload="mouseover">
+    <div class="search-card-thumbnail" style="display:flex;align-items:center;justify-content:center;">
+        <i class="fa-solid fa-list fa-3x text-secondary"></i>
+    </div>
+    <div class="search-card-info">
+        <h5 class="search-card-title">{{ hit.highlighted_name }}</h5>
+        <div class="search-card-meta">
+            <span class="search-card-owner"><i class="fa-solid fa-user me-1"></i>{{ hit.owner }}</span>
+            <span class="search-card-views"><i class="fa-solid fa-film me-1"></i>{{ hit.item_count }} items</span>
+        </div>
+    </div>
+</a>
+{% endfor %}
+{% if lists_total > 10 %}
+<div class="search-section-more" style="grid-column: 1 / -1; text-align: center; padding: 0.5rem;">
+    <button type="button" class="btn btn-outline-secondary btn-sm search-see-all-btn" data-search-in="lists">
+        <i class="fa-solid fa-arrow-right me-1"></i>See all {{ lists_total }} lists
+    </button>
+</div>
+{% endif %}
+{% endif %}
+
+{% if !media.is_empty() %}
+<div class="search-section-header">
+    <h5 class="search-section-title"><i class="fa-solid fa-photo-film me-2"></i>Media <span class="text-secondary">({{ media_total }})</span></h5>
+</div>
+{% for hit in media %}
+<a href="/m/{{ hit.id }}" class="search-result-card inf-scroll-reveal" preload="mouseover">
+    <div class="search-card-thumbnail">
+        <img src="{{ config.source_server_url }}/source/{{ hit.id }}/thumbnail-sm.avif" alt="{{ hit.name }}" loading="lazy" />
+        <div class="search-card-type-badge">
+            {% if hit.type == "video" %}
+            <i class="fa-solid fa-video"></i>
+            {% else if hit.type == "audio" %}
+            <i class="fa-solid fa-music"></i>
+            {% else if hit.type == "picture" %}
+            <i class="fa-solid fa-image"></i>
+            {% endif %}
+        </div>
+    </div>
+    <div class="search-card-info">
+        <h5 class="search-card-title">{{ hit.highlighted_name }}</h5>
+        <div class="search-card-meta">
+            <span class="search-card-owner"><i class="fa-solid fa-user me-1"></i>{{ hit.owner }}</span>
+            <span class="search-card-views"><i class="fa-solid fa-eye me-1"></i>{{ hit.views }} views</span>
+            <span class="search-card-likes"><i class="fa-solid fa-heart me-1"></i>{{ hit.likes }}</span>
+        </div>
+    </div>
+</a>
+{% endfor %}
+{% if media_total > 20 %}
+<div class="search-section-more" style="grid-column: 1 / -1; text-align: center; padding: 0.5rem;">
+    <button type="button" class="btn btn-outline-secondary btn-sm search-see-all-btn" data-search-in="media">
+        <i class="fa-solid fa-arrow-right me-1"></i>See all {{ media_total }} media
+    </button>
+</div>
+{% endif %}
+{% endif %}

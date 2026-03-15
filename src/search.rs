@@ -392,6 +392,22 @@ struct MeiliSearchHit {
     upload: i64,
 }
 
+// --- Combined "all" search ---
+
+#[derive(Template)]
+#[template(path = "pages/hx-search-all.html", escape = "none")]
+struct HXSearchAllTemplate {
+    users: Vec<UserSearchHit>,
+    lists: Vec<ListSearchHit>,
+    media: Vec<MeiliSearchHit>,
+    users_total: usize,
+    lists_total: usize,
+    media_total: usize,
+    query_time_ms: usize,
+    search_term: String,
+    config: Config,
+}
+
 async fn hx_search(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
@@ -415,7 +431,11 @@ async fn hx_search(
         "users" => {
             return hx_search_users_inner(config, meili, pageid, form.search).await;
         }
-        _ => {} // "media" or empty — fall through to Meilisearch
+        "media" => {} // fall through to media-only Meilisearch
+        _ => {
+            // Default: search all types simultaneously
+            return hx_search_all_inner(config, pool, meili, user, form.search).await;
+        }
     }
 
     let hits_per_page: usize = 41;
@@ -743,6 +763,157 @@ async fn hx_search_users_inner(
             )
         }
     }
+}
+
+// --- Combined "all" search inner ---
+
+async fn hx_search_all_inner(
+    config: Config,
+    pool: PgPool,
+    meili: Arc<MeilisearchClient>,
+    user: Option<User>,
+    search_term: String,
+) -> axum::response::Html<String> {
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let vis_filter_parens = format!("({})", visibility_filter);
+
+    let (users_res, lists_res, media_res) = tokio::join!(
+        async {
+            meili.index("users")
+                .search()
+                .with_query(&search_term)
+                .with_limit(10)
+                .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name", "login"]))
+                .with_highlight_pre_tag("<mark>")
+                .with_highlight_post_tag("</mark>")
+                .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+                    "login", "name", "profile_picture",
+                ]))
+                .execute::<MeiliUser>()
+                .await
+        },
+        async {
+            meili.index("lists")
+                .search()
+                .with_query(&search_term)
+                .with_filter(&vis_filter_parens)
+                .with_limit(10)
+                .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
+                .with_highlight_pre_tag("<mark>")
+                .with_highlight_post_tag("</mark>")
+                .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+                    "id", "name", "owner", "item_count",
+                ]))
+                .execute::<MeiliList>()
+                .await
+        },
+        async {
+            meili.index("media")
+                .search()
+                .with_query(&search_term)
+                .with_filter(&visibility_filter)
+                .with_limit(20)
+                .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
+                .with_highlight_pre_tag("<mark>")
+                .with_highlight_post_tag("</mark>")
+                .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+                    "id", "name", "owner", "views", "likes", "type", "upload",
+                ]))
+                .execute::<MeiliMedia>()
+                .await
+        },
+    );
+
+    let (users, users_total, mut query_time_ms) = match users_res {
+        Ok(r) => {
+            let total = r.estimated_total_hits.unwrap_or(0);
+            let time = r.processing_time_ms;
+            let hits: Vec<UserSearchHit> = r.hits.into_iter().map(|hit| {
+                let highlighted_name = hit.formatted_result.as_ref()
+                    .and_then(|f| f.get("name"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&hit.result.name)
+                    .to_owned();
+                UserSearchHit {
+                    login: hit.result.login,
+                    name: hit.result.name,
+                    highlighted_name,
+                    profile_picture: hit.result.profile_picture,
+                }
+            }).collect();
+            (hits, total, time)
+        }
+        Err(e) => { eprintln!("Meilisearch users search error: {:?}", e); (vec![], 0, 0) }
+    };
+
+    let (lists, lists_total) = match lists_res {
+        Ok(r) => {
+            let total = r.estimated_total_hits.unwrap_or(0);
+            query_time_ms = query_time_ms.max(r.processing_time_ms);
+            let hits: Vec<ListSearchHit> = r.hits.into_iter().map(|hit| {
+                let highlighted_name = hit.formatted_result.as_ref()
+                    .and_then(|f| f.get("name"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&hit.result.name)
+                    .to_owned();
+                ListSearchHit {
+                    id: hit.result.id,
+                    name: hit.result.name,
+                    highlighted_name,
+                    owner: hit.result.owner,
+                    item_count: hit.result.item_count,
+                }
+            }).collect();
+            (hits, total)
+        }
+        Err(e) => { eprintln!("Meilisearch lists search error: {:?}", e); (vec![], 0) }
+    };
+
+    let (media, media_total) = match media_res {
+        Ok(r) => {
+            let total = r.estimated_total_hits.unwrap_or(0);
+            query_time_ms = query_time_ms.max(r.processing_time_ms);
+            let hits: Vec<MeiliSearchHit> = r.hits.into_iter().map(|hit| {
+                let highlighted_name = hit.formatted_result.as_ref()
+                    .and_then(|f| f.get("name"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&hit.result.name)
+                    .to_owned();
+                MeiliSearchHit {
+                    id: hit.result.id,
+                    name: hit.result.name,
+                    highlighted_name,
+                    owner: hit.result.owner,
+                    views: hit.result.views,
+                    likes: hit.result.likes,
+                    r#type: hit.result.r#type,
+                    upload: hit.result.upload,
+                }
+            }).collect();
+            (hits, total)
+        }
+        Err(e) => { eprintln!("Meilisearch media search error: {:?}", e); (vec![], 0) }
+    };
+
+    if users.is_empty() && lists.is_empty() && media.is_empty() {
+        return Html(
+            "<div class=\"search-empty\"><i class=\"fa-solid fa-magnifying-glass fa-3x mb-3\"></i><h4>No results found</h4><p class=\"text-secondary\">Try different keywords or adjust your filters</p></div>"
+                .to_owned(),
+        );
+    }
+
+    let template = HXSearchAllTemplate {
+        users,
+        lists,
+        media,
+        users_total,
+        lists_total,
+        media_total,
+        query_time_ms,
+        search_term,
+        config,
+    };
+    Html(template.render().unwrap())
 }
 
 // --- Search page ---
