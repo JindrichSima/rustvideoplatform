@@ -117,22 +117,13 @@ struct SuggestionList {
     item_count: i64,
 }
 
-#[derive(Debug, Clone)]
-struct SuggestionMedia {
-    id: String,
-    name: String,
-    highlighted_name: String,
-    owner: String,
-    views: i64,
-    r#type: String,
-}
-
 #[derive(Template)]
 #[template(path = "pages/hx-searchsuggestions.html", escape = "none")]
 struct HXSearchSuggestionsTemplate {
     users: Vec<SuggestionUser>,
     lists: Vec<SuggestionList>,
-    media: Vec<SuggestionMedia>,
+    media: Vec<Medium>,
+    current_medium_id: String,
     config: Config,
 }
 
@@ -238,24 +229,8 @@ async fn hx_search_suggestions(
         Err(e) => { eprintln!("Meilisearch lists suggestion error: {:?}", e); vec![] }
     };
 
-    let media: Vec<SuggestionMedia> = match media_res {
-        Ok(r) => r.hits.into_iter().map(|hit| {
-            let highlighted_name = hit
-                .formatted_result
-                .as_ref()
-                .and_then(|f| f.get("name"))
-                .and_then(|v| v.as_str())
-                .unwrap_or(&hit.result.name)
-                .to_owned();
-            SuggestionMedia {
-                id: hit.result.id,
-                name: hit.result.name,
-                highlighted_name,
-                owner: hit.result.owner,
-                views: hit.result.views,
-                r#type: hit.result.r#type,
-            }
-        }).collect(),
+    let media: Vec<Medium> = match media_res {
+        Ok(r) => r.hits.into_iter().map(|hit| Medium::from(hit.result)).collect(),
         Err(e) => { eprintln!("Meilisearch media suggestion error: {:?}", e); vec![] }
     };
 
@@ -270,6 +245,7 @@ async fn hx_search_suggestions(
         users,
         lists,
         media,
+        current_medium_id: String::new(),
         config,
     };
     Html(template.render().unwrap())
