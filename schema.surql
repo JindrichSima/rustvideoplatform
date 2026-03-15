@@ -1,104 +1,163 @@
 -- SurrealDB 3.0 Schema for rustvideoplatform
--- Apply with: surreal import --conn ws://localhost:8000 --user root --pass root --ns main --db main schema.surql
+-- Run once against your SurrealDB instance to create all tables, fields, and indexes.
+--
+-- Usage:
+--   surreal import \
+--     --conn ws://localhost:8000 \
+--     --user root --pass root \
+--     --ns main --db main \
+--     schema.surql
 
 -- ─── Users ───────────────────────────────────────────────────────────────────
-DEFINE TABLE users SCHEMAFULL;
-DEFINE FIELD name              ON users TYPE string;
-DEFINE FIELD password_hash     ON users TYPE string;
-DEFINE FIELD profile_picture   ON users TYPE option<string>;
-DEFINE FIELD totp_enabled      ON users TYPE bool DEFAULT false;
-DEFINE FIELD totp_secret       ON users TYPE option<string>;
-DEFINE FIELD created           ON users TYPE int DEFAULT time::unix(time::now());
+-- Record ID is the login name: users:alice
+DEFINE TABLE users SCHEMAFULL
+  PERMISSIONS
+    FOR select WHERE true,
+    FOR create, update, delete WHERE $auth.id = id;
+
+DEFINE FIELD name              ON TABLE users TYPE string;
+DEFINE FIELD password_hash     ON TABLE users TYPE string;
+DEFINE FIELD profile_picture   ON TABLE users TYPE option<string>;
+DEFINE FIELD totp_enabled      ON TABLE users TYPE bool    DEFAULT false;
+DEFINE FIELD totp_secret       ON TABLE users TYPE option<string>;
+DEFINE FIELD created           ON TABLE users TYPE int     DEFAULT time::unix(time::now());
 
 -- ─── Media ───────────────────────────────────────────────────────────────────
-DEFINE TABLE media SCHEMAFULL;
-DEFINE FIELD name                 ON media TYPE string;
-DEFINE FIELD description          ON media TYPE string DEFAULT '';
-DEFINE FIELD owner                ON media TYPE string;
-DEFINE FIELD type                 ON media TYPE string;    -- video | audio | picture | document_pdf
-DEFINE FIELD visibility           ON media TYPE string DEFAULT 'hidden';  -- public | hidden | restricted
-DEFINE FIELD restricted_to_group  ON media TYPE option<string>;
-DEFINE FIELD views                ON media TYPE int DEFAULT 0;
-DEFINE FIELD upload               ON media TYPE int DEFAULT time::unix(time::now());
-DEFINE FIELD public               ON media TYPE bool DEFAULT false;
+-- Record ID is the randomly-generated media ID: media:abc123
+DEFINE TABLE media SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
-DEFINE INDEX media_owner_idx   ON media FIELDS owner;
-DEFINE INDEX media_upload_idx  ON media FIELDS upload;
+DEFINE FIELD name                 ON TABLE media TYPE string;
+DEFINE FIELD description          ON TABLE media TYPE string  DEFAULT '';
+DEFINE FIELD owner                ON TABLE media TYPE string;
+DEFINE FIELD type                 ON TABLE media TYPE string;
+  -- Accepted values: video | audio | picture | document_pdf
+DEFINE FIELD visibility           ON TABLE media TYPE string  DEFAULT 'hidden';
+  -- Accepted values: public | hidden | restricted
+DEFINE FIELD restricted_to_group  ON TABLE media TYPE option<string>;
+  -- Accepted values: __all_registered__ | __subscribers__ | <user_group id>
+DEFINE FIELD views                ON TABLE media TYPE int     DEFAULT 0;
+DEFINE FIELD upload               ON TABLE media TYPE int     DEFAULT time::unix(time::now());
+DEFINE FIELD public               ON TABLE media TYPE bool    DEFAULT false;
+
+DEFINE INDEX media_owner_idx   ON TABLE media FIELDS owner;
+DEFINE INDEX media_upload_idx  ON TABLE media FIELDS upload;
 
 -- ─── Media Likes / Dislikes ──────────────────────────────────────────────────
-DEFINE TABLE media_likes SCHEMAFULL;
-DEFINE FIELD media_id    ON media_likes TYPE string;
-DEFINE FIELD user_login  ON media_likes TYPE string;
-DEFINE FIELD reaction    ON media_likes TYPE string;   -- like | dislike
+-- UPSERT media_likes SET media_id=$mid, user_login=$user, reaction='like'
+-- UNIQUE index prevents duplicate reactions per user per media item.
+DEFINE TABLE media_likes SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
-DEFINE INDEX media_likes_media_user ON media_likes FIELDS media_id, user_login UNIQUE;
+DEFINE FIELD media_id    ON TABLE media_likes TYPE string;
+DEFINE FIELD user_login  ON TABLE media_likes TYPE string;
+DEFINE FIELD reaction    ON TABLE media_likes TYPE string;
+  -- Accepted values: like | dislike
+
+DEFINE INDEX media_likes_media_user ON TABLE media_likes FIELDS media_id, user_login UNIQUE;
+DEFINE INDEX media_likes_media_idx  ON TABLE media_likes FIELDS media_id;
 
 -- ─── Comments ────────────────────────────────────────────────────────────────
-DEFINE TABLE comments SCHEMAFULL;
-DEFINE FIELD media   ON comments TYPE string;
-DEFINE FIELD author  ON comments TYPE string;
-DEFINE FIELD text    ON comments TYPE string;
-DEFINE FIELD time    ON comments TYPE int DEFAULT time::unix(time::now());
+DEFINE TABLE comments SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
-DEFINE INDEX comments_media_idx ON comments FIELDS media;
+DEFINE FIELD media   ON TABLE comments TYPE string;
+DEFINE FIELD author  ON TABLE comments TYPE string;
+DEFINE FIELD text    ON TABLE comments TYPE string;
+DEFINE FIELD time    ON TABLE comments TYPE int DEFAULT time::unix(time::now());
+
+DEFINE INDEX comments_media_idx ON TABLE comments FIELDS media;
+DEFINE INDEX comments_time_idx  ON TABLE comments FIELDS time;
 
 -- ─── Subscriptions ───────────────────────────────────────────────────────────
-DEFINE TABLE subscriptions SCHEMAFULL;
-DEFINE FIELD subscriber ON subscriptions TYPE string;
-DEFINE FIELD target     ON subscriptions TYPE string;
+-- Composite record ID: subscriptions:[$subscriber, $target]
+-- UPSERT subscriptions:[$subscriber,$target] SET subscriber=$sub, target=$tgt
+DEFINE TABLE subscriptions SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
-DEFINE INDEX subscriptions_sub_target ON subscriptions FIELDS subscriber, target UNIQUE;
-DEFINE INDEX subscriptions_target_idx ON subscriptions FIELDS target;
+DEFINE FIELD subscriber ON TABLE subscriptions TYPE string;
+DEFINE FIELD target     ON TABLE subscriptions TYPE string;
+
+DEFINE INDEX subscriptions_sub_target ON TABLE subscriptions FIELDS subscriber, target UNIQUE;
+DEFINE INDEX subscriptions_subscriber ON TABLE subscriptions FIELDS subscriber;
+DEFINE INDEX subscriptions_target     ON TABLE subscriptions FIELDS target;
 
 -- ─── User Groups ─────────────────────────────────────────────────────────────
-DEFINE TABLE user_groups SCHEMAFULL;
-DEFINE FIELD name     ON user_groups TYPE string;
-DEFINE FIELD owner    ON user_groups TYPE string;
-DEFINE FIELD created  ON user_groups TYPE int DEFAULT time::unix(time::now());
+-- Record ID is a randomly-generated ID: user_groups:xyz789
+DEFINE TABLE user_groups SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
-DEFINE TABLE user_group_members SCHEMAFULL;
-DEFINE FIELD group_id   ON user_group_members TYPE string;
-DEFINE FIELD user_login ON user_group_members TYPE string;
+DEFINE FIELD name     ON TABLE user_groups TYPE string;
+DEFINE FIELD owner    ON TABLE user_groups TYPE string;
+DEFINE FIELD created  ON TABLE user_groups TYPE int DEFAULT time::unix(time::now());
 
-DEFINE INDEX ugm_group_user ON user_group_members FIELDS group_id, user_login UNIQUE;
-DEFINE INDEX ugm_user_idx   ON user_group_members FIELDS user_login;
+DEFINE INDEX user_groups_owner_idx   ON TABLE user_groups FIELDS owner;
+DEFINE INDEX user_groups_created_idx ON TABLE user_groups FIELDS created;
+
+-- ─── User Group Members ──────────────────────────────────────────────────────
+DEFINE TABLE user_group_members SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
+
+DEFINE FIELD group_id   ON TABLE user_group_members TYPE string;
+DEFINE FIELD user_login ON TABLE user_group_members TYPE string;
+
+DEFINE INDEX ugm_group_user ON TABLE user_group_members FIELDS group_id, user_login UNIQUE;
+DEFINE INDEX ugm_user_idx   ON TABLE user_group_members FIELDS user_login;
+DEFINE INDEX ugm_group_idx  ON TABLE user_group_members FIELDS group_id;
 
 -- ─── Lists ───────────────────────────────────────────────────────────────────
-DEFINE TABLE lists SCHEMAFULL;
-DEFINE FIELD name                ON lists TYPE string;
-DEFINE FIELD owner               ON lists TYPE string;
-DEFINE FIELD public              ON lists TYPE bool DEFAULT false;
-DEFINE FIELD visibility          ON lists TYPE string DEFAULT 'hidden';
-DEFINE FIELD restricted_to_group ON lists TYPE option<string>;
-DEFINE FIELD created             ON lists TYPE int DEFAULT time::unix(time::now());
+-- Record ID is a randomly-generated ID: lists:abc123
+DEFINE TABLE lists SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
-DEFINE INDEX lists_owner_idx   ON lists FIELDS owner;
-DEFINE INDEX lists_created_idx ON lists FIELDS created;
+DEFINE FIELD name                ON TABLE lists TYPE string;
+DEFINE FIELD owner               ON TABLE lists TYPE string;
+DEFINE FIELD public              ON TABLE lists TYPE bool   DEFAULT false;
+DEFINE FIELD visibility          ON TABLE lists TYPE string DEFAULT 'hidden';
+  -- Accepted values: public | hidden | restricted
+DEFINE FIELD restricted_to_group ON TABLE lists TYPE option<string>;
+DEFINE FIELD created             ON TABLE lists TYPE int    DEFAULT time::unix(time::now());
 
-DEFINE TABLE list_items SCHEMAFULL;
-DEFINE FIELD list_id  ON list_items TYPE string;
-DEFINE FIELD media_id ON list_items TYPE string;
-DEFINE FIELD position ON list_items TYPE int DEFAULT 0;
+DEFINE INDEX lists_owner_idx   ON TABLE lists FIELDS owner;
+DEFINE INDEX lists_created_idx ON TABLE lists FIELDS created;
 
-DEFINE INDEX list_items_list_idx ON list_items FIELDS list_id;
+-- ─── List Items ──────────────────────────────────────────────────────────────
+DEFINE TABLE list_items SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
--- ─── Media Concepts (processing queue) ───────────────────────────────────────
-DEFINE TABLE media_concepts SCHEMAFULL;
-DEFINE FIELD name      ON media_concepts TYPE string;
-DEFINE FIELD owner     ON media_concepts TYPE string;
-DEFINE FIELD type      ON media_concepts TYPE string;  -- video | audio | picture | document_pdf | vtt_translate
-DEFINE FIELD processed ON media_concepts TYPE bool DEFAULT false;
+DEFINE FIELD list_id  ON TABLE list_items TYPE string;
+DEFINE FIELD media_id ON TABLE list_items TYPE string;
+DEFINE FIELD position ON TABLE list_items TYPE int DEFAULT 0;
 
-DEFINE INDEX media_concepts_processed ON media_concepts FIELDS processed;
+DEFINE INDEX list_items_list_pos ON TABLE list_items FIELDS list_id, position;
+DEFINE INDEX list_items_list_idx ON TABLE list_items FIELDS list_id;
 
--- ─── WebAuthn Credentials ────────────────────────────────────────────────────
-DEFINE TABLE webauthn_credentials SCHEMAFULL;
-DEFINE FIELD user_login      ON webauthn_credentials TYPE string;
-DEFINE FIELD credential_name ON webauthn_credentials TYPE string;
-DEFINE FIELD passkey         ON webauthn_credentials TYPE string;  -- JSON-serialised Passkey
-DEFINE FIELD created         ON webauthn_credentials TYPE int DEFAULT time::unix(time::now());
+-- ─── Media Concepts (processing job queue) ───────────────────────────────────
+-- Record ID is the upload filename / concept slug.
+-- The processor polls: SELECT id, type FROM media_concepts WHERE processed = false
+DEFINE TABLE media_concepts SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
 
-DEFINE INDEX webauthn_user_idx ON webauthn_credentials FIELDS user_login;
+DEFINE FIELD name      ON TABLE media_concepts TYPE string;
+DEFINE FIELD owner     ON TABLE media_concepts TYPE string;
+DEFINE FIELD type      ON TABLE media_concepts TYPE string;
+  -- Accepted values: video | audio | picture | document_pdf | vtt_translate
+DEFINE FIELD processed ON TABLE media_concepts TYPE bool DEFAULT false;
 
--- ─── Session Tokens ──────────────────────────────────────────────────────────
--- Sessions are stored in Redis; no SurrealDB table needed.
+DEFINE INDEX media_concepts_processed ON TABLE media_concepts FIELDS processed;
+DEFINE INDEX media_concepts_owner_idx ON TABLE media_concepts FIELDS owner;
+
+-- ─── WebAuthn / Passkey Credentials ─────────────────────────────────────────
+-- Record ID is user-provided credential name.
+DEFINE TABLE webauthn_credentials SCHEMAFULL
+  PERMISSIONS FOR select, create, update, delete WHERE true;
+
+DEFINE FIELD user_login      ON TABLE webauthn_credentials TYPE string;
+DEFINE FIELD credential_name ON TABLE webauthn_credentials TYPE string;
+DEFINE FIELD passkey         ON TABLE webauthn_credentials TYPE string;
+  -- JSON-serialised webauthn_rs Passkey struct
+DEFINE FIELD created         ON TABLE webauthn_credentials TYPE int DEFAULT time::unix(time::now());
+
+DEFINE INDEX webauthn_user_idx ON TABLE webauthn_credentials FIELDS user_login;
+
+-- ─── End of schema ───────────────────────────────────────────────────────────

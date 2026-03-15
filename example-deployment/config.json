@@ -1,5 +1,9 @@
 {
-    "dbconnection":"postgresql://vids:SECRET_PASSWORD_HERE@postgres:5432/vids",
+    "surrealdb_url": "ws://surrealdb:8000",
+    "surrealdb_ns": "main",
+    "surrealdb_db": "main",
+    "surrealdb_user": "root",
+    "surrealdb_pass": "SECRET_PASSWORD_HERE",
     "redis_url": "redis://dragonfly:6379",
     "instancename":"vids.cz",
     "welcome":"Welcome to our experimental open-source multimedia sharing platform! Dive into a vibrant community where creativity knows no bounds. Whether you're a photographer, musician, filmmaker, or digital artist, our site offers the perfect space to showcase your work, connect with like-minded individuals, and explore an endless stream of inspiration. Join us today and start sharing your creativity with the world!",
