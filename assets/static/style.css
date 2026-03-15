@@ -16253,6 +16253,21 @@ body.sidebar-collapsed .sidebarbackground {
     list-style: none;
 }
 
+.suggestion-section-header {
+    padding: 0.4rem 0.75rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bs-secondary);
+    list-style: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.suggestion-section-header:first-child {
+    border-top: none;
+}
+
 #suggestions {
     position: absolute;
     z-index: 1000;

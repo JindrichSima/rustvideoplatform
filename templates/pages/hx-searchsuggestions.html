@@ -1,0 +1,68 @@
+{% if !users.is_empty() %}
+<li class="suggestion-section-header">
+    <i class="fa-solid fa-user me-2"></i>Channels &amp; Users
+</li>
+{% for user in users %}
+<a href="/u/{{ user.login }}" class="text-decoration-none suggestionitem" preload="mouseover">
+    <li class="d-flex align-items-center gap-2 py-1 px-2">
+        {% if user.profile_picture.is_some() %}
+        <img src="{{ config.source_server_url }}/source/{{ user.profile_picture.as_ref().unwrap() }}" class="rounded-circle" width="32" height="32" style="object-fit:cover;flex-shrink:0;" alt="">
+        {% else %}
+        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width:32px;height:32px;flex-shrink:0;">
+            <i class="fa-solid fa-user fa-xs text-white"></i>
+        </div>
+        {% endif %}
+        <div class="overflow-hidden">
+            <div class="text-white text-truncate fw-semibold">{{ user.highlighted_name }}</div>
+            <div class="text-secondary small">@{{ user.login }}</div>
+        </div>
+    </li>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if !lists.is_empty() %}
+<li class="suggestion-section-header {% if !users.is_empty() %}mt-1{% endif %}">
+    <i class="fa-solid fa-list me-2"></i>Lists
+</li>
+{% for list in lists %}
+<a href="/list/{{ list.id }}" class="text-decoration-none suggestionitem" preload="mouseover">
+    <li class="d-flex align-items-center gap-2 py-1 px-2">
+        <div class="d-flex align-items-center justify-content-center bg-secondary rounded" style="width:32px;height:32px;flex-shrink:0;">
+            <i class="fa-solid fa-list fa-xs text-white"></i>
+        </div>
+        <div class="overflow-hidden">
+            <div class="text-white text-truncate fw-semibold">{{ list.highlighted_name }}</div>
+            <div class="text-secondary small">{{ list.owner }} &middot; {{ list.item_count }} items</div>
+        </div>
+    </li>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if !media.is_empty() %}
+<li class="suggestion-section-header {% if !users.is_empty() || !lists.is_empty() %}mt-1{% endif %}">
+    <i class="fa-solid fa-film me-2"></i>Media
+</li>
+{% for item in media %}
+<a href="/m/{{ item.id }}" class="text-decoration-none suggestionitem" preload="mouseover">
+    <li class="d-flex align-items-center gap-2 py-1 px-2">
+        <div class="d-flex align-items-center justify-content-center bg-secondary rounded" style="width:32px;height:32px;flex-shrink:0;">
+            {% if item.type == "video" %}
+            <i class="fa-solid fa-video fa-xs text-white"></i>
+            {% else if item.type == "audio" %}
+            <i class="fa-solid fa-music fa-xs text-white"></i>
+            {% else if item.type == "picture" %}
+            <i class="fa-solid fa-image fa-xs text-white"></i>
+            {% else %}
+            <i class="fa-solid fa-file fa-xs text-white"></i>
+            {% endif %}
+        </div>
+        <div class="overflow-hidden">
+            <div class="text-white text-truncate fw-semibold">{{ item.highlighted_name }}</div>
+            <div class="text-secondary small">{{ item.owner }} &middot; {{ item.views }} views</div>
+        </div>
+    </li>
+</a>
+{% endfor %}
+{% endif %}
