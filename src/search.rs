@@ -4,6 +4,7 @@ struct MeiliMedia {
     name: String,
     owner: String,
     views: i64,
+    #[serde(default)]
     likes: i64,
     #[serde(default)]
     dislikes: i64,
