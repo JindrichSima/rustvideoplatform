@@ -27,6 +27,7 @@ services:
    image: panmourovaty/rustvideoplatform-processor
    volumes:
      - ./upload:/upload
+     - ./source:/source
      - ./config.json:/config.json
    restart: always
    devices:
@@ -41,6 +42,7 @@ services:
  indexer:
    image: panmourovaty/rustvideoplatform-indexer
    volumes:
+     - ./source:/source
      - ./config.json:/config.json
    restart: always
    depends_on:
@@ -67,7 +69,7 @@ services:
      - --log=info
      - --user=root
      - --pass=SECRET_PASSWORD
-     - rocksdb:/mydata/database.db
+     - ./db:/mydata/database.db
    healthcheck:
      test: ["CMD", "/surreal", "isready", "--conn", "http://localhost:8000"]
      interval: 5s
