@@ -1,11 +1,11 @@
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, SurrealValue, Clone)]
 struct UserGroup {
     id: String,
     name: String,
     owner: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct UserGroupWithCount {
     id: String,
     name: String,
@@ -13,17 +13,17 @@ struct UserGroupWithCount {
     member_count: Option<i64>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct GroupMember {
     user_login: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct CreateGroupForm {
     name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct AddMemberForm {
     user_login: String,
 }
@@ -174,7 +174,7 @@ async fn hx_delete_group(
     }
 
     // Verify ownership
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct OwnerRecord {
         owner: String,
     }
@@ -353,7 +353,7 @@ async fn hx_add_group_member(
     }
 
     // Check that the user exists
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct LoginRecord {
         login: String,
     }

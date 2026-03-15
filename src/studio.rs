@@ -29,7 +29,7 @@ async fn studio(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct MediumStudio {
     id: String,
     name: String,
@@ -184,7 +184,7 @@ async fn hx_studio_lists_inner(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct MediumEdit {
     id: String,
     name: String,
@@ -240,7 +240,7 @@ struct HXStudioEditPermissionsTemplate {
     owner_groups: Vec<UserGroup>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct MediaRecord {
     id: String,
     name: String,
@@ -305,19 +305,19 @@ async fn studio_edit(
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct EditForm {
     medium_name: String,
     medium_description: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct PermissionsEditForm {
     medium_visibility: String,
     medium_restricted_group: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct OwnerRecord {
     owner: String,
 }
@@ -531,7 +531,7 @@ async fn hx_studio_edit_danger_tab(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct OwnerNameRecord {
         owner: String,
         name: String,

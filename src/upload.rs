@@ -104,7 +104,7 @@ async fn hx_upload(
         response_html.push_str("</table><br>");
 
         // Step 7: Save metadata to the database
-        let concept_id = surrealdb::RecordId::from_table_key("media_concepts", &medium_id);
+        let concept_id = RecordId::new("media_concepts", medium_id.as_str());
         db.query(
             "CREATE $id SET name = $name, owner = $owner, type = $type, processed = false;",
         )

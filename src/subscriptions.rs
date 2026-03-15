@@ -59,9 +59,9 @@ async fn hx_subscriptions_inner(
 
     let offset = page * 30;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct MediumRow {
-        id: surrealdb::RecordId,
+        id: RecordId,
         name: String,
         owner: String,
         views: i64,
@@ -85,7 +85,7 @@ async fn hx_subscriptions_inner(
     let rows: Vec<MediumRow> = resp.take(0).unwrap_or_default();
 
     let mut media: Vec<Medium> = rows.into_iter().map(|row| Medium {
-        id: row.id.key().to_string(),
+        id: row.id.key_string(),
         name: row.name,
         owner: row.owner,
         views: row.views,

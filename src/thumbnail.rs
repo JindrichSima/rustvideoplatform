@@ -10,7 +10,7 @@ async fn studio_thumbnail_get(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -45,7 +45,7 @@ async fn studio_thumbnail_upload(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -215,7 +215,7 @@ async fn studio_thumbnail_delete(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")

@@ -12,7 +12,7 @@ fn like_dislike_html_unauth(mediumid: &str, likes: i64, dislikes: i64) -> String
     )
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct ReactionStateRow {
     likes: i64,
     dislikes: i64,
@@ -30,7 +30,7 @@ async fn get_reaction_state_db(db: &Db, mediumid: &str, user_login: Option<&str>
              (SELECT reaction FROM media_likes WHERE media_id = $mid AND user_login = $user LIMIT 1)[0].reaction AS user_reaction \
              FROM media WHERE id = $mid"
         )
-        .bind(("mid", surrealdb::RecordId::from_table_key("media", mediumid)))
+        .bind(("mid", RecordId::new("media", mediumid)))
         .bind(("user", user.to_string()))
         .await
         .expect("Database error");
@@ -53,7 +53,7 @@ async fn get_reaction_state_cached(db: &Db, mediumid: &str, user_login: Option<&
         let user_reaction = if user.is_empty() {
             None
         } else {
-            #[derive(Deserialize)] struct ReactionRow { reaction: String }
+            #[derive(Deserialize, SurrealValue)] struct ReactionRow { reaction: String }
             let mut resp = db
                 .query("SELECT reaction FROM media_likes WHERE media_id = $mid AND user_login = $user LIMIT 1")
                 .bind(("mid", mediumid.to_string()))
@@ -72,7 +72,7 @@ async fn get_reaction_state_cached(db: &Db, mediumid: &str, user_login: Option<&
                  (SELECT reaction FROM media_likes WHERE media_id = $mid AND user_login = $user LIMIT 1)[0].reaction AS user_reaction \
                  FROM media WHERE id = $mid"
             )
-            .bind(("mid", surrealdb::RecordId::from_table_key("media", mediumid)))
+            .bind(("mid", RecordId::new("media", mediumid)))
             .bind(("user", user.to_string()))
             .await
             .expect("Database error");

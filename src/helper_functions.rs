@@ -1,3 +1,18 @@
+trait RecordIdKeyExt {
+    fn key_string(&self) -> String;
+}
+
+impl RecordIdKeyExt for RecordId {
+    fn key_string(&self) -> String {
+        use surrealdb::types::RecordIdKey;
+        match &self.key {
+            RecordIdKey::String(s) => s.clone(),
+            RecordIdKey::Number(n) => n.to_string(),
+            _ => String::new(),
+        }
+    }
+}
+
 fn minifi_html(html: String) -> Vec<u8> {
     let cfg = minify_html_onepass::Cfg {
         minify_css: true,
@@ -64,7 +79,7 @@ fn get_header_value(
         .map(|s| s.to_string())
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct CommonHeaders {
     host: String,
     user_agent: Option<String>,
@@ -90,7 +105,7 @@ fn extract_common_headers(headers: &HeaderMap) -> Result<CommonHeaders, &'static
     })
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, SurrealValue, Debug)]
 struct UserRow {
     name: String,
     profile_picture: Option<String>,
@@ -112,7 +127,7 @@ async fn get_user_login(
 
     let mut resp = db
         .query("SELECT name, profile_picture FROM users WHERE id = $id")
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &login)))
+        .bind(("id", RecordId::new("users", login.as_str())))
         .await
         .ok()?;
 
@@ -313,7 +328,7 @@ async fn is_group_member(db: &Db, group_id: &str, user_login: &str, mut redis: R
         return redis.sismember(&redis_key, user_login).await.unwrap_or(false);
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct MemberRow { user_login: String }
 
     let mut resp = db

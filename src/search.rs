@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
 struct MeiliMedia {
     id: String,
     name: String,
@@ -40,9 +40,9 @@ impl From<MeiliMedia> for Medium {
 /// For anonymous users, shows only public media.
 async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
     if let Some(u) = user {
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct GroupRow { group_id: String }
-        #[derive(serde::Deserialize)]
+        #[derive(serde::Deserialize, SurrealValue)]
         struct TargetRow { target: String }
 
         let mut resp = db
@@ -99,7 +99,7 @@ async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
 
 // --- Search suggestions (navbar autocomplete) ---
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct HXSearch {
     search: String,
 }
@@ -257,7 +257,7 @@ async fn hx_search_suggestions(
 
 // --- Full search with filters ---
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, SurrealValue, Debug)]
 struct HXSearchForm {
     search: String,
     #[serde(default)]
@@ -289,7 +289,7 @@ struct HXSearchTemplate {
 // --- List search ---
 
 /// Meilisearch document shape for the "lists" index.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
 struct MeiliList {
     id: String,
     name: String,
@@ -330,7 +330,7 @@ struct HXSearchListsTemplate {
 // --- User search ---
 
 /// Meilisearch document shape for the "users" index.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
 struct MeiliUser {
     login: String,
     name: String,
@@ -908,7 +908,7 @@ struct SearchTemplate {
     initial_query: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct SearchQuery {
     #[serde(default)]
     q: Option<String>,

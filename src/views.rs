@@ -1,4 +1,4 @@
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct ViewsRow {
     views: i64,
 }
@@ -9,7 +9,7 @@ async fn hx_new_view(
 ) -> axum::response::Html<String> {
     let mut resp = db
         .query("UPDATE media SET views += 1 WHERE id = $id RETURN views")
-        .bind(("id", surrealdb::RecordId::from_table_key("media", &mediumid)))
+        .bind(("id", RecordId::new("media", mediumid.as_str())))
         .await
         .expect("Database error");
     let rows: Vec<ViewsRow> = resp.take(0).unwrap_or_default();

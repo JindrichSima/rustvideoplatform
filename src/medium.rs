@@ -48,7 +48,7 @@ struct MediumTemplate {
     list_name: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct Medium {
     id: String,
     name: String,
@@ -60,7 +60,7 @@ struct Medium {
     sprite_y: i32,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct MediumRow {
     id: String,
     name: String,
@@ -92,7 +92,7 @@ async fn medium(
              (SELECT profile_picture FROM users WHERE id = $parent.owner)[0] AS owner_picture \
              FROM media AS m WHERE m.id = $id LIMIT 1;"
         )
-        .bind(("id", surrealdb::RecordId::from_table_key("media", &mediumid.to_ascii_lowercase())))
+        .bind(("id", RecordId::new("media", mediumid.to_ascii_lowercase())))
         .await
         .and_then(|mut r| r.take(0))
         .ok()
@@ -241,7 +241,7 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
         .join("\n")
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct DescriptionRow {
     description: Option<String>,
 }
@@ -252,7 +252,7 @@ async fn medium_description_prepare(
 ) -> Json<serde_json::Value> {
     let description: Option<String> = db
         .query("SELECT description FROM media WHERE id = $id LIMIT 1;")
-        .bind(("id", surrealdb::RecordId::from_table_key("media", &mediumid.to_ascii_lowercase())))
+        .bind(("id", RecordId::new("media", mediumid.to_ascii_lowercase())))
         .await
         .and_then(|mut r| r.take(0))
         .ok()
