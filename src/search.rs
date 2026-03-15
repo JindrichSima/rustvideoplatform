@@ -38,24 +38,28 @@ impl From<MeiliMedia> for Medium {
 /// Build a Meilisearch filter string that respects group-based visibility.
 /// For logged-in users, shows public media + restricted media in their groups.
 /// For anonymous users, shows only public media.
-async fn build_visibility_filter(pool: &PgPool, user: &Option<User>) -> String {
+async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
     if let Some(u) = user {
-        let group_ids: Vec<String> = sqlx::query_scalar(
-            "SELECT group_id FROM user_group_members WHERE user_login = $1"
-        )
-        .bind(&u.login)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        #[derive(serde::Deserialize)]
+        struct GroupRow { group_id: String }
+        #[derive(serde::Deserialize)]
+        struct TargetRow { target: String }
 
-        // Fetch channels the user is subscribed to
-        let subscribed_channels: Vec<String> = sqlx::query_scalar(
-            "SELECT target FROM subscriptions WHERE subscriber = $1"
-        )
-        .bind(&u.login)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        let mut resp = db
+            .query("SELECT group_id FROM user_group_members WHERE user_login = $user")
+            .bind(("user", u.login.clone()))
+            .await
+            .unwrap_or_else(|_| unreachable!());
+        let group_rows: Vec<GroupRow> = resp.take(0).unwrap_or_default();
+        let group_ids: Vec<String> = group_rows.into_iter().map(|r| r.group_id).collect();
+
+        let mut resp2 = db
+            .query("SELECT target FROM subscriptions WHERE subscriber = $user")
+            .bind(("user", u.login.clone()))
+            .await
+            .unwrap_or_else(|_| unreachable!());
+        let target_rows: Vec<TargetRow> = resp2.take(0).unwrap_or_default();
+        let subscribed_channels: Vec<String> = target_rows.into_iter().map(|r| r.target).collect();
 
         // Build the list of group IDs + system group for all registered users
         let mut all_group_ids = group_ids;
@@ -129,7 +133,7 @@ struct HXSearchSuggestionsTemplate {
 
 async fn hx_search_suggestions(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     headers: HeaderMap,
@@ -139,8 +143,8 @@ async fn hx_search_suggestions(
         return Html("".to_owned());
     }
 
-    let user = get_user_login(headers, &pool, redis).await;
-    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let user = get_user_login(headers, &db, redis).await;
+    let visibility_filter = build_visibility_filter(&db, &user).await;
     let vis_filter_for_lists = format!("({})", visibility_filter);
 
     let (users_res, lists_res, media_res) = tokio::join!(
@@ -387,7 +391,7 @@ struct HXSearchAllTemplate {
 
 async fn hx_search(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     headers: HeaderMap,
@@ -399,11 +403,11 @@ async fn hx_search(
     }
 
     let search_in = form.search_in.clone().unwrap_or_default();
-    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user = get_user_login(headers.clone(), &db, redis.clone()).await;
 
     match search_in.as_str() {
         "lists" => {
-            return hx_search_lists_inner(config, pool, meili, user, pageid, form.search).await;
+            return hx_search_lists_inner(config, db.clone(), meili, user, pageid, form.search).await;
         }
         "users" => {
             return hx_search_users_inner(config, meili, pageid, form.search).await;
@@ -411,7 +415,7 @@ async fn hx_search(
         "media" => {} // fall through to media-only Meilisearch
         _ => {
             // Default: search all types simultaneously
-            return hx_search_all_inner(config, pool, meili, user, form.search).await;
+            return hx_search_all_inner(config, db.clone(), meili, user, form.search).await;
         }
     }
 
@@ -424,7 +428,7 @@ async fn hx_search(
     let date_range = form.date_range.clone().unwrap_or_default();
 
     // Build filter string with visibility-aware access control
-    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let visibility_filter = build_visibility_filter(&db, &user).await;
     let mut filters: Vec<String> = vec![format!("({})", visibility_filter)];
 
     // Media type filter
@@ -554,7 +558,7 @@ async fn hx_search(
 
 async fn hx_search_lists_inner(
     config: Config,
-    pool: PgPool,
+    db: Db,
     meili: Arc<MeilisearchClient>,
     user: Option<User>,
     pageid: usize,
@@ -564,7 +568,7 @@ async fn hx_search_lists_inner(
     let offset = pageid * 40;
 
     // Reuse the same visibility filter logic as media search
-    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let visibility_filter = build_visibility_filter(&db, &user).await;
     let filter_str = format!("({})", visibility_filter);
 
     let index = meili.index("lists");
@@ -746,12 +750,12 @@ async fn hx_search_users_inner(
 
 async fn hx_search_all_inner(
     config: Config,
-    pool: PgPool,
+    db: Db,
     meili: Arc<MeilisearchClient>,
     user: Option<User>,
     search_term: String,
 ) -> axum::response::Html<String> {
-    let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let visibility_filter = build_visibility_filter(&db, &user).await;
     let vis_filter_parens = format!("({})", visibility_filter);
 
     let (users_res, lists_res, media_res) = tokio::join!(

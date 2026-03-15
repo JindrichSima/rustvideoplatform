@@ -1,38 +1,58 @@
 async fn hx_recommended(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
-    let user = get_user_login(headers, &pool, redis.clone()).await;
+    let user = get_user_login(headers, &db, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
 
-    let media: Vec<Medium> = sqlx::query(
-        "SELECT id, name, owner, views, type FROM media WHERE visibility = 'public' OR (visibility = 'restricted' AND restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1)) LIMIT 20;"
-    )
-    .bind(&user_login)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        Medium {
-            id: row.get("id"),
-            name: row.get("name"),
-            owner: row.get("owner"),
-            views: row.get("views"),
-            r#type: row.get("type"),
-            sprite_filename: None,
-            sprite_x: 0,
-            sprite_y: 0,
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .map_err(|_| {
+    #[derive(Deserialize)]
+    struct MediumRow {
+        id: surrealdb::RecordId,
+        name: String,
+        owner: String,
+        views: i64,
+        #[serde(rename = "type")]
+        r#type: String,
+    }
+
+    let mut response = db
+        .query(
+            "SELECT id, name, owner, views, type FROM media \
+             WHERE fn::visible_to(visibility, restricted_to_group, owner, $user) \
+             LIMIT 20",
+        )
+        .bind(("user", user_login.clone()))
+        .await
+        .map_err(|_| {
+            axum::response::Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body("Failed to fetch recommendations".into())
+                .unwrap()
+        })?;
+
+    let rows: Vec<MediumRow> = response.take(0).map_err(|_| {
         axum::response::Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body("Failed to fetch recommendations".into())
             .unwrap()
     })?;
+
+    let media: Vec<Medium> = rows
+        .into_iter()
+        .map(|row| Medium {
+            id: row.id.key().to_string(),
+            name: row.name,
+            owner: row.owner,
+            views: row.views,
+            r#type: row.r#type,
+            sprite_filename: None,
+            sprite_x: 0,
+            sprite_y: 0,
+        })
+        .collect();
 
     let template = HXMediumListTemplate {
         current_medium_id: mediumid,

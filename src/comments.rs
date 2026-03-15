@@ -1,6 +1,7 @@
 #[derive(Serialize, Deserialize)]
 struct Comment {
-    id: i64,
+    id: String,
+    #[serde(rename = "author")]
     user: String,
     user_name: String,
     user_picture: Option<String>,
@@ -24,38 +25,49 @@ struct HXCommentsTemplate {
 
 const COMMENTS_PER_PAGE: i64 = 20;
 
+#[derive(Deserialize)]
+struct CommentRow {
+    id: surrealdb::RecordId,
+    author: String,
+    user_name: String,
+    user_picture: Option<String>,
+    text: serde_json::Value,
+    time: i64,
+}
+
 async fn hx_comments(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path(mediumid): Path<String>,
     axum::extract::Query(query): axum::extract::Query<CommentsQuery>,
 ) -> axum::response::Html<Vec<u8>> {
     let page = query.page.unwrap_or(0);
     let offset = page * COMMENTS_PER_PAGE;
+    let limit = COMMENTS_PER_PAGE + 1;
 
-    let rows = sqlx::query(
-        r#"SELECT c.id, c."user", u.name as user_name, u.profile_picture as user_picture, c.text, c.time
-           FROM comments c
-           LEFT JOIN users u ON c."user" = u.login
-           WHERE c.media=$1 ORDER BY c.time DESC LIMIT $2 OFFSET $3;"#,
-    )
-    .bind(&mediumid)
-    .bind(COMMENTS_PER_PAGE + 1)
-    .bind(offset)
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    let mut resp = db
+        .query(
+            "SELECT id, author, author.name AS user_name, author.profile_picture AS user_picture, text, time \
+             FROM comments WHERE media = $media \
+             ORDER BY time DESC LIMIT $limit START $offset"
+        )
+        .bind(("media", surrealdb::RecordId::from_table_key("media", &mediumid)))
+        .bind(("limit", limit))
+        .bind(("offset", offset))
+        .await
+        .expect("Database error");
 
-    use sqlx::Row;
+    let rows: Vec<CommentRow> = resp.take(0).unwrap_or_default();
+
     let comments: Vec<Comment> = rows
-        .iter()
+        .into_iter()
         .map(|row| Comment {
-            id: row.get("id"),
-            user: row.get("user"),
-            user_name: row.get("user_name"),
-            user_picture: row.get("user_picture"),
-            text: row.get("text"),
-            time: row.get("time"),
+            id: row.id.key().to_string(),
+            user: row.author,
+            user_name: row.user_name,
+            user_picture: row.user_picture,
+            text: row.text,
+            time: row.time,
         })
         .collect();
 
@@ -78,18 +90,19 @@ struct CommentForm {
 }
 
 async fn comment_delta(
-    Extension(pool): Extension<PgPool>,
-    Path(comment_id): Path<i64>,
+    Extension(db): Extension<Db>,
+    Path(comment_id): Path<String>,
 ) -> Json<serde_json::Value> {
-    let row = sqlx::query!(
-        r#"SELECT text FROM comments WHERE id=$1;"#,
-        comment_id
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    #[derive(Deserialize)]
+    struct TextRow { text: serde_json::Value }
 
-    Json(row.text)
+    let mut resp = db
+        .query("SELECT text FROM comments WHERE id = $id")
+        .bind(("id", surrealdb::RecordId::from_table_key("comments", &comment_id)))
+        .await
+        .expect("Database error");
+    let row: Option<TextRow> = resp.take(0).expect("Database error");
+    Json(row.map(|r| r.text).unwrap_or(serde_json::Value::Null))
 }
 
 #[derive(Template)]
@@ -101,13 +114,13 @@ struct HXCommentSingleTemplate {
 
 async fn hx_add_comment(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Form(form): Form<CommentForm>,
 ) -> impl IntoResponse {
-    let user = get_user_login(headers, &pool, redis.clone()).await;
+    let user = get_user_login(headers, &db, redis.clone()).await;
 
     if user.is_none() {
         return (StatusCode::UNAUTHORIZED, Html(Vec::new()));
@@ -118,29 +131,36 @@ async fn hx_add_comment(
     let delta: serde_json::Value =
         serde_json::from_str(&form.text).unwrap_or_default();
 
-    let row = sqlx::query(
-        r#"WITH inserted AS (
-            INSERT INTO comments (media, "user", text) VALUES ($1, $2, $3) RETURNING id, "user", text, time
-        )
-        SELECT i.id, i."user", u.name as user_name, u.profile_picture as user_picture, i.text, i.time
-        FROM inserted i
-        LEFT JOIN users u ON i."user" = u.login;"#,
-    )
-    .bind(&mediumid)
-    .bind(&user.login)
-    .bind(delta)
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    use chrono::Utc;
+    let now_unix = Utc::now().timestamp();
 
-    use sqlx::Row;
+    let mut resp = db
+        .query(
+            "CREATE comments SET \
+             media = $media, author = $author, text = $text, time = $time; \
+             SELECT id, author, author.name AS user_name, author.profile_picture AS user_picture, text, time \
+             FROM comments ORDER BY time DESC LIMIT 1"
+        )
+        .bind(("media", surrealdb::RecordId::from_table_key("media", &mediumid)))
+        .bind(("author", surrealdb::RecordId::from_table_key("users", &user.login)))
+        .bind(("text", delta))
+        .bind(("time", now_unix))
+        .await
+        .expect("Database error");
+
+    let rows: Vec<CommentRow> = resp.take(1).unwrap_or_default();
+    let row = match rows.into_iter().next() {
+        Some(r) => r,
+        None => return (StatusCode::INTERNAL_SERVER_ERROR, Html(Vec::new())),
+    };
+
     let comment = Comment {
-        id: row.get("id"),
-        user: row.get("user"),
-        user_name: row.get("user_name"),
-        user_picture: row.get("user_picture"),
-        text: row.get("text"),
-        time: row.get("time"),
+        id: row.id.key().to_string(),
+        user: row.author,
+        user_name: row.user_name,
+        user_picture: row.user_picture,
+        text: row.text,
+        time: row.time,
     };
 
     let template = HXCommentSingleTemplate { comment, config };

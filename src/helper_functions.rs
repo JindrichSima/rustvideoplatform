@@ -90,9 +90,15 @@ fn extract_common_headers(headers: &HeaderMap) -> Result<CommonHeaders, &'static
     })
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct UserRow {
+    name: String,
+    profile_picture: Option<String>,
+}
+
 async fn get_user_login(
     headers: HeaderMap,
-    pool: &PgPool,
+    db: &Db,
     mut redis: RedisConn,
 ) -> Option<User> {
     let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
@@ -104,19 +110,19 @@ async fn get_user_login(
         .await
         .ok()?;
 
-    let row = sqlx::query(
-        "SELECT name, profile_picture FROM users WHERE login=$1;"
-    )
-    .bind(&login)
-    .fetch_one(pool)
-    .await
-    .ok()?;
+    let mut resp = db
+        .query("SELECT name, profile_picture FROM users WHERE id = $id")
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &login)))
+        .await
+        .ok()?;
 
-    use sqlx::Row;
+    let row: Option<UserRow> = resp.take(0).ok()?;
+    let row = row?;
+
     Some(User {
         login,
-        name: row.get("name"),
-        profile_picture: row.get("profile_picture"),
+        name: row.name,
+        profile_picture: row.profile_picture,
     })
 }
 
@@ -149,7 +155,6 @@ fn generate_medium_id() -> String {
 
     (0..10)
         .map(|_| {
-            // No 'rng' variable needed, no trait import needed
             let idx = rand::random_range(0..charset.len());
             charset[idx] as char
         })
@@ -159,96 +164,72 @@ fn generate_medium_id() -> String {
 fn detect_medium_type_mime(mime: String) -> String {
     let mime_type = mime.to_ascii_lowercase();
 
-    // --- Video ---
     if mime_type.contains("video")
         || matches!(
             mime_type.as_str(),
-            "application/x-matroska"
-                | "application/ogg"  // .ogv
+            "application/x-matroska" | "application/ogg"
         )
     {
         return "video".to_owned();
     }
 
-    // --- Audio ---
     if mime_type.contains("audio")
         || matches!(
             mime_type.as_str(),
-            "application/ogg"        // .ogg / .oga
+            "application/ogg"
                 | "application/x-ogg"
                 | "application/flac"
                 | "application/x-flac"
-                | "application/mp4"  // audio-only mp4
+                | "application/mp4"
         )
     {
         return "audio".to_owned();
     }
 
-    // --- Picture ---
     if mime_type.contains("image")
-        || matches!(
-            mime_type.as_str(),
-            "application/dicom"      // medical imaging
-        )
+        || matches!(mime_type.as_str(), "application/dicom")
     {
         return "picture".to_owned();
     }
 
-    // --- Document: PDF ---
     if mime_type == "application/pdf" {
         return "document_pdf".to_owned();
     }
 
-    // --- Document: Writer (word processors) ---
     if matches!(
         mime_type.as_str(),
-        // OpenDocument
         "application/vnd.oasis.opendocument.text"
             | "application/vnd.oasis.opendocument.text-template"
-            // Legacy MS Word
             | "application/msword"
-            // Modern MS Word
             | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             | "application/vnd.openxmlformats-officedocument.wordprocessingml.template"
-            // Apple Pages
             | "application/vnd.apple.pages"
-            // Rich Text / plain text variants
             | "application/rtf"
             | "text/rtf"
     ) {
         return "document_writer".to_owned();
     }
 
-    // --- Document: Spreadsheet ---
     if matches!(
         mime_type.as_str(),
-        // OpenDocument
         "application/vnd.oasis.opendocument.spreadsheet"
             | "application/vnd.oasis.opendocument.spreadsheet-template"
-            // Legacy MS Excel
             | "application/vnd.ms-excel"
-            // Modern MS Excel
             | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             | "application/vnd.openxmlformats-officedocument.spreadsheetml.template"
-            // Apple Numbers
             | "application/vnd.apple.numbers"
     ) {
         return "document_spreadsheet".to_owned();
     }
 
-    // --- Document: Presentation ---
     if matches!(
         mime_type.as_str(),
-        // OpenDocument
         "application/vnd.oasis.opendocument.presentation"
             | "application/vnd.oasis.opendocument.presentation-template"
-            // Legacy MS PowerPoint
             | "application/vnd.ms-powerpoint"
-            // Modern MS PowerPoint
             | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             | "application/vnd.openxmlformats-officedocument.presentationml.template"
             | "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
-            // Apple Keynote
             | "application/vnd.apple.keynote"
     ) {
         return "document_presentation".to_owned();
@@ -312,45 +293,48 @@ fn system_groups_for_owner(owner: &str) -> Vec<UserGroup> {
     ]
 }
 
-async fn is_subscribed(pool: &PgPool, subscriber: &str, target: &str) -> bool {
-    sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE subscriber = $1 AND target = $2)"
-    )
-    .bind(subscriber)
-    .bind(target)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(false)
+async fn is_subscribed(db: &Db, subscriber: &str, target: &str) -> bool {
+    let mut resp = db
+        .query("SELECT id FROM subscriptions WHERE subscriber = $subscriber AND target = $target LIMIT 1")
+        .bind(("subscriber", subscriber.to_string()))
+        .bind(("target", target.to_string()))
+        .await
+        .unwrap_or_else(|_| unreachable!());
+    let rows: Vec<serde_json::Value> = resp.take(0).unwrap_or_default();
+    !rows.is_empty()
 }
 
-async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
+async fn is_group_member(db: &Db, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
     let redis_key = format!("group:{}:members", group_id);
 
-    // Check if membership set is cached in Redis
     let key_exists: bool = redis.exists(&redis_key).await.unwrap_or(false);
 
     if key_exists {
         return redis.sismember(&redis_key, user_login).await.unwrap_or(false);
     }
 
-    // Cache miss - load all members from DB and cache in Redis
-    let members: Vec<String> = sqlx::query_scalar("SELECT user_login FROM user_group_members WHERE group_id = $1")
-        .bind(group_id)
-        .fetch_all(pool)
+    #[derive(Deserialize)]
+    struct MemberRow { user_login: String }
+
+    let mut resp = db
+        .query("SELECT user_login FROM user_group_members WHERE group_id = $group_id")
+        .bind(("group_id", group_id.to_string()))
         .await
-        .unwrap_or_default();
+        .unwrap_or_else(|_| unreachable!());
+    let members: Vec<MemberRow> = resp.take(0).unwrap_or_default();
+    let member_logins: Vec<String> = members.into_iter().map(|m| m.user_login).collect();
 
-    let is_member = members.contains(&user_login.to_owned());
+    let is_member = member_logins.contains(&user_login.to_owned());
 
-    if !members.is_empty() {
-        let _: Result<(), _> = redis.sadd(&redis_key, &members).await;
+    if !member_logins.is_empty() {
+        let _: Result<(), _> = redis.sadd(&redis_key, &member_logins).await;
         let _: Result<(), _> = redis.expire(&redis_key, 3600).await;
     }
 
     is_member
 }
 
-async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
+async fn can_access_restricted(db: &Db, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
     match visibility {
         "public" => true,
         "restricted" => {
@@ -360,16 +344,16 @@ async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_gr
                 }
                 if let Some(group_id) = restricted_to_group {
                     if group_id == SYSTEM_GROUP_ALL_REGISTERED {
-                        return true; // user is logged in
+                        return true;
                     }
                     if group_id == SYSTEM_GROUP_SUBSCRIBERS {
-                        return is_subscribed(pool, &u.login, owner).await;
+                        return is_subscribed(db, &u.login, owner).await;
                     }
-                    return is_group_member(pool, group_id, &u.login, redis).await;
+                    return is_group_member(db, group_id, &u.login, redis).await;
                 }
             }
             false
         }
-        _ => true // "hidden" - accessible via direct link (existing behavior)
+        _ => true
     }
 }

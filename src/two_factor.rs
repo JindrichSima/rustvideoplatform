@@ -38,19 +38,20 @@ fn make_totp(
 }
 
 /// Load all Passkey rows for a user from the database.
-async fn load_passkeys(pool: &PgPool, login: &str) -> Vec<(String, Passkey)> {
-    sqlx::query("SELECT id, passkey FROM webauthn_credentials WHERE user_login=$1")
-        .bind(login)
-        .map(|row: sqlx::postgres::PgRow| {
-            use sqlx::Row;
-            let id: String = row.get("id");
-            let val: serde_json::Value = row.get("passkey");
-            let pk: Passkey = serde_json::from_value(val).unwrap();
-            (id, pk)
-        })
-        .fetch_all(pool)
+async fn load_passkeys(db: &Db, login: &str) -> Vec<(String, Passkey)> {
+    #[derive(serde::Deserialize)]
+    struct PasskeyRow { id: surrealdb::RecordId, passkey: serde_json::Value }
+    let mut resp = db
+        .query("SELECT id, passkey FROM webauthn_credentials WHERE user_login = $user")
+        .bind(("user", login.to_string()))
         .await
-        .unwrap_or_default()
+        .unwrap_or_else(|_| unreachable!());
+    let rows: Vec<PasskeyRow> = resp.take(0).unwrap_or_default();
+    rows.into_iter().filter_map(|row| {
+        let id = row.id.key().to_string();
+        let pk: Passkey = serde_json::from_value(row.passkey).ok()?;
+        Some((id, pk))
+    }).collect()
 }
 
 /// Build a JSON `axum::response::Response` with a given status code.
@@ -69,7 +70,7 @@ struct TotpLoginForm {
 
 async fn hx_login_2fa_totp(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(mut redis): Extension<RedisConn>,
     Form(form): Form<TotpLoginForm>,
 ) -> (StatusCode, HeaderMap, String) {
@@ -94,13 +95,16 @@ async fn hx_login_2fa_totp(
     };
 
     // Fetch TOTP secret
-    let totp_secret: Option<String> = sqlx::query_scalar(
-        "SELECT totp_secret FROM users WHERE login=$1 AND totp_enabled=true",
-    )
-    .bind(&login)
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(None);
+    #[derive(serde::Deserialize)]
+    struct TotpSecretRow { totp_secret: Option<String> }
+    let mut _ts_resp = db
+        .query("SELECT totp_secret FROM users WHERE id = $id AND totp_enabled = true")
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &login)))
+        .await
+        .expect("db error");
+    let totp_secret: Option<String> = _ts_resp.take::<Option<TotpSecretRow>>(0)
+        .unwrap_or(None)
+        .and_then(|r| r.totp_secret);
 
     let totp_secret = match totp_secret {
         Some(s) => s,
@@ -163,11 +167,11 @@ struct HXSettings2FATotpSetupTemplate {
 
 async fn hx_settings_2fa_totp_setup(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(mut redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers, &pool, redis.clone()).await;
+    let user_info = get_user_login(headers, &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -223,12 +227,12 @@ struct TotpVerifySetupForm {
 
 async fn hx_settings_2fa_totp_verify_setup(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(mut redis): Extension<RedisConn>,
     headers: HeaderMap,
     Form(form): Form<TotpVerifySetupForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers, &pool, redis.clone()).await;
+    let user_info = get_user_login(headers, &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -283,13 +287,11 @@ async fn hx_settings_2fa_totp_verify_setup(
         ));
     }
 
-    let result = sqlx::query(
-        "UPDATE users SET totp_secret=$1, totp_enabled=true WHERE login=$2",
-    )
-    .bind(&secret_base32)
-    .bind(&user_info.login)
-    .execute(&pool)
-    .await;
+    let result = db
+        .query("UPDATE users SET totp_secret = $secret, totp_enabled = true WHERE id = $id")
+        .bind(("secret", secret_base32.clone()))
+        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .await;
 
     if result.is_err() {
         return Html(minifi_html(
@@ -310,11 +312,11 @@ async fn hx_settings_2fa_totp_verify_setup(
 }
 
 async fn hx_settings_2fa_totp_disable(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers, &pool, redis).await;
+    let user_info = get_user_login(headers, &db, redis).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -323,9 +325,9 @@ async fn hx_settings_2fa_totp_disable(
     let user_info = user_info.unwrap();
 
     let result =
-        sqlx::query("UPDATE users SET totp_secret=NULL, totp_enabled=false WHERE login=$1")
-            .bind(&user_info.login)
-            .execute(&pool)
+        db
+            .query("UPDATE users SET totp_secret = NULL, totp_enabled = false WHERE id = $id")
+            .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
             .await;
 
     if result.is_err() {
@@ -358,14 +360,14 @@ struct HXSettings2FATemplate {
 }
 
 async fn hx_settings_2fa(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     Extension(webauthn_lock): Extension<
         std::sync::Arc<std::sync::RwLock<Option<webauthn_rs::Webauthn>>>,
     >,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers, &pool, redis).await;
+    let user_info = get_user_login(headers, &db, redis).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -374,27 +376,30 @@ async fn hx_settings_2fa(
     let user_info = user_info.unwrap();
 
     let totp_enabled: bool =
-        sqlx::query_scalar("SELECT totp_enabled FROM users WHERE login=$1")
-            .bind(&user_info.login)
-            .fetch_one(&pool)
-            .await
-            .unwrap_or(false);
+        {
+            #[derive(serde::Deserialize)] struct TotpEnabledRow2 { totp_enabled: bool }
+            let mut _te_resp = db
+                .query("SELECT totp_enabled FROM users WHERE id = $id")
+                .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+                .await
+                .unwrap_or_else(|_| unreachable!());
+            let _te_row: Option<TotpEnabledRow2> = _te_resp.take(0).unwrap_or(None);
+            _te_row.map(|r| r.totp_enabled).unwrap_or(false)
+        };
 
-    let webauthn_creds: Vec<WebauthnCredInfo> = sqlx::query(
-        "SELECT id, credential_name, created FROM webauthn_credentials WHERE user_login=$1 ORDER BY created ASC",
-    )
-    .bind(&user_info.login)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        WebauthnCredInfo {
-            id: row.get("id"),
-            name: row.get("credential_name"),
-            created: row.get("created"),
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+    #[derive(serde::Deserialize)]
+    struct WebauthnCredRow { id: String, credential_name: String, created: i64 }
+    let mut _wc_resp = db
+        .query("SELECT id, credential_name, created FROM webauthn_credentials WHERE user_login = $user ORDER BY created ASC")
+        .bind(("user", user_info.login.clone()))
+        .await
+        .expect("db error");
+    let webauthn_creds: Vec<WebauthnCredInfo> = _wc_resp
+        .take::<Vec<WebauthnCredRow>>(0)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| WebauthnCredInfo { id: r.id, name: r.credential_name, created: r.created })
+        .collect();
 
     let webauthn_available = webauthn_lock.read().map(|g| g.is_some()).unwrap_or(false);
 
@@ -414,7 +419,7 @@ struct StartRegisterRequest {
 }
 
 async fn hx_webauthn_register_start(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(mut redis): Extension<RedisConn>,
     Extension(webauthn_lock): Extension<
         std::sync::Arc<std::sync::RwLock<Option<webauthn_rs::Webauthn>>>,
@@ -422,14 +427,14 @@ async fn hx_webauthn_register_start(
     headers: HeaderMap,
     Json(req): Json<StartRegisterRequest>,
 ) -> axum::response::Response {
-    let user_info = get_user_login(headers, &pool, redis.clone()).await;
+    let user_info = get_user_login(headers, &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return json_resp(StatusCode::UNAUTHORIZED, serde_json::json!({"error": "Not logged in"}));
     }
     let user_info = user_info.unwrap();
 
     // Load existing passkeys BEFORE acquiring the RwLock (await before lock)
-    let existing = load_passkeys(&pool, &user_info.login).await;
+    let existing = load_passkeys(&db, &user_info.login).await;
     let exclude_creds: Option<Vec<_>> = if existing.is_empty() {
         None
     } else {
@@ -489,7 +494,7 @@ async fn hx_webauthn_register_start(
 }
 
 async fn hx_webauthn_register_finish(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(mut redis): Extension<RedisConn>,
     Extension(webauthn_lock): Extension<
         std::sync::Arc<std::sync::RwLock<Option<webauthn_rs::Webauthn>>>,
@@ -498,7 +503,7 @@ async fn hx_webauthn_register_finish(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
     Json(reg_response): Json<RegisterPublicKeyCredential>,
 ) -> axum::response::Response {
-    let user_info = get_user_login(headers, &pool, redis.clone()).await;
+    let user_info = get_user_login(headers, &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return json_resp(StatusCode::UNAUTHORIZED, serde_json::json!({"error": "Not logged in"}));
     }
@@ -570,15 +575,13 @@ async fn hx_webauthn_register_finish(
 
     let record_id = generate_secure_string();
     let passkey_json = serde_json::to_value(&passkey).unwrap_or_default();
-    let result = sqlx::query(
-        "INSERT INTO webauthn_credentials (id, user_login, credential_name, passkey) VALUES ($1, $2, $3, $4)",
-    )
-    .bind(&record_id)
-    .bind(&user_info.login)
-    .bind(&cred_name)
-    .bind(&passkey_json)
-    .execute(&pool)
-    .await;
+    let result = db
+        .query("CREATE type::thing('webauthn_credentials', $id) SET user_login = $user, credential_name = $cname, passkey = $passkey, created = time::unix(time::now())")
+        .bind(("id", record_id.clone()))
+        .bind(("user", user_info.login.clone()))
+        .bind(("cname", cred_name.clone()))
+        .bind(("passkey", passkey_json.clone()))
+        .await;
 
     let _: () = redis
         .del(format!("webauthn_reg:{}", token))
@@ -596,12 +599,12 @@ async fn hx_webauthn_register_finish(
 }
 
 async fn hx_settings_2fa_webauthn_delete(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(cred_id): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers, &pool, redis).await;
+    let user_info = get_user_login(headers, &db, redis).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -609,17 +612,14 @@ async fn hx_settings_2fa_webauthn_delete(
     }
     let user_info = user_info.unwrap();
 
-    let rows = sqlx::query(
-        "DELETE FROM webauthn_credentials WHERE id=$1 AND user_login=$2",
-    )
-    .bind(&cred_id)
-    .bind(&user_info.login)
-    .execute(&pool)
-    .await
-    .map(|r| r.rows_affected())
-    .unwrap_or(0);
-
-    if rows == 0 {
+    let mut _del_resp = db
+        .query("DELETE FROM webauthn_credentials WHERE id = $cid AND user_login = $user RETURN id")
+        .bind(("cid", cred_id.clone()))
+        .bind(("user", user_info.login.clone()))
+        .await
+        .expect("db error");
+    let deleted: Vec<serde_json::Value> = _del_resp.take(0).unwrap_or_default();
+    if deleted.is_empty() {
         return Html(minifi_html(
             "<b class=\"text-danger\">Credential not found or not yours.</b>".to_owned(),
         ));
@@ -640,14 +640,14 @@ struct StartAuthRequest {
 }
 
 async fn hx_webauthn_auth_start(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(mut redis): Extension<RedisConn>,
     Extension(webauthn_lock): Extension<
         std::sync::Arc<std::sync::RwLock<Option<webauthn_rs::Webauthn>>>,
     >,
     Json(req): Json<StartAuthRequest>,
 ) -> axum::response::Response {
-    let passkeys_with_ids = load_passkeys(&pool, &req.username).await;
+    let passkeys_with_ids = load_passkeys(&db, &req.username).await;
     if passkeys_with_ids.is_empty() {
         return json_resp(
             StatusCode::NOT_FOUND,
@@ -692,7 +692,7 @@ async fn hx_webauthn_auth_start(
 
 async fn hx_webauthn_auth_finish(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Extension(mut redis): Extension<RedisConn>,
     Extension(webauthn_lock): Extension<
         std::sync::Arc<std::sync::RwLock<Option<webauthn_rs::Webauthn>>>,
@@ -748,16 +748,15 @@ async fn hx_webauthn_auth_finish(
     };
 
     // Update passkey counter
-    let passkeys_with_ids = load_passkeys(&pool, &login).await;
+    let passkeys_with_ids = load_passkeys(&db, &login).await;
     for (record_id, mut pk) in passkeys_with_ids {
         if pk.update_credential(&auth_result) == Some(true) {
             let passkey_json = serde_json::to_value(&pk).unwrap_or_default();
-            let _ =
-                sqlx::query("UPDATE webauthn_credentials SET passkey=$1 WHERE id=$2")
-                    .bind(&passkey_json)
-                    .bind(&record_id)
-                    .execute(&pool)
-                    .await;
+            let _ = db
+                .query("UPDATE webauthn_credentials SET passkey = $passkey WHERE id = $id")
+                .bind(("passkey", passkey_json.clone()))
+                .bind(("id", record_id.clone()))
+                .await;
         }
     }
 

@@ -1,13 +1,18 @@
+#[derive(Deserialize)]
+struct ViewsRow {
+    views: i64,
+}
+
 async fn hx_new_view(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<Db>,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<String> {
-    let update_views = sqlx::query!(
-        "UPDATE media SET views = views + 1 WHERE id=$1 RETURNING views;",
-        mediumid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
-    Html(update_views.views.to_string())
+    let mut resp = db
+        .query("UPDATE media SET views += 1 WHERE id = $id RETURN views")
+        .bind(("id", surrealdb::RecordId::from_table_key("media", &mediumid)))
+        .await
+        .expect("Database error");
+    let rows: Vec<ViewsRow> = resp.take(0).unwrap_or_default();
+    let views = rows.first().map(|r| r.views).unwrap_or(0);
+    Html(views.to_string())
 }
