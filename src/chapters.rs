@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, SurrealValue, Clone)]
 struct ChapterData {
     start: String,
     title: String,
@@ -16,7 +16,7 @@ async fn studio_chapters_get(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -63,7 +63,7 @@ async fn studio_chapters_save(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")

@@ -8,9 +8,9 @@ async fn hx_recommended(
     let user = get_user_login(headers, &db, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct MediumRow {
-        id: surrealdb::RecordId,
+        id: RecordId,
         name: String,
         owner: String,
         views: i64,
@@ -43,7 +43,7 @@ async fn hx_recommended(
     let media: Vec<Medium> = rows
         .into_iter()
         .map(|row| Medium {
-            id: row.id.key().to_string(),
+            id: row.id.key_string(),
             name: row.name,
             owner: row.owner,
             views: row.views,

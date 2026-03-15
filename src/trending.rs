@@ -97,7 +97,7 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
     Some(media)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct TrendingRow {
     id: String,
     name: String,

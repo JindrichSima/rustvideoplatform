@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct Comment {
     id: String,
     #[serde(rename = "author")]
@@ -9,7 +9,7 @@ struct Comment {
     time: i64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct CommentsQuery {
     page: Option<i64>,
 }
@@ -25,9 +25,9 @@ struct HXCommentsTemplate {
 
 const COMMENTS_PER_PAGE: i64 = 20;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct CommentRow {
-    id: surrealdb::RecordId,
+    id: RecordId,
     author: String,
     user_name: String,
     user_picture: Option<String>,
@@ -51,7 +51,7 @@ async fn hx_comments(
              FROM comments WHERE media = $media \
              ORDER BY time DESC LIMIT $limit START $offset"
         )
-        .bind(("media", surrealdb::RecordId::from_table_key("media", &mediumid)))
+        .bind(("media", RecordId::new("media", mediumid.as_str())))
         .bind(("limit", limit))
         .bind(("offset", offset))
         .await
@@ -62,7 +62,7 @@ async fn hx_comments(
     let comments: Vec<Comment> = rows
         .into_iter()
         .map(|row| Comment {
-            id: row.id.key().to_string(),
+            id: row.id.key_string(),
             user: row.author,
             user_name: row.user_name,
             user_picture: row.user_picture,
@@ -84,7 +84,7 @@ async fn hx_comments(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct CommentForm {
     text: String,
 }
@@ -93,12 +93,12 @@ async fn comment_delta(
     Extension(db): Extension<Db>,
     Path(comment_id): Path<String>,
 ) -> Json<serde_json::Value> {
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct TextRow { text: serde_json::Value }
 
     let mut resp = db
         .query("SELECT text FROM comments WHERE id = $id")
-        .bind(("id", surrealdb::RecordId::from_table_key("comments", &comment_id)))
+        .bind(("id", RecordId::new("comments", comment_id.as_str())))
         .await
         .expect("Database error");
     let row: Option<TextRow> = resp.take(0).expect("Database error");
@@ -141,8 +141,8 @@ async fn hx_add_comment(
              SELECT id, author, author.name AS user_name, author.profile_picture AS user_picture, text, time \
              FROM comments ORDER BY time DESC LIMIT 1"
         )
-        .bind(("media", surrealdb::RecordId::from_table_key("media", &mediumid)))
-        .bind(("author", surrealdb::RecordId::from_table_key("users", &user.login)))
+        .bind(("media", RecordId::new("media", mediumid.as_str())))
+        .bind(("author", RecordId::new("users", user.login.as_str())))
         .bind(("text", delta))
         .bind(("time", now_unix))
         .await
@@ -155,7 +155,7 @@ async fn hx_add_comment(
     };
 
     let comment = Comment {
-        id: row.id.key().to_string(),
+        id: row.id.key_string(),
         user: row.author,
         user_name: row.user_name,
         user_picture: row.user_picture,

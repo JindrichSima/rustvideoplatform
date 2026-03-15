@@ -38,7 +38,7 @@ async fn studio_subtitles_get(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -97,7 +97,7 @@ async fn studio_subtitles_add(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -267,7 +267,7 @@ async fn studio_subtitle_font_get(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -302,7 +302,7 @@ async fn studio_subtitle_font_upload(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -448,7 +448,7 @@ async fn studio_subtitle_font_delete(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -497,7 +497,7 @@ async fn studio_subtitles_translate_status(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow2 { owner: String }
     let mut _owner_resp2 = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -511,7 +511,7 @@ async fn studio_subtitles_translate_status(
     }
 
     let concept_id = format!("{}_translate", mediumid);
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct ProcessedRow { processed: bool }
     let mut _proc_resp = db
         .query("SELECT processed FROM media_concepts WHERE id = $id")
@@ -524,7 +524,7 @@ async fn studio_subtitles_translate_status(
     Json(serde_json::json!({ "in_progress": in_progress }))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct SubtitleTranslateForm {
     source_label: String,
     target_language: String,
@@ -547,7 +547,7 @@ async fn studio_subtitles_translate(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")
@@ -652,7 +652,7 @@ async fn studio_subtitles_translate(
         .unwrap()
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct SubtitleDeleteForm {
     label: String,
 }
@@ -674,7 +674,7 @@ async fn studio_subtitles_delete(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let mut _owner_resp = db
         .query("SELECT owner FROM media WHERE id = $id")

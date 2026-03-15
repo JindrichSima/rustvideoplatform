@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct MediumConcept {
     id: String,
     name: String,
@@ -6,9 +6,9 @@ struct MediumConcept {
     r#type: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct MediumConceptRow {
-    id: surrealdb::RecordId,
+    id: RecordId,
     name: String,
     processed: bool,
     #[serde(rename = "type")]
@@ -61,7 +61,7 @@ async fn hx_concepts(
     let concepts: Vec<MediumConcept> = rows
         .into_iter()
         .map(|row| MediumConcept {
-            id: row.id.key().to_string(),
+            id: row.id.key_string(),
             name: row.name,
             processed: row.processed,
             r#type: row.r#type,
@@ -102,14 +102,14 @@ async fn concept(
             "SELECT id, name, type, processed FROM media_concepts WHERE owner = $owner AND id = $id AND processed = true;",
         )
         .bind(("owner", user_info.login.clone()))
-        .bind(("id", surrealdb::RecordId::from_table_key("media_concepts", &conceptid)))
+        .bind(("id", RecordId::new("media_concepts", conceptid.as_str())))
         .await
         .expect("Database error");
 
     let row: Option<MediumConceptRow> = response.take(0).expect("Database error");
     let row = row.expect("Concept not found");
     let concept = MediumConcept {
-        id: row.id.key().to_string(),
+        id: row.id.key_string(),
         name: row.name,
         processed: row.processed,
         r#type: row.r#type,
@@ -118,9 +118,9 @@ async fn concept(
     // Fetch user's groups for the dropdown (system groups + user groups)
     let mut owner_groups = system_groups_for_owner(&user_info.login);
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct UserGroupRow {
-        id: surrealdb::RecordId,
+        id: RecordId,
         name: String,
         owner: String,
     }
@@ -135,7 +135,7 @@ async fn concept(
     let user_groups: Vec<UserGroup> = grp_rows
         .into_iter()
         .map(|row| UserGroup {
-            id: row.id.key().to_string(),
+            id: row.id.key_string(),
             name: row.name,
             owner: row.owner,
         })
@@ -154,7 +154,7 @@ async fn concept(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct PublishForm {
     medium_id: String,
     medium_name: String,
@@ -181,14 +181,14 @@ async fn publish(
             "SELECT id, name, type, processed FROM media_concepts WHERE owner = $owner AND id = $id AND processed = true;",
         )
         .bind(("owner", user_info.login.clone()))
-        .bind(("id", surrealdb::RecordId::from_table_key("media_concepts", &conceptid)))
+        .bind(("id", RecordId::new("media_concepts", conceptid.as_str())))
         .await
         .expect("Database error");
 
     let row: Option<MediumConceptRow> = response.take(0).expect("Database error");
     let row = row.expect("Concept not found");
     let concept = MediumConcept {
-        id: row.id.key().to_string(),
+        id: row.id.key_string(),
         name: row.name,
         processed: row.processed,
         r#type: row.r#type,
@@ -214,7 +214,7 @@ async fn publish(
             serde_json::from_str(&form.medium_description).unwrap();
 
         let medium_id = form.medium_id.to_ascii_lowercase();
-        let media_record_id = surrealdb::RecordId::from_table_key("media", &medium_id);
+        let media_record_id = RecordId::new("media", medium_id.as_str());
         let _ = db
             .query(
                 "CREATE $id SET
@@ -238,7 +238,7 @@ async fn publish(
             .await;
 
         let concept_record_id =
-            surrealdb::RecordId::from_table_key("media_concepts", &concept.id);
+            RecordId::new("media_concepts", concept.id.as_str());
         let _ = db
             .query("DELETE $id;")
             .bind(("id", concept_record_id))

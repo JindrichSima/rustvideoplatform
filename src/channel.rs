@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct UserChannel {
     login: String,
     name: String,
@@ -7,7 +7,7 @@ struct UserChannel {
     subscribed: Option<i64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct UserChannelRow {
     login: String,
     name: String,
@@ -89,9 +89,9 @@ async fn hx_usermedia_page(
     hx_usermedia_inner(config, db, redis, headers, userid, page).await
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct ChannelMediumRow {
-    id: surrealdb::RecordId,
+    id: RecordId,
     name: String,
     owner: String,
     views: i64,
@@ -130,7 +130,7 @@ async fn hx_usermedia_inner(
     let mut media: Vec<Medium> = rows
         .into_iter()
         .map(|row| Medium {
-            id: row.id.key().to_string(),
+            id: row.id.key_string(),
             name: row.name,
             owner: row.owner,
             views: row.views,

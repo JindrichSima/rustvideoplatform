@@ -18,25 +18,25 @@ async fn login(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct LoginForm {
     login: String,
     password: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, SurrealValue, Clone, Debug)]
 struct User {
     login: String,
     name: String,
     profile_picture: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct UserAuthRow {
     password_hash: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct TotpEnabledRow {
     totp_enabled: bool,
 }
@@ -49,7 +49,7 @@ async fn hx_login(
 ) -> impl IntoResponse {
     let mut resp = match db
         .query("SELECT password_hash FROM users WHERE id = $id")
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &form.login)))
+        .bind(("id", RecordId::new("users", form.login.as_str())))
         .await
     {
         Ok(r) => r,
@@ -80,7 +80,7 @@ async fn hx_login(
         // Check if TOTP is enabled for this user
         let mut resp2 = db
             .query("SELECT totp_enabled FROM users WHERE id = $id")
-            .bind(("id", surrealdb::RecordId::from_table_key("users", &form.login)))
+            .bind(("id", RecordId::new("users", form.login.as_str())))
             .await
             .unwrap_or_else(|_| unreachable!());
         let totp_row: Option<TotpEnabledRow> = resp2.take(0).unwrap_or(None);

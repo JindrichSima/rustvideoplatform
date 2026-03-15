@@ -39,8 +39,8 @@ fn make_totp(
 
 /// Load all Passkey rows for a user from the database.
 async fn load_passkeys(db: &Db, login: &str) -> Vec<(String, Passkey)> {
-    #[derive(serde::Deserialize)]
-    struct PasskeyRow { id: surrealdb::RecordId, passkey: serde_json::Value }
+    #[derive(serde::Deserialize, SurrealValue)]
+    struct PasskeyRow { id: RecordId, passkey: serde_json::Value }
     let mut resp = db
         .query("SELECT id, passkey FROM webauthn_credentials WHERE user_login = $user")
         .bind(("user", login.to_string()))
@@ -48,7 +48,7 @@ async fn load_passkeys(db: &Db, login: &str) -> Vec<(String, Passkey)> {
         .unwrap_or_else(|_| unreachable!());
     let rows: Vec<PasskeyRow> = resp.take(0).unwrap_or_default();
     rows.into_iter().filter_map(|row| {
-        let id = row.id.key().to_string();
+        let id = row.id.key_string();
         let pk: Passkey = serde_json::from_value(row.passkey).ok()?;
         Some((id, pk))
     }).collect()
@@ -62,7 +62,7 @@ fn json_resp(status: StatusCode, body: serde_json::Value) -> axum::response::Res
 
 // ── TOTP login verification ──────────────────────────────────────────────────
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct TotpLoginForm {
     pending_token: String,
     totp_code: String,
@@ -95,11 +95,11 @@ async fn hx_login_2fa_totp(
     };
 
     // Fetch TOTP secret
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct TotpSecretRow { totp_secret: Option<String> }
     let mut _ts_resp = db
         .query("SELECT totp_secret FROM users WHERE id = $id AND totp_enabled = true")
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &login)))
+        .bind(("id", RecordId::new("users", login.as_str())))
         .await
         .expect("db error");
     let totp_secret: Option<String> = _ts_resp.take::<Option<TotpSecretRow>>(0)
@@ -219,7 +219,7 @@ async fn hx_settings_2fa_totp_setup(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct TotpVerifySetupForm {
     setup_token: String,
     totp_code: String,
@@ -290,7 +290,7 @@ async fn hx_settings_2fa_totp_verify_setup(
     let result = db
         .query("UPDATE users SET totp_secret = $secret, totp_enabled = true WHERE id = $id")
         .bind(("secret", secret_base32.clone()))
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await;
 
     if result.is_err() {
@@ -327,7 +327,7 @@ async fn hx_settings_2fa_totp_disable(
     let result =
         db
             .query("UPDATE users SET totp_secret = NULL, totp_enabled = false WHERE id = $id")
-            .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+            .bind(("id", RecordId::new("users", user_info.login.as_str())))
             .await;
 
     if result.is_err() {
@@ -377,17 +377,17 @@ async fn hx_settings_2fa(
 
     let totp_enabled: bool =
         {
-            #[derive(serde::Deserialize)] struct TotpEnabledRow2 { totp_enabled: bool }
+            #[derive(serde::Deserialize, SurrealValue)] struct TotpEnabledRow2 { totp_enabled: bool }
             let mut _te_resp = db
                 .query("SELECT totp_enabled FROM users WHERE id = $id")
-                .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+                .bind(("id", RecordId::new("users", user_info.login.as_str())))
                 .await
                 .unwrap_or_else(|_| unreachable!());
             let _te_row: Option<TotpEnabledRow2> = _te_resp.take(0).unwrap_or(None);
             _te_row.map(|r| r.totp_enabled).unwrap_or(false)
         };
 
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, SurrealValue)]
     struct WebauthnCredRow { id: String, credential_name: String, created: i64 }
     let mut _wc_resp = db
         .query("SELECT id, credential_name, created FROM webauthn_credentials WHERE user_login = $user ORDER BY created ASC")
@@ -413,7 +413,7 @@ async fn hx_settings_2fa(
 
 // ── WebAuthn registration ────────────────────────────────────────────────────
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct StartRegisterRequest {
     credential_name: Option<String>,
 }
@@ -634,7 +634,7 @@ async fn hx_settings_2fa_webauthn_delete(
 
 // ── WebAuthn authentication (passwordless login) ─────────────────────────────
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct StartAuthRequest {
     username: String,
 }

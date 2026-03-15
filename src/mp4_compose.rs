@@ -76,7 +76,7 @@ fn xml_attr<'a>(element: &'a str, attr: &str) -> Option<&'a str> {
     Some(&element[start..end])
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct MediaStreamRow {
     id: String,
     name: String,

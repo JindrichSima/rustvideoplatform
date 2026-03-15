@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, SurrealValue, Clone)]
 struct List {
     id: String,
     name: String,
@@ -7,7 +7,7 @@ struct List {
     restricted_to_group: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct ListWithCount {
     id: String,
     name: String,
@@ -17,14 +17,14 @@ struct ListWithCount {
     item_count: Option<i64>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct ListModalEntry {
     id: String,
     name: String,
     already_added: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct CreateListForm {
     name: String,
     visibility: Option<String>,
@@ -117,7 +117,7 @@ async fn list_page(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, SurrealValue)]
 struct MediaWithOwner {
     id: String,
     name: String,
@@ -146,7 +146,7 @@ async fn medium_in_list(
         .await
         .expect("Database error");
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct ListBasic {
         id: String,
         visibility: String,
@@ -185,7 +185,7 @@ async fn medium_in_list(
         .await
         .expect("Database error");
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct MediaBasic {
         id: String,
         name: String,
@@ -218,11 +218,11 @@ async fn medium_in_list(
     // Fetch owner info
     let mut owner_resp = db
         .query("SELECT name, profile_picture FROM users WHERE id = $id")
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &medium.owner)))
+        .bind(("id", RecordId::new("users", medium.owner.as_str())))
         .await
         .expect("Database error");
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct OwnerInfo {
         name: String,
         profile_picture: Option<String>,
@@ -323,7 +323,7 @@ async fn hx_list_items_inner(
 ) -> axum::response::Html<Vec<u8>> {
     let offset = page * 40;
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct ListItemMedia {
         id: String,
         name: String,
@@ -375,7 +375,7 @@ async fn hx_list_sidebar(
     Extension(db): Extension<Db>,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct ListItemMedia {
         id: String,
         name: String,
@@ -436,7 +436,7 @@ async fn hx_list_modal(
 }
 
 async fn fetch_list_modal_entries(db: &Db, owner: &str, mediumid: &str) -> Vec<ListModalEntry> {
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct ListRow {
         id: String,
         name: String,
@@ -545,7 +545,7 @@ async fn hx_add_to_list(
         .await
         .expect("Database error");
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let owner_row: Option<OwnerRow> = owner_resp.take(0).expect("Deserialize error");
     match owner_row {
@@ -600,7 +600,7 @@ async fn hx_remove_from_list(
         .await
         .expect("Database error");
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let owner_row: Option<OwnerRow> = owner_resp.take(0).expect("Deserialize error");
     match owner_row {
@@ -644,7 +644,7 @@ async fn hx_delete_list(
         .await
         .expect("Database error");
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
     let owner_row: Option<OwnerRow> = owner_resp.take(0).expect("Deserialize error");
     match owner_row {

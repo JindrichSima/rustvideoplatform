@@ -151,7 +151,7 @@ async fn hx_settings_channel_name(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct ChannelNameForm {
     channel_name: String,
 }
@@ -173,7 +173,7 @@ async fn hx_settings_channel_name_save(
     let result = db
         .query("UPDATE users SET name = $name WHERE id = $id")
         .bind(("name", new_name.clone()))
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update channel name.</b>".to_owned()));
@@ -197,7 +197,7 @@ async fn hx_settings_password(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct PasswordForm {
     current_password: String,
     new_password: String,
@@ -223,10 +223,10 @@ async fn hx_settings_password_save(
     }
 
     // Verify current password
-    #[derive(serde::Deserialize)] struct HashRow { password_hash: String }
+    #[derive(serde::Deserialize, SurrealValue)] struct HashRow { password_hash: String }
     let mut _hash_resp = db
         .query("SELECT password_hash FROM users WHERE id = $id")
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await
         .unwrap_or_else(|_| unreachable!());
     let _hash_row: Option<HashRow> = _hash_resp.take(0).unwrap_or(None);
@@ -254,7 +254,7 @@ async fn hx_settings_password_save(
     let result = db
         .query("UPDATE users SET password_hash = $hash WHERE id = $id")
         .bind(("hash", new_hash_string.clone()))
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update password.</b>".to_owned()));
@@ -264,7 +264,7 @@ async fn hx_settings_password_save(
 
 // --- Profile Picture ---
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct PictureMedium {
     id: String,
     name: String,
@@ -289,10 +289,10 @@ async fn hx_settings_profile_picture(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)] struct PicRow { profile_picture: Option<String> }
+    #[derive(serde::Deserialize, SurrealValue)] struct PicRow { profile_picture: Option<String> }
     let mut _pic_resp = db
         .query("SELECT profile_picture FROM users WHERE id = $id")
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await
         .unwrap_or_else(|_| unreachable!());
     let _pic_row: Option<PicRow> = _pic_resp.take(0).unwrap_or(None);
@@ -309,7 +309,7 @@ async fn hx_settings_profile_picture(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, SurrealValue)]
 struct PictureForm {
     medium_id: String,
 }
@@ -326,7 +326,7 @@ async fn hx_settings_profile_picture_save(
     let user_info = user_info.unwrap();
 
     // Verify the medium belongs to this user, is an image, and is public or hidden
-    #[derive(serde::Deserialize)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
+    #[derive(serde::Deserialize, SurrealValue)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
     let mut _mver_resp = db
         .query("SELECT owner, visibility, type FROM media WHERE id = $id")
         .bind(("id", form.medium_id.clone()))
@@ -357,7 +357,7 @@ async fn hx_settings_profile_picture_save(
     let result = db
         .query("UPDATE users SET profile_picture = $pic WHERE id = $id")
         .bind(("pic", form.medium_id.clone()))
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update profile picture.</b>".to_owned()));
@@ -386,10 +386,10 @@ async fn hx_settings_channel_picture(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize)] struct ChanPicRow { channel_picture: Option<String> }
+    #[derive(serde::Deserialize, SurrealValue)] struct ChanPicRow { channel_picture: Option<String> }
     let mut _cpic_resp = db
         .query("SELECT channel_picture FROM users WHERE id = $id")
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await
         .unwrap_or_else(|_| unreachable!());
     let _cpic_row: Option<ChanPicRow> = _cpic_resp.take(0).unwrap_or(None);
@@ -419,7 +419,7 @@ async fn hx_settings_channel_picture_save(
     let user_info = user_info.unwrap();
 
     // Verify the medium belongs to this user, is an image, and is public or hidden
-    #[derive(serde::Deserialize)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
+    #[derive(serde::Deserialize, SurrealValue)] struct MediaVerRow { owner: String, visibility: String, #[serde(rename = "type")] r#type: String }
     let mut _mver_resp = db
         .query("SELECT owner, visibility, type FROM media WHERE id = $id")
         .bind(("id", form.medium_id.clone()))
@@ -450,7 +450,7 @@ async fn hx_settings_channel_picture_save(
     let result = db
         .query("UPDATE users SET channel_picture = $pic WHERE id = $id")
         .bind(("pic", form.medium_id.clone()))
-        .bind(("id", surrealdb::RecordId::from_table_key("users", &user_info.login)))
+        .bind(("id", RecordId::new("users", user_info.login.as_str())))
         .await;
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update channel picture.</b>".to_owned()));
