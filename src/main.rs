@@ -43,13 +43,9 @@ type Db = Surreal<WsClient>;
 #[derive(Deserialize, Clone)]
 struct Config {
     surrealdb_url: String,
-    #[serde(default = "default_surreal_ns")]
     surrealdb_ns: String,
-    #[serde(default = "default_surreal_db")]
     surrealdb_db: String,
-    #[serde(default = "default_surreal_user")]
     surrealdb_user: String,
-    #[serde(default = "default_surreal_pass")]
     surrealdb_pass: String,
     redis_url: String,
     instancename: String,
@@ -66,10 +62,6 @@ struct Config {
     webauthn_rp_origin: Option<String>,
 }
 
-fn default_surreal_ns() -> String { "platform".to_string() }
-fn default_surreal_db() -> String { "platform".to_string() }
-fn default_surreal_user() -> String { "root".to_string() }
-fn default_surreal_pass() -> String { "root".to_string() }
 
 #[tokio::main]
 async fn main() {
