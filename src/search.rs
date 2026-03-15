@@ -99,6 +99,42 @@ struct HXSearch {
     search: String,
 }
 
+#[derive(Debug, Clone)]
+struct SuggestionUser {
+    login: String,
+    name: String,
+    highlighted_name: String,
+    profile_picture: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct SuggestionList {
+    id: String,
+    name: String,
+    highlighted_name: String,
+    owner: String,
+    item_count: i64,
+}
+
+#[derive(Debug, Clone)]
+struct SuggestionMedia {
+    id: String,
+    name: String,
+    highlighted_name: String,
+    owner: String,
+    views: i64,
+    r#type: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-searchsuggestions.html", escape = "none")]
+struct HXSearchSuggestionsTemplate {
+    users: Vec<SuggestionUser>,
+    lists: Vec<SuggestionList>,
+    media: Vec<SuggestionMedia>,
+    config: Config,
+}
+
 async fn hx_search_suggestions(
     Extension(config): Extension<Config>,
     Extension(pool): Extension<PgPool>,
@@ -113,53 +149,129 @@ async fn hx_search_suggestions(
 
     let user = get_user_login(headers, &pool, redis).await;
     let visibility_filter = build_visibility_filter(&pool, &user).await;
+    let vis_filter_for_lists = format!("({})", visibility_filter);
 
-    let index = meili.index("media");
-    let results = index
-        .search()
-        .with_query(&form.search)
-        .with_filter(&visibility_filter)
-        .with_limit(6)
-        .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
-        .with_highlight_pre_tag("<mark>")
-        .with_highlight_post_tag("</mark>")
-        .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-            "id", "name", "owner", "views", "likes", "type", "upload",
-        ]))
-        .execute::<MeiliMedia>()
-        .await;
+    let (users_res, lists_res, media_res) = tokio::join!(
+        async {
+            meili.index("users")
+                .search()
+                .with_query(&form.search)
+                .with_limit(3)
+                .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name", "login"]))
+                .with_highlight_pre_tag("<mark>")
+                .with_highlight_post_tag("</mark>")
+                .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+                    "login", "name", "profile_picture",
+                ]))
+                .execute::<MeiliUser>()
+                .await
+        },
+        async {
+            meili.index("lists")
+                .search()
+                .with_query(&form.search)
+                .with_filter(&vis_filter_for_lists)
+                .with_limit(3)
+                .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
+                .with_highlight_pre_tag("<mark>")
+                .with_highlight_post_tag("</mark>")
+                .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+                    "id", "name", "owner", "item_count",
+                ]))
+                .execute::<MeiliList>()
+                .await
+        },
+        async {
+            meili.index("media")
+                .search()
+                .with_query(&form.search)
+                .with_filter(&visibility_filter)
+                .with_limit(3)
+                .with_attributes_to_highlight(meilisearch_sdk::search::Selectors::Some(&["name"]))
+                .with_highlight_pre_tag("<mark>")
+                .with_highlight_post_tag("</mark>")
+                .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
+                    "id", "name", "owner", "views", "type",
+                ]))
+                .execute::<MeiliMedia>()
+                .await
+        },
+    );
 
-    match results {
-        Ok(search_results) => {
-            let media: Vec<Medium> = search_results
-                .hits
-                .into_iter()
-                .map(|hit| hit.result.into())
-                .collect();
-
-            if media.is_empty() {
-                return Html(
-                    "<li class=\"suggestion-empty\"><i class=\"fa-solid fa-circle-info me-2\"></i>No results found</li>"
-                        .to_owned(),
-                );
+    let users: Vec<SuggestionUser> = match users_res {
+        Ok(r) => r.hits.into_iter().map(|hit| {
+            let highlighted_name = hit
+                .formatted_result
+                .as_ref()
+                .and_then(|f| f.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or(&hit.result.name)
+                .to_owned();
+            SuggestionUser {
+                login: hit.result.login,
+                name: hit.result.name,
+                highlighted_name,
+                profile_picture: hit.result.profile_picture,
             }
+        }).collect(),
+        Err(e) => { eprintln!("Meilisearch users suggestion error: {:?}", e); vec![] }
+    };
 
-            let template = HXMediumListTemplate {
-                current_medium_id: String::new(),
-                list_id: String::new(),
-                media,
-                config,
-            };
-            Html(template.render().unwrap())
-        }
-        Err(e) => {
-            eprintln!("Meilisearch search suggestion error: {:?}", e);
-            Html(
-                "<li class=\"suggestion-empty\"><i class=\"fa-solid fa-triangle-exclamation me-2\"></i>Search unavailable</li>"
-                    .to_owned(),
-            )
-        }
+    let lists: Vec<SuggestionList> = match lists_res {
+        Ok(r) => r.hits.into_iter().map(|hit| {
+            let highlighted_name = hit
+                .formatted_result
+                .as_ref()
+                .and_then(|f| f.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or(&hit.result.name)
+                .to_owned();
+            SuggestionList {
+                id: hit.result.id,
+                name: hit.result.name,
+                highlighted_name,
+                owner: hit.result.owner,
+                item_count: hit.result.item_count,
+            }
+        }).collect(),
+        Err(e) => { eprintln!("Meilisearch lists suggestion error: {:?}", e); vec![] }
+    };
+
+    let media: Vec<SuggestionMedia> = match media_res {
+        Ok(r) => r.hits.into_iter().map(|hit| {
+            let highlighted_name = hit
+                .formatted_result
+                .as_ref()
+                .and_then(|f| f.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or(&hit.result.name)
+                .to_owned();
+            SuggestionMedia {
+                id: hit.result.id,
+                name: hit.result.name,
+                highlighted_name,
+                owner: hit.result.owner,
+                views: hit.result.views,
+                r#type: hit.result.r#type,
+            }
+        }).collect(),
+        Err(e) => { eprintln!("Meilisearch media suggestion error: {:?}", e); vec![] }
+    };
+
+    if users.is_empty() && lists.is_empty() && media.is_empty() {
+        return Html(
+            "<li class=\"suggestion-empty\"><i class=\"fa-solid fa-circle-info me-2\"></i>No results found</li>"
+                .to_owned(),
+        );
     }
+
+    let template = HXSearchSuggestionsTemplate {
+        users,
+        lists,
+        media,
+        config,
+    };
+    Html(template.render().unwrap())
 }
 
 // --- Full search with filters ---
