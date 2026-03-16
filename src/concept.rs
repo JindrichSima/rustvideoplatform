@@ -158,7 +158,7 @@ async fn publish(
             None
         };
         let description: serde_json::Value =
-            serde_json::from_str(&form.medium_description).unwrap();
+            serde_json::from_str(&form.medium_description).unwrap_or(serde_json::Value::Null);
         let _ = sqlx::query(
             "INSERT INTO media (id,name,description,owner,public,visibility,restricted_to_group,type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);"
         )
