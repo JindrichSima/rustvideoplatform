@@ -140,9 +140,15 @@ async fn medium_in_list(
     headers: HeaderMap,
     Path((listid, mediumid)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let mut resp = db
-        .query("SELECT id, visibility, restricted_to_group, owner, name FROM lists WHERE id = $id")
-        .bind(("id", listid.clone()))
+    // Fetch list + media + owner info in a single round-trip
+    let mut batch_resp = db
+        .query(
+            "SELECT id, visibility, restricted_to_group, owner, name FROM lists WHERE id = $listid; \
+             SELECT id, name, description, upload, owner, views, type, visibility, restricted_to_group FROM media WHERE id = $mediaid; \
+             SELECT name, profile_picture FROM media WHERE id = $mediaid LIMIT 1"
+        )
+        .bind(("listid", listid.clone()))
+        .bind(("mediaid", mediumid.to_ascii_lowercase()))
         .await
         .expect("Database error");
 
@@ -155,7 +161,7 @@ async fn medium_in_list(
         name: String,
     }
 
-    let list: Option<ListBasic> = resp.take(0).expect("Deserialize error");
+    let list: Option<ListBasic> = batch_resp.take(0).expect("Deserialize error");
     let list = match list {
         Some(l) => l,
         None => {
@@ -178,13 +184,6 @@ async fn medium_in_list(
 
     let common_headers = extract_common_headers(&headers).unwrap();
 
-    // Fetch media record
-    let mut media_resp = db
-        .query("SELECT id, name, description, upload, owner, views, type, visibility, restricted_to_group FROM media WHERE id = $id")
-        .bind(("id", mediumid.to_ascii_lowercase()))
-        .await
-        .expect("Database error");
-
     #[derive(Deserialize, SurrealValue)]
     struct MediaBasic {
         id: String,
@@ -199,7 +198,7 @@ async fn medium_in_list(
         restricted_to_group: Option<String>,
     }
 
-    let medium: Option<MediaBasic> = media_resp.take(0).expect("Deserialize error");
+    let medium: Option<MediaBasic> = batch_resp.take(1).expect("Deserialize error");
     let medium = match medium {
         Some(m) => m,
         None => {
@@ -215,7 +214,7 @@ async fn medium_in_list(
         ));
     }
 
-    // Fetch owner info
+    // Fetch owner info (separate query since we need the media owner field resolved first)
     let mut owner_resp = db
         .query("SELECT name, profile_picture FROM users WHERE id = $id")
         .bind(("id", RecordId::new("users", medium.owner.as_str())))
@@ -498,20 +497,18 @@ async fn hx_create_list(
         None
     };
 
+    // Create list and first item in a single round-trip
     let _ = db
-        .query("CREATE type::thing('lists', $lid) SET name = $name, owner = $owner, public = $public, visibility = $visibility, restricted_to_group = $rtg, created = time::unix(time::now())")
+        .query(
+            "CREATE type::thing('lists', $lid) SET name = $name, owner = $owner, public = $public, visibility = $visibility, restricted_to_group = $rtg, created = time::unix(time::now()); \
+             CREATE list_items SET list_id = $lid, media_id = $mid, position = 0"
+        )
         .bind(("lid", list_id.clone()))
         .bind(("name", form.name.clone()))
         .bind(("owner", user_info.login.clone()))
         .bind(("public", is_public))
         .bind(("visibility", visibility.to_string()))
         .bind(("rtg", restricted_to_group.clone()))
-        .await
-        .expect("Database error");
-
-    let _ = db
-        .query("CREATE list_items SET list_id = $lid, media_id = $mid, position = 0")
-        .bind(("lid", list_id.clone()))
         .bind(("mid", mediumid.clone()))
         .await
         .expect("Database error");
@@ -539,28 +536,26 @@ async fn hx_add_to_list(
     }
     let user_info = user_info.unwrap();
 
-    let mut owner_resp = db
-        .query("SELECT owner FROM lists WHERE id = $id")
+    // Ownership check + get max position in a single round-trip
+    let mut batch_resp = db
+        .query(
+            "SELECT owner FROM lists WHERE id = $id; \
+             SELECT VALUE math::max(position) FROM list_items WHERE list_id = $lid"
+        )
         .bind(("id", listid.clone()))
+        .bind(("lid", listid.clone()))
         .await
         .expect("Database error");
 
     #[derive(Deserialize, SurrealValue)]
     struct OwnerRow { owner: String }
-    let owner_row: Option<OwnerRow> = owner_resp.take(0).expect("Deserialize error");
+    let owner_row: Option<OwnerRow> = batch_resp.take(0).expect("Deserialize error");
     match owner_row {
         Some(r) if r.owner == user_info.login => {}
         _ => return Html("".as_bytes().to_vec()),
     }
 
-    // Get max position
-    let mut pos_resp = db
-        .query("SELECT VALUE math::max(position) FROM list_items WHERE list_id = $lid")
-        .bind(("lid", listid.clone()))
-        .await
-        .expect("Database error");
-
-    let max_pos: Option<i64> = pos_resp.take(0).unwrap_or(None);
+    let max_pos: Option<i64> = batch_resp.take(1).unwrap_or(None);
     let next_pos = max_pos.unwrap_or(-1) + 1;
 
     let _ = db
@@ -653,12 +648,8 @@ async fn hx_delete_list(
     }
 
     let _ = db
-        .query("DELETE FROM list_items WHERE list_id = $lid")
+        .query("DELETE FROM list_items WHERE list_id = $lid; DELETE FROM lists WHERE id = $id")
         .bind(("lid", listid.clone()))
-        .await;
-
-    let _ = db
-        .query("DELETE FROM lists WHERE id = $id")
         .bind(("id", listid.clone()))
         .await;
 

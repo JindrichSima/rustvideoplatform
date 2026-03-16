@@ -34,11 +34,7 @@ struct User {
 #[derive(Deserialize, SurrealValue)]
 struct UserAuthRow {
     password_hash: String,
-}
-
-#[derive(Deserialize, SurrealValue)]
-struct TotpEnabledRow {
-    totp_enabled: bool,
+    totp_enabled: Option<bool>,
 }
 
 async fn hx_login(
@@ -47,8 +43,9 @@ async fn hx_login(
     Extension(mut redis): Extension<RedisConn>,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
+    // Single query fetches both password_hash and totp_enabled
     let mut resp = match db
-        .query("SELECT password_hash FROM users WHERE id = $id")
+        .query("SELECT password_hash, totp_enabled FROM users WHERE id = $id")
         .bind(("id", RecordId::new("users", form.login.as_str())))
         .await
     {
@@ -63,8 +60,8 @@ async fn hx_login(
         Err(_) => None,
     };
 
-    let password_hash = match row {
-        Some(r) => r.password_hash,
+    let auth_row = match row {
+        Some(r) => r,
         None => {
             return (StatusCode::OK, HeaderMap::new(), "<b class=\"text-danger\">Wrong user name or password</b>".to_owned());
         }
@@ -73,18 +70,11 @@ async fn hx_login(
     if Argon2::default()
         .verify_password(
             form.password.as_bytes(),
-            &PasswordHash::new(&password_hash).unwrap(),
+            &PasswordHash::new(&auth_row.password_hash).unwrap(),
         )
         .is_ok()
     {
-        // Check if TOTP is enabled for this user
-        let mut resp2 = db
-            .query("SELECT totp_enabled FROM users WHERE id = $id")
-            .bind(("id", RecordId::new("users", form.login.as_str())))
-            .await
-            .unwrap_or_else(|_| unreachable!());
-        let totp_row: Option<TotpEnabledRow> = resp2.take(0).unwrap_or(None);
-        let totp_enabled = totp_row.map(|r| r.totp_enabled).unwrap_or(false);
+        let totp_enabled = auth_row.totp_enabled.unwrap_or(false);
 
         if totp_enabled {
             let pending_token = generate_secure_string();

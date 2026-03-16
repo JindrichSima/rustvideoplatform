@@ -178,6 +178,8 @@ async fn hx_settings_channel_name_save(
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update channel name.</b>".to_owned()));
     }
+    // Invalidate cached user profile
+    let _: Result<(), _> = redis.clone().del(format!("usercache:{}", user_info.login)).await;
     Html(minifi_html(format!("<b class=\"text-success\">Channel name updated to \"{}\".</b>", askama::filters::escape(new_name, askama::filters::Html).unwrap())))
 }
 
@@ -289,21 +291,20 @@ async fn hx_settings_profile_picture(
     }
     let user_info = user_info.unwrap();
 
+    // Batch: current picture + available media in one round-trip
     #[derive(serde::Deserialize, SurrealValue)] struct PicRow { profile_picture: Option<String> }
-    let mut _pic_resp = db
-        .query("SELECT profile_picture FROM users WHERE id = $id")
+    let mut batch_resp = db
+        .query(
+            "SELECT profile_picture FROM users WHERE id = $id; \
+             SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC"
+        )
         .bind(("id", RecordId::new("users", user_info.login.as_str())))
-        .await
-        .unwrap_or_else(|_| unreachable!());
-    let _pic_row: Option<PicRow> = _pic_resp.take(0).unwrap_or(None);
-    let current_picture: Option<String> = _pic_row.and_then(|r| r.profile_picture);
-
-    let mut _media_resp = db
-        .query("SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC")
         .bind(("owner", user_info.login.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
-    let media: Vec<PictureMedium> = _media_resp.take(0).unwrap_or_default();
+    let _pic_row: Option<PicRow> = batch_resp.take(0).unwrap_or(None);
+    let current_picture: Option<String> = _pic_row.and_then(|r| r.profile_picture);
+    let media: Vec<PictureMedium> = batch_resp.take(1).unwrap_or_default();
 
     let template = HXSettingsProfilePictureTemplate { media, current_picture, config };
     Html(minifi_html(template.render().unwrap()))
@@ -362,6 +363,8 @@ async fn hx_settings_profile_picture_save(
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update profile picture.</b>".to_owned()));
     }
+    // Invalidate cached user profile
+    let _: Result<(), _> = redis.clone().del(format!("usercache:{}", user_info.login)).await;
     Html(minifi_html("<b class=\"text-success\">Profile picture updated.</b>".to_owned()))
 }
 
@@ -386,21 +389,20 @@ async fn hx_settings_channel_picture(
     }
     let user_info = user_info.unwrap();
 
+    // Batch: current channel picture + available media in one round-trip
     #[derive(serde::Deserialize, SurrealValue)] struct ChanPicRow { channel_picture: Option<String> }
-    let mut _cpic_resp = db
-        .query("SELECT channel_picture FROM users WHERE id = $id")
+    let mut batch_resp = db
+        .query(
+            "SELECT channel_picture FROM users WHERE id = $id; \
+             SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC"
+        )
         .bind(("id", RecordId::new("users", user_info.login.as_str())))
-        .await
-        .unwrap_or_else(|_| unreachable!());
-    let _cpic_row: Option<ChanPicRow> = _cpic_resp.take(0).unwrap_or(None);
-    let current_picture: Option<String> = _cpic_row.and_then(|r| r.channel_picture);
-
-    let mut _media_resp = db
-        .query("SELECT id, name, visibility FROM media WHERE owner = $owner AND type = 'picture' AND (visibility = 'public' OR visibility = 'hidden') ORDER BY upload DESC")
         .bind(("owner", user_info.login.clone()))
         .await
         .unwrap_or_else(|_| unreachable!());
-    let media: Vec<PictureMedium> = _media_resp.take(0).unwrap_or_default();
+    let _cpic_row: Option<ChanPicRow> = batch_resp.take(0).unwrap_or(None);
+    let current_picture: Option<String> = _cpic_row.and_then(|r| r.channel_picture);
+    let media: Vec<PictureMedium> = batch_resp.take(1).unwrap_or_default();
 
     let template = HXSettingsChannelPictureTemplate { media, current_picture, config };
     Html(minifi_html(template.render().unwrap()))
@@ -455,6 +457,8 @@ async fn hx_settings_channel_picture_save(
     if result.is_err() {
         return Html(minifi_html("<b class=\"text-danger\">Failed to update channel picture.</b>".to_owned()));
     }
+    // Invalidate cached user profile
+    let _: Result<(), _> = redis.clone().del(format!("usercache:{}", user_info.login)).await;
     Html(minifi_html("<b class=\"text-success\">Channel picture updated.</b>".to_owned()))
 }
 

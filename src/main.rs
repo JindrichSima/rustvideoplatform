@@ -89,6 +89,32 @@ async fn main() {
         &config.surrealdb_url, &config.surrealdb_ns, &config.surrealdb_db
     );
 
+    // Define indexes for query performance (idempotent — safe to run on every startup)
+    db.query(
+        "DEFINE INDEX IF NOT EXISTS idx_media_owner ON TABLE media COLUMNS owner;
+         DEFINE INDEX IF NOT EXISTS idx_media_upload ON TABLE media COLUMNS upload;
+         DEFINE INDEX IF NOT EXISTS idx_media_owner_upload ON TABLE media COLUMNS owner, upload;
+         DEFINE INDEX IF NOT EXISTS idx_media_owner_type ON TABLE media COLUMNS owner, type;
+         DEFINE INDEX IF NOT EXISTS idx_comments_media ON TABLE comments COLUMNS media;
+         DEFINE INDEX IF NOT EXISTS idx_comments_media_time ON TABLE comments COLUMNS media, time;
+         DEFINE INDEX IF NOT EXISTS idx_subscriptions_subscriber ON TABLE subscriptions COLUMNS subscriber;
+         DEFINE INDEX IF NOT EXISTS idx_subscriptions_target ON TABLE subscriptions COLUMNS target;
+         DEFINE INDEX IF NOT EXISTS idx_subscriptions_sub_target ON TABLE subscriptions COLUMNS subscriber, target UNIQUE;
+         DEFINE INDEX IF NOT EXISTS idx_media_likes_mid_user ON TABLE media_likes COLUMNS media_id, user_login UNIQUE;
+         DEFINE INDEX IF NOT EXISTS idx_list_items_list ON TABLE list_items COLUMNS list_id;
+         DEFINE INDEX IF NOT EXISTS idx_list_items_list_media ON TABLE list_items COLUMNS list_id, media_id;
+         DEFINE INDEX IF NOT EXISTS idx_list_items_list_pos ON TABLE list_items COLUMNS list_id, position;
+         DEFINE INDEX IF NOT EXISTS idx_lists_owner ON TABLE lists COLUMNS owner;
+         DEFINE INDEX IF NOT EXISTS idx_user_groups_owner ON TABLE user_groups COLUMNS owner;
+         DEFINE INDEX IF NOT EXISTS idx_ugm_group ON TABLE user_group_members COLUMNS group_id;
+         DEFINE INDEX IF NOT EXISTS idx_ugm_group_user ON TABLE user_group_members COLUMNS group_id, user_login UNIQUE;
+         DEFINE INDEX IF NOT EXISTS idx_media_concepts_owner ON TABLE media_concepts COLUMNS owner;
+         DEFINE INDEX IF NOT EXISTS idx_users_login ON TABLE users COLUMNS login UNIQUE;"
+    )
+    .await
+    .expect("Failed to define database indexes");
+    println!("SurrealDB indexes verified");
+
     let meilisearch_client = MeilisearchClient::new(
         &config.meilisearch_url,
         config.meilisearch_key.as_deref(),

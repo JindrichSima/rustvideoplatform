@@ -195,27 +195,17 @@ async fn hx_delete_group(
         return Html("".as_bytes().to_vec());
     }
 
-    // Clear group references from media and lists
-    db.query("UPDATE media SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid;")
-        .bind(("gid", groupid.clone()))
-        .await
-        .expect("Database error");
-
-    db.query("UPDATE lists SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid;")
-        .bind(("gid", groupid.clone()))
-        .await
-        .expect("Database error");
-
-    // Delete members and group
-    db.query("DELETE FROM user_group_members WHERE group_id = $gid;")
-        .bind(("gid", groupid.clone()))
-        .await
-        .expect("Database error");
-
-    db.query("DELETE FROM user_groups WHERE id = $id;")
-        .bind(("id", groupid.clone()))
-        .await
-        .expect("Database error");
+    // Clear group references and delete members/group in a single round-trip
+    db.query(
+        "UPDATE media SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid; \
+         UPDATE lists SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid; \
+         DELETE FROM user_group_members WHERE group_id = $gid; \
+         DELETE FROM user_groups WHERE id = $id;"
+    )
+    .bind(("gid", groupid.clone()))
+    .bind(("id", groupid.clone()))
+    .await
+    .expect("Database error");
 
     // Invalidate Redis group membership cache
     let _: Result<(), _> = redis.clone().del(format!("group:{}:members", groupid)).await;
