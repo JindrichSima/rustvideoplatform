@@ -9,11 +9,11 @@
     <div class="search-card-thumbnail">
         <img src="{{ config.source_server_url }}/source/{{ hit.id }}/thumbnail-sm.avif" alt="{{ hit.name }}" loading="lazy" />
         <div class="search-card-type-badge">
-            {% if hit.type == "video" %}
+            {% if hit.medium_type == "video" %}
             <i class="fa-solid fa-video"></i>
-            {% else if hit.type == "audio" %}
+            {% else if hit.medium_type == "audio" %}
             <i class="fa-solid fa-music"></i>
-            {% else if hit.type == "picture" %}
+            {% else if hit.medium_type == "picture" %}
             <i class="fa-solid fa-image"></i>
             {% endif %}
         </div>
