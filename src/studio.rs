@@ -570,13 +570,18 @@ async fn hx_studio_edit_permissions_tab(
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id;")
+    // Batch: media record + user groups in one round-trip
+    let mut batch_resp = db
+        .query(
+            "SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id; \
+             SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;"
+        )
         .bind(("id", mediumid.clone()))
+        .bind(("owner", user_info.login.clone()))
         .await
         .expect("Database error");
 
-    let record: Option<MediaRecord> = resp.take(0).unwrap_or_default();
+    let record: Option<MediaRecord> = batch_resp.take(0).unwrap_or_default();
 
     match record {
         Some(record) => {
@@ -585,14 +590,7 @@ async fn hx_studio_edit_permissions_tab(
             }
 
             let mut owner_groups = system_groups_for_owner(&user_info.login);
-
-            let mut groups_resp = db
-                .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-                .bind(("owner", user_info.login.clone()))
-                .await
-                .expect("Database error");
-
-            let user_groups: Vec<UserGroup> = groups_resp.take(0).unwrap_or_default();
+            let user_groups: Vec<UserGroup> = batch_resp.take(1).unwrap_or_default();
             owner_groups.extend(user_groups);
 
             let template = HXStudioEditPermissionsTemplate {

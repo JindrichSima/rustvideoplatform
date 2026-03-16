@@ -105,7 +105,7 @@ fn extract_common_headers(headers: &HeaderMap) -> Result<CommonHeaders, &'static
     })
 }
 
-#[derive(Serialize, Deserialize, SurrealValue, Debug)]
+#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
 struct UserRow {
     name: String,
     profile_picture: Option<String>,
@@ -125,6 +125,19 @@ async fn get_user_login(
         .await
         .ok()?;
 
+    // Try Redis cache for user profile first (avoids DB round-trip)
+    let cache_key = format!("usercache:{}", login);
+    let cached: Result<String, _> = redis.get(&cache_key).await;
+    if let Ok(json) = cached {
+        if let Ok(row) = serde_json::from_str::<UserRow>(&json) {
+            return Some(User {
+                login,
+                name: row.name,
+                profile_picture: row.profile_picture,
+            });
+        }
+    }
+
     let mut resp = db
         .query("SELECT name, profile_picture FROM users WHERE id = $id")
         .bind(("id", RecordId::new("users", login.as_str())))
@@ -133,6 +146,11 @@ async fn get_user_login(
 
     let row: Option<UserRow> = resp.take(0).ok()?;
     let row = row?;
+
+    // Cache user profile in Redis for 5 minutes
+    if let Ok(json) = serde_json::to_string(&row) {
+        let _: Result<(), _> = redis.set_ex(&cache_key, &json, 300u64).await;
+    }
 
     Some(User {
         login,

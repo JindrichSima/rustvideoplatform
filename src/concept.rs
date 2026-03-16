@@ -97,16 +97,25 @@ async fn concept(
     }
     let user_info = user_info.unwrap();
 
-    let mut response = db
+    // Batch: concept + user groups in one round-trip
+    #[derive(Deserialize, SurrealValue)]
+    struct UserGroupRow {
+        id: RecordId,
+        name: String,
+        owner: String,
+    }
+
+    let mut batch_resp = db
         .query(
-            "SELECT id, name, type, processed FROM media_concepts WHERE owner = $owner AND id = $id AND processed = true;",
+            "SELECT id, name, type, processed FROM media_concepts WHERE owner = $owner AND id = $id AND processed = true; \
+             SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;"
         )
         .bind(("owner", user_info.login.clone()))
         .bind(("id", RecordId::new("media_concepts", conceptid.as_str())))
         .await
         .expect("Database error");
 
-    let row: Option<MediumConceptRow> = response.take(0).expect("Database error");
+    let row: Option<MediumConceptRow> = batch_resp.take(0).expect("Database error");
     let row = row.expect("Concept not found");
     let concept = MediumConcept {
         id: row.id.key_string(),
@@ -115,23 +124,8 @@ async fn concept(
         r#type: row.r#type,
     };
 
-    // Fetch user's groups for the dropdown (system groups + user groups)
     let mut owner_groups = system_groups_for_owner(&user_info.login);
-
-    #[derive(Deserialize, SurrealValue)]
-    struct UserGroupRow {
-        id: RecordId,
-        name: String,
-        owner: String,
-    }
-
-    let mut grp_response = db
-        .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", user_info.login.clone()))
-        .await
-        .unwrap_or_else(|_| panic!("Database error"));
-
-    let grp_rows: Vec<UserGroupRow> = grp_response.take(0).unwrap_or_default();
+    let grp_rows: Vec<UserGroupRow> = batch_resp.take(1).unwrap_or_default();
     let user_groups: Vec<UserGroup> = grp_rows
         .into_iter()
         .map(|row| UserGroup {
@@ -215,6 +209,9 @@ async fn publish(
 
         let medium_id = form.medium_id.to_ascii_lowercase();
         let media_record_id = RecordId::new("media", medium_id.as_str());
+        let concept_record_id =
+            RecordId::new("media_concepts", concept.id.as_str());
+        // Create media record and delete concept in a single round-trip
         let _ = db
             .query(
                 "CREATE $id SET
@@ -225,7 +222,8 @@ async fn publish(
     visibility = $visibility,
     restricted_to_group = $restricted_to_group,
     type = $type,
-    upload = time::unix(time::now());",
+    upload = time::unix(time::now());
+    DELETE $concept_id;",
             )
             .bind(("id", media_record_id))
             .bind(("name", form.medium_name.clone()))
@@ -235,13 +233,7 @@ async fn publish(
             .bind(("visibility", visibility.clone()))
             .bind(("restricted_to_group", restricted_to_group.clone()))
             .bind(("type", concept.r#type.clone()))
-            .await;
-
-        let concept_record_id =
-            RecordId::new("media_concepts", concept.id.as_str());
-        let _ = db
-            .query("DELETE $id;")
-            .bind(("id", concept_record_id))
+            .bind(("concept_id", concept_record_id))
             .await;
 
         return Html(format!(
