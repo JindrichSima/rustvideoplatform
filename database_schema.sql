@@ -101,6 +101,11 @@ CREATE TABLE IF NOT EXISTS public.webauthn_credentials (
 	CONSTRAINT webauthn_credentials_pk PRIMARY KEY (id)
 );
 
+-- User theme preference
+-- Migration for existing databases:
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS theme varchar DEFAULT 'default';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS theme varchar DEFAULT 'default';
+
 -- Migration for existing data:
 -- UPDATE public.media SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;
 -- UPDATE public.lists SET visibility = CASE WHEN public THEN 'public' ELSE 'hidden' END;

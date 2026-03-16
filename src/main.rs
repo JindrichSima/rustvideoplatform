@@ -223,6 +223,7 @@ async fn main() {
         .route("/settings/profile-picture", get(settings_profile_picture))
         .route("/settings/channel-picture", get(settings_channel_picture))
         .route("/settings/diagnostics", get(settings_diagnostics))
+        .route("/settings/theme", get(settings_theme))
         .route("/settings/2fa", get(settings_2fa))
         .route("/hx/settings/channel-name", get(hx_settings_channel_name))
         .route("/hx/settings/channel-name", post(hx_settings_channel_name_save))
@@ -233,6 +234,8 @@ async fn main() {
         .route("/hx/settings/channel-picture", get(hx_settings_channel_picture))
         .route("/hx/settings/channel-picture", post(hx_settings_channel_picture_save))
         .route("/hx/settings/diagnostics", get(hx_settings_diagnostics))
+        .route("/hx/settings/theme", get(hx_settings_theme))
+        .route("/hx/settings/theme", post(hx_settings_theme_save))
         // 2FA settings
         .route("/hx/settings/2fa", get(hx_settings_2fa))
         .route("/hx/settings/2fa/totp/setup", post(hx_settings_2fa_totp_setup))

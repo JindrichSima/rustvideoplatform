@@ -105,7 +105,7 @@ async fn get_user_login(
         .ok()?;
 
     let row = sqlx::query(
-        "SELECT name, profile_picture FROM users WHERE login=$1;"
+        "SELECT name, profile_picture, theme FROM users WHERE login=$1;"
     )
     .bind(&login)
     .fetch_one(pool)
@@ -117,6 +117,7 @@ async fn get_user_login(
         login,
         name: row.get("name"),
         profile_picture: row.get("profile_picture"),
+        theme: row.get("theme"),
     })
 }
 

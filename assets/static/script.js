@@ -72,8 +72,16 @@ document.addEventListener('DOMContentLoaded', () => {
     fitMediumTitle();
 });
 
+// Theme mode: only follow system preference if user hasn't set a manual preference
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+    try {
+        var saved = localStorage.getItem('theme-mode');
+        if (!saved) {
+            document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+        }
+    } catch(ex) {
+        document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+    }
 });
 
 function closeListModal(event) {
@@ -146,5 +154,17 @@ document.addEventListener('click', function (e) {
     const thumb = link.querySelector('.thumbnail-container, .search-card-thumbnail');
     if (thumb) {
         thumb.style.viewTransitionName = 'medium-player';
+    }
+});
+
+// Clear theme from localStorage on logout
+document.addEventListener('htmx:afterRequest', function(e) {
+    if (e.detail && e.detail.pathInfo && e.detail.pathInfo.requestPath === '/hx/logout') {
+        try {
+            localStorage.removeItem('user-theme');
+            localStorage.removeItem('theme-mode');
+            var existing = document.getElementById('user-theme-css');
+            if (existing) existing.remove();
+        } catch(ex) {}
     }
 });
