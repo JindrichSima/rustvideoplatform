@@ -18,6 +18,13 @@ function toggleSidebar() {
     }
 }
 
+function toggleTheme() {
+    var current = document.documentElement.getAttribute('data-bs-theme');
+    var next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-bs-theme', next);
+    try { localStorage.setItem('theme', next); } catch (e) {}
+}
+
 function navbarSearch(event) {
     event.preventDefault();
     const input = document.getElementById('searchInput');
@@ -72,8 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
     fitMediumTitle();
 });
 
+// Only follow system preference if user hasn't set a manual preference
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+    if (!localStorage.getItem('theme')) {
+        document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+    }
 });
 
 function closeListModal(event) {
