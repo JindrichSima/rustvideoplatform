@@ -183,7 +183,7 @@ async fn hx_search_suggestions(
                 .with_highlight_pre_tag("<mark>")
                 .with_highlight_post_tag("</mark>")
                 .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-                    "id", "name", "owner", "views", "type",
+                    "id", "name", "owner", "views", "type", "upload",
                 ]))
                 .execute::<MeiliMedia>()
                 .await
