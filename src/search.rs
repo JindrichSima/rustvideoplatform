@@ -8,7 +8,7 @@ struct MeiliMedia {
     likes: i64,
     #[serde(default)]
     dislikes: i64,
-    r#type: String,
+    medium_type: String,
     upload: i64,
     #[serde(default)]
     public: bool,
@@ -25,7 +25,7 @@ impl From<MeiliMedia> for Medium {
             name: media.name,
             owner: media.owner,
             views: media.views,
-            r#type: media.r#type,
+            r#type: media.medium_type,
             sprite_filename: None,
             sprite_x: 0,
             sprite_y: 0,
@@ -187,7 +187,7 @@ async fn hx_search_suggestions(
                 .with_highlight_pre_tag("<mark>")
                 .with_highlight_post_tag("</mark>")
                 .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-                    "id", "name", "owner", "views", "type",
+                    "id", "name", "owner", "views", "medium_type",
                 ]))
                 .execute::<MeiliMedia>()
                 .await
@@ -369,7 +369,7 @@ struct MeiliSearchHit {
     owner: String,
     views: i64,
     likes: i64,
-    r#type: String,
+    medium_type: String,
     upload: i64,
 }
 
@@ -433,9 +433,9 @@ async fn hx_search(
 
     // Media type filter
     match media_type.as_str() {
-        "video" => filters.push("type = \"video\"".to_owned()),
-        "audio" => filters.push("type = \"audio\"".to_owned()),
-        "picture" => filters.push("type = \"picture\"".to_owned()),
+        "video" => filters.push("medium_type = \"video\"".to_owned()),
+        "audio" => filters.push("medium_type = \"audio\"".to_owned()),
+        "picture" => filters.push("medium_type = \"picture\"".to_owned()),
         _ => {} // "all" or empty - no type filter
     }
 
@@ -471,7 +471,7 @@ async fn hx_search(
         .with_highlight_pre_tag("<mark>")
         .with_highlight_post_tag("</mark>")
         .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-            "id", "name", "owner", "views", "likes", "type", "upload",
+            "id", "name", "owner", "views", "likes", "medium_type", "upload",
         ]));
 
     if !sort_attrs.is_empty() {
@@ -504,7 +504,7 @@ async fn hx_search(
                         owner: hit.result.owner,
                         views: hit.result.views,
                         likes: hit.result.likes,
-                        r#type: hit.result.r#type,
+                        medium_type: hit.result.medium_type,
                         upload: hit.result.upload,
                     }
                 })
@@ -798,7 +798,7 @@ async fn hx_search_all_inner(
                 .with_highlight_pre_tag("<mark>")
                 .with_highlight_post_tag("</mark>")
                 .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-                    "id", "name", "owner", "views", "likes", "type", "upload",
+                    "id", "name", "owner", "views", "likes", "medium_type", "upload",
                 ]))
                 .execute::<MeiliMedia>()
                 .await
