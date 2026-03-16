@@ -20,7 +20,7 @@ async fn channel(
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = sqlx::query_as!(
+    let user = match sqlx::query_as!(
         UserChannel,
         "SELECT
     u.login,
@@ -48,7 +48,14 @@ WHERE
     )
     .fetch_one(&pool)
     .await
-    .unwrap();
+    {
+        Ok(u) => u,
+        Err(_) => {
+            return Html(minifi_html(
+                "<script>window.location.replace(\"/\");</script>".to_owned(),
+            ));
+        }
+    };
     let sidebar = generate_sidebar(&config, "channel".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ChannelTemplate {
