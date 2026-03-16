@@ -27,7 +27,9 @@
                     <tr>
                         <td class="text-center">
                             <div class="channel-picture-container d-inline-block">
-                                <img src="{{ config.source_server_url }}/source/{{ user.channel_picture.clone().unwrap() }}/picture.avif">
+                                {% if let Some(pic) = user.channel_picture %}
+                                <img src="{{ config.source_server_url }}/source/{{ pic }}/picture.avif">
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
