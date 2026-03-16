@@ -867,7 +867,7 @@ async fn hx_search_all_inner(
                     owner: hit.result.owner,
                     views: hit.result.views,
                     likes: hit.result.likes,
-                    r#type: hit.result.r#type,
+                    medium_type: hit.result.medium_type,
                     upload: hit.result.upload,
                 }
             }).collect();
