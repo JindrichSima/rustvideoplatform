@@ -8,11 +8,11 @@ struct StudioTemplate {
 }
 async fn studio(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -29,7 +29,7 @@ async fn studio(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct MediumStudio {
     id: String,
     name: String,
@@ -48,31 +48,31 @@ struct HXStudioTemplate {
 }
 async fn hx_studio(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_studio_inner(config, db, redis, headers, 0).await
+    hx_studio_inner(config, pool, redis, headers, 0).await
 }
 
 async fn hx_studio_page(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(page): Path<i64>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_studio_inner(config, db, redis, headers, page).await
+    hx_studio_inner(config, pool, redis, headers, page).await
 }
 
 async fn hx_studio_inner(
     config: Config,
-    db: Db,
+    pool: PgPool,
     redis: RedisConn,
     headers: HeaderMap,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -81,14 +81,24 @@ async fn hx_studio_inner(
     let user_info = user_info.unwrap();
     let offset = page * 40;
 
-    let mut resp = db
-        .query("SELECT id, name, description, views, type FROM media WHERE owner = $owner ORDER BY upload DESC LIMIT 41 START $offset;")
-        .bind(("owner", user_info.login.clone()))
-        .bind(("offset", offset))
-        .await
-        .expect("Database error");
-
-    let mut media: Vec<MediumStudio> = resp.take(0).unwrap_or_default();
+    let mut media: Vec<MediumStudio> = sqlx::query(
+        "SELECT id,name,description,views,type FROM media WHERE owner=$1 ORDER BY upload DESC LIMIT 41 OFFSET $2;"
+    )
+    .bind(&user_info.login)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        MediumStudio {
+            id: row.get("id"),
+            name: row.get("name"),
+            description: row.get("description"),
+            views: row.get("views"),
+            r#type: row.get("type"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
 
     let has_more = media.len() == 41;
     if has_more {
@@ -103,11 +113,11 @@ async fn hx_studio_inner(
 
 async fn studio_lists(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -133,29 +143,29 @@ struct HXStudioListsTemplate {
     next_url: String,
 }
 async fn hx_studio_lists(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_studio_lists_inner(db, redis, headers, 0).await
+    hx_studio_lists_inner(pool, redis, headers, 0).await
 }
 
 async fn hx_studio_lists_page(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(page): Path<i64>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_studio_lists_inner(db, redis, headers, page).await
+    hx_studio_lists_inner(pool, redis, headers, page).await
 }
 
 async fn hx_studio_lists_inner(
-    db: Db,
+    pool: PgPool,
     redis: RedisConn,
     headers: HeaderMap,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -164,14 +174,25 @@ async fn hx_studio_lists_inner(
     let user_info = user_info.unwrap();
     let offset = page * 40;
 
-    let mut resp = db
-        .query("SELECT id, name, owner, visibility, restricted_to_group, array::len((SELECT id FROM list_items WHERE list_id = $parent.id)) AS item_count FROM lists WHERE owner = $owner ORDER BY created DESC LIMIT 41 START $offset;")
-        .bind(("owner", user_info.login.clone()))
-        .bind(("offset", offset))
-        .await
-        .expect("Database error");
-
-    let mut lists: Vec<ListWithCount> = resp.take(0).unwrap_or_default();
+    let mut lists: Vec<ListWithCount> = sqlx::query(
+        "SELECT l.id, l.name, l.owner, l.visibility, l.restricted_to_group, (SELECT COUNT(*) FROM list_items li WHERE li.list_id = l.id) AS item_count FROM lists l WHERE l.owner = $1 ORDER BY l.created DESC LIMIT 41 OFFSET $2;"
+    )
+    .bind(&user_info.login)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        ListWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            visibility: row.get("visibility"),
+            restricted_to_group: row.get("restricted_to_group"),
+            item_count: row.get("item_count"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
 
     let has_more = lists.len() == 41;
     if has_more {
@@ -184,7 +205,7 @@ async fn hx_studio_lists_inner(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct MediumEdit {
     id: String,
     name: String,
@@ -239,26 +260,14 @@ struct HXStudioEditPermissionsTemplate {
     medium: MediumEdit,
     owner_groups: Vec<UserGroup>,
 }
-
-#[derive(Deserialize, SurrealValue)]
-struct MediaRecord {
-    id: String,
-    name: String,
-    owner: String,
-    visibility: String,
-    restricted_to_group: Option<String>,
-    #[serde(rename = "type")]
-    r#type: String,
-}
-
 async fn studio_edit(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -266,17 +275,18 @@ async fn studio_edit(
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id;")
-        .bind(("id", mediumid.clone()))
-        .await
-        .expect("Database error");
+    let medium = sqlx::query(
+        "SELECT id,name,owner,visibility,restricted_to_group,type FROM media WHERE id=$1;"
+    )
+    .bind(&mediumid)
+    .fetch_one(&pool)
+    .await;
 
-    let record: Option<MediaRecord> = resp.take(0).unwrap_or_default();
-
-    match record {
-        Some(record) => {
-            if record.owner != user_info.login {
+    match medium {
+        Ok(record) => {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
                 return Html(minifi_html(
                     "<script>window.location.replace(\"/studio\");</script>".to_owned(),
                 ));
@@ -288,69 +298,79 @@ async fn studio_edit(
                 sidebar,
                 config,
                 medium: MediumEdit {
-                    id: record.id,
-                    name: record.name,
-                    visibility: record.visibility,
-                    restricted_to_group: record.restricted_to_group.unwrap_or_default(),
-                    medium_type: record.r#type,
+                    id: record.get("id"),
+                    name: record.get("name"),
+                    visibility: record.get("visibility"),
+                    restricted_to_group: record.get::<Option<String>, _>("restricted_to_group").unwrap_or_default(),
+                    medium_type: record.get("type"),
                 },
                 common_headers,
                 active_tab: "description".to_owned(),
             };
             Html(minifi_html(template.render().unwrap()))
         }
-        None => Html(minifi_html(
+        Err(_) => Html(minifi_html(
             "<script>window.location.replace(\"/studio\");</script>".to_owned(),
         )),
     }
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct EditForm {
     medium_name: String,
     medium_description: String,
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct PermissionsEditForm {
     medium_visibility: String,
     medium_restricted_group: Option<String>,
 }
-
-#[derive(Deserialize, SurrealValue)]
-struct OwnerRecord {
-    owner: String,
-}
-
 async fn studio_edit_save(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Form(form): Form<EditForm>,
 ) -> axum::response::Html<String> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }
     let user_info = user_info.unwrap();
 
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
+            }
+        }
+        Err(_) => {
+            return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
+        }
+    }
+
     let description: serde_json::Value =
         serde_json::from_str(&form.medium_description).unwrap_or(serde_json::Value::Null);
 
-    // Ownership check + update in one query: returns nothing if id/owner don't match
-    let mut update_resp = db
-        .query("UPDATE media SET name = $name, description = $description WHERE id = $id AND owner = $owner RETURN id")
-        .bind(("name", form.medium_name.clone()))
-        .bind(("description", description.clone()))
-        .bind(("id", mediumid.clone()))
-        .bind(("owner", user_info.login.clone()))
-        .await;
+    let update_result = sqlx::query(
+        "UPDATE media SET name=$1, description=$2 WHERE id=$3;"
+    )
+    .bind(&form.medium_name)
+    .bind(&description)
+    .bind(&mediumid)
+    .execute(&pool)
+    .await;
 
-    let updated: Vec<serde_json::Value> = update_resp.as_mut().ok()
-        .and_then(|r| r.take(0).ok()).unwrap_or_default();
-    if updated.is_empty() {
-        return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
+    if update_result.is_err() {
+        return Html(format!(
+            "<b class=\"text-danger\">Failed to save changes.</b><script>setTimeout(function(){{window.location.replace(\"/studio/edit/{}\");}},2000);</script>",
+            mediumid
+        ));
     }
 
     Html(format!(
@@ -360,35 +380,50 @@ async fn studio_edit_save(
 }
 
 async fn hx_delete_video(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> impl IntoResponse {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Redirect::to("/login");
     }
     let user_info = user_info.unwrap();
 
-    // Ownership check + delete in one query; returns nothing if not owner
-    let mut del_resp = db
-        .query("DELETE FROM media WHERE id = $id AND owner = $owner RETURN id")
-        .bind(("id", mediumid.clone()))
-        .bind(("owner", user_info.login.clone()))
-        .await
-        .expect("Database error");
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
 
-    let deleted: Vec<serde_json::Value> = del_resp.take(0).unwrap_or_default();
-    if deleted.is_empty() {
-        return Redirect::to("/studio");
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Redirect::to("/studio");
+            }
+        }
+        Err(_) => {
+            return Redirect::to("/studio");
+        }
     }
 
-    // Media deleted — clean up related records in a single round-trip
-    let _ = db
-        .query("DELETE FROM comments WHERE media = $id; DELETE FROM list_items WHERE media_id = $id")
-        .bind(("id", mediumid.clone()))
+    // Delete associated comments first
+    let _ = sqlx::query!("DELETE FROM comments WHERE media=$1;", mediumid)
+        .execute(&pool)
         .await;
+
+    // Delete from any lists
+    let _ = sqlx::query!("DELETE FROM list_items WHERE media_id=$1;", mediumid)
+        .execute(&pool)
+        .await;
+
+    // Delete the video from database
+    let delete_result = sqlx::query!("DELETE FROM media WHERE id=$1;", mediumid)
+        .execute(&pool)
+        .await;
+
+    if delete_result.is_err() {
+        return Redirect::to("/studio");
+    }
 
     // Delete the source directory
     let source_path = format!("source/{}", mediumid);
@@ -398,66 +433,66 @@ async fn hx_delete_video(
 }
 
 async fn hx_studio_edit_description(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    let mut resp = db
-        .query("SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id;")
-        .bind(("id", mediumid.clone()))
-        .await
-        .expect("Database error");
+    let medium = sqlx::query(
+        "SELECT id,name,owner,visibility,restricted_to_group,type FROM media WHERE id=$1;"
+    )
+    .bind(&mediumid)
+    .fetch_one(&pool)
+    .await;
 
-    let record: Option<MediaRecord> = resp.take(0).unwrap_or_default();
-
-    match record {
-        Some(record) => {
-            if record.owner != user_info.login {
+    match medium {
+        Ok(record) => {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
                 return Html(minifi_html("".to_owned()));
             }
 
             let template = HXStudioEditDescriptionTemplate {
                 medium: MediumEdit {
-                    id: record.id,
-                    name: record.name,
-                    visibility: record.visibility,
-                    restricted_to_group: record.restricted_to_group.unwrap_or_default(),
-                    medium_type: record.r#type,
+                    id: record.get("id"),
+                    name: record.get("name"),
+                    visibility: record.get("visibility"),
+                    restricted_to_group: record.get::<Option<String>, _>("restricted_to_group").unwrap_or_default(),
+                    medium_type: record.get("type"),
                 },
             };
             Html(minifi_html(template.render().unwrap()))
         }
-        None => Html(minifi_html("".to_owned())),
+        Err(_) => Html(minifi_html("".to_owned())),
     }
 }
 
 async fn hx_studio_edit_chapters_tab(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    // Single WHERE clause confirms ownership without a separate read
-    let mut owns_resp = db
-        .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
-        .bind(("id", mediumid.clone()))
-        .bind(("owner", user_info.login.clone()))
+    let owner: Option<String> = sqlx::query_scalar("SELECT owner FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
         .await
-        .expect("Database error");
-    if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
+        .unwrap_or(None);
+
+    if owner.as_deref() != Some(user_info.login.as_str()) {
         return Html(minifi_html("".to_owned()));
     }
 
@@ -466,25 +501,24 @@ async fn hx_studio_edit_chapters_tab(
 }
 
 async fn hx_studio_edit_subtitles_tab(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    // Single WHERE clause confirms ownership without a separate read
-    let mut owns_resp = db
-        .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
-        .bind(("id", mediumid.clone()))
-        .bind(("owner", user_info.login.clone()))
+    let owner: Option<String> = sqlx::query_scalar("SELECT owner FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
         .await
-        .expect("Database error");
-    if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
+        .unwrap_or(None);
+
+    if owner.as_deref() != Some(user_info.login.as_str()) {
         return Html(minifi_html("".to_owned()));
     }
 
@@ -493,25 +527,24 @@ async fn hx_studio_edit_subtitles_tab(
 }
 
 async fn hx_studio_edit_thumbnail_tab(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    // Single WHERE clause confirms ownership without a separate read
-    let mut owns_resp = db
-        .query("SELECT id FROM media WHERE id = $id AND owner = $owner")
-        .bind(("id", mediumid.clone()))
-        .bind(("owner", user_info.login.clone()))
+    let owner: Option<String> = sqlx::query_scalar("SELECT owner FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
         .await
-        .expect("Database error");
-    if owns_resp.take::<Vec<serde_json::Value>>(0).unwrap_or_default().is_empty() {
+        .unwrap_or(None);
+
+    if owner.as_deref() != Some(user_info.login.as_str()) {
         return Html(minifi_html("".to_owned()));
     }
 
@@ -520,37 +553,31 @@ async fn hx_studio_edit_thumbnail_tab(
 }
 
 async fn hx_studio_edit_danger_tab(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    #[derive(Deserialize, SurrealValue)]
-    struct OwnerNameRecord {
-        owner: String,
-        name: String,
-    }
-
-    let mut resp = db
-        .query("SELECT owner, name FROM media WHERE id = $id;")
-        .bind(("id", mediumid.clone()))
+    let row = sqlx::query("SELECT owner, name FROM media WHERE id=$1;")
+        .bind(&mediumid)
+        .fetch_optional(&pool)
         .await
-        .expect("Database error");
-
-    let row: Option<OwnerNameRecord> = resp.take(0).unwrap_or_default();
+        .unwrap_or(None);
 
     match row {
         Some(record) => {
-            if record.owner != user_info.login {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
                 return Html(minifi_html("".to_owned()));
             }
-            let medium_name = record.name;
+            let medium_name: String = record.get("name");
             let template = HXStudioEditDangerTemplate { medium_id: mediumid, medium_name };
             Html(minifi_html(template.render().unwrap()))
         }
@@ -559,68 +586,90 @@ async fn hx_studio_edit_danger_tab(
 }
 
 async fn hx_studio_edit_permissions_tab(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html("".to_owned()));
     }
     let user_info = user_info.unwrap();
 
-    // Batch: media record + user groups in one round-trip
-    let mut batch_resp = db
-        .query(
-            "SELECT id, name, owner, visibility, restricted_to_group, type FROM media WHERE id = $id; \
-             SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;"
-        )
-        .bind(("id", mediumid.clone()))
-        .bind(("owner", user_info.login.clone()))
-        .await
-        .expect("Database error");
+    let medium = sqlx::query(
+        "SELECT id,name,owner,visibility,restricted_to_group,type FROM media WHERE id=$1;"
+    )
+    .bind(&mediumid)
+    .fetch_one(&pool)
+    .await;
 
-    let record: Option<MediaRecord> = batch_resp.take(0).unwrap_or_default();
-
-    match record {
-        Some(record) => {
-            if record.owner != user_info.login {
+    match medium {
+        Ok(record) => {
+            use sqlx::Row;
+            let owner: String = record.get("owner");
+            if owner != user_info.login {
                 return Html(minifi_html("".to_owned()));
             }
 
             let mut owner_groups = system_groups_for_owner(&user_info.login);
-            let user_groups: Vec<UserGroup> = batch_resp.take(1).unwrap_or_default();
+            let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+                .bind(&user_info.login)
+                .map(|row: sqlx::postgres::PgRow| {
+                    UserGroup {
+                        id: row.get("id"),
+                        name: row.get("name"),
+                        owner: row.get("owner"),
+                    }
+                })
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default();
             owner_groups.extend(user_groups);
 
             let template = HXStudioEditPermissionsTemplate {
                 medium: MediumEdit {
-                    id: record.id,
-                    name: record.name,
-                    visibility: record.visibility,
-                    restricted_to_group: record.restricted_to_group.unwrap_or_default(),
-                    medium_type: record.r#type,
+                    id: record.get("id"),
+                    name: record.get("name"),
+                    visibility: record.get("visibility"),
+                    restricted_to_group: record.get::<Option<String>, _>("restricted_to_group").unwrap_or_default(),
+                    medium_type: record.get("type"),
                 },
                 owner_groups,
             };
             Html(minifi_html(template.render().unwrap()))
         }
-        None => Html(minifi_html("".to_owned())),
+        Err(_) => Html(minifi_html("".to_owned())),
     }
 }
 
 async fn studio_edit_permissions_save(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Form(form): Form<PermissionsEditForm>,
 ) -> axum::response::Html<String> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }
     let user_info = user_info.unwrap();
+
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
+    match media_owner {
+        Ok(record) => {
+            if record.owner != user_info.login {
+                return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
+            }
+        }
+        Err(_) => {
+            return Html("<script>window.location.replace(\"/studio\");</script>".to_owned());
+        }
+    }
 
     let visibility = match form.medium_visibility.as_str() {
         "public" | "hidden" | "restricted" => form.medium_visibility.clone(),
@@ -633,13 +682,15 @@ async fn studio_edit_permissions_save(
         None
     };
 
-    let update_result = db
-        .query("UPDATE media SET public = $public, visibility = $visibility, restricted_to_group = $restricted_to_group WHERE id = $id;")
-        .bind(("public", ispublic))
-        .bind(("visibility", visibility.clone()))
-        .bind(("restricted_to_group", restricted_to_group.clone()))
-        .bind(("id", mediumid.clone()))
-        .await;
+    let update_result = sqlx::query(
+        "UPDATE media SET public=$1, visibility=$2, restricted_to_group=$3 WHERE id=$4;"
+    )
+    .bind(ispublic)
+    .bind(&visibility)
+    .bind(&restricted_to_group)
+    .bind(&mediumid)
+    .execute(&pool)
+    .await;
 
     if update_result.is_err() {
         return Html(format!(

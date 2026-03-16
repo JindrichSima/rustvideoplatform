@@ -1,11 +1,11 @@
-#[derive(Serialize, Deserialize, SurrealValue, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 struct UserGroup {
     id: String,
     name: String,
     owner: String,
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct UserGroupWithCount {
     id: String,
     name: String,
@@ -13,28 +13,28 @@ struct UserGroupWithCount {
     member_count: Option<i64>,
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct GroupMember {
     user_login: String,
 }
 
-#[derive(Deserialize, SurrealValue)]
+#[derive(Deserialize)]
 struct CreateGroupForm {
     name: String,
 }
 
-#[derive(Deserialize, SurrealValue)]
+#[derive(Deserialize)]
 struct AddMemberForm {
     user_login: String,
 }
 
 async fn studio_groups(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -64,11 +64,11 @@ struct HXGroupsListTemplate {
 }
 
 async fn hx_studio_groups(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -91,13 +91,22 @@ async fn hx_studio_groups(
         },
     ];
 
-    let mut resp = db
-        .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", user_info.login.clone()))
-        .await
-        .expect("Database error");
-
-    let user_groups: Vec<UserGroupWithCount> = resp.take(0).unwrap_or_default();
+    let user_groups: Vec<UserGroupWithCount> = sqlx::query(
+        "SELECT g.id, g.name, g.owner, (SELECT COUNT(*) FROM user_group_members gm WHERE gm.group_id = g.id) AS member_count FROM user_groups g WHERE g.owner = $1 ORDER BY g.created DESC;"
+    )
+    .bind(&user_info.login)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        UserGroupWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            member_count: row.get("member_count"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
 
     groups.extend(user_groups);
 
@@ -106,12 +115,12 @@ async fn hx_studio_groups(
 }
 
 async fn hx_create_group(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Form(form): Form<CreateGroupForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -119,10 +128,11 @@ async fn hx_create_group(
 
     let group_id = generate_medium_id();
 
-    db.query("CREATE user_groups:[$id] SET name = $name, owner = $owner, created = time::unix(time::now());")
-        .bind(("id", group_id.clone()))
-        .bind(("name", form.name.clone()))
-        .bind(("owner", user_info.login.clone()))
+    sqlx::query("INSERT INTO user_groups (id, name, owner) VALUES ($1, $2, $3);")
+        .bind(&group_id)
+        .bind(&form.name)
+        .bind(&user_info.login)
+        .execute(&pool)
         .await
         .expect("Database error");
 
@@ -142,13 +152,22 @@ async fn hx_create_group(
         },
     ];
 
-    let mut resp = db
-        .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", user_info.login.clone()))
-        .await
-        .expect("Database error");
-
-    let user_groups: Vec<UserGroupWithCount> = resp.take(0).unwrap_or_default();
+    let user_groups: Vec<UserGroupWithCount> = sqlx::query(
+        "SELECT g.id, g.name, g.owner, (SELECT COUNT(*) FROM user_group_members gm WHERE gm.group_id = g.id) AS member_count FROM user_groups g WHERE g.owner = $1 ORDER BY g.created DESC;"
+    )
+    .bind(&user_info.login)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        UserGroupWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            member_count: row.get("member_count"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
 
     groups.extend(user_groups);
 
@@ -157,12 +176,12 @@ async fn hx_create_group(
 }
 
 async fn hx_delete_group(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(groupid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -174,38 +193,47 @@ async fn hx_delete_group(
     }
 
     // Verify ownership
-    #[derive(Deserialize, SurrealValue)]
-    struct OwnerRecord {
-        owner: String,
-    }
-
-    let mut resp = db
-        .query("SELECT owner FROM user_groups WHERE id = $id;")
-        .bind(("id", groupid.clone()))
+    let owner_check: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT owner FROM user_groups WHERE id = $1;")
+        .bind(&groupid)
+        .fetch_optional(&pool)
         .await
         .expect("Database error");
 
-    let owner_check: Option<OwnerRecord> = resp.take(0).unwrap_or_default();
-
     if let Some(row) = owner_check {
-        if row.owner != user_info.login {
+        use sqlx::Row;
+        let owner: String = row.get("owner");
+        if owner != user_info.login {
             return Html("".as_bytes().to_vec());
         }
     } else {
         return Html("".as_bytes().to_vec());
     }
 
-    // Clear group references and delete members/group in a single round-trip
-    db.query(
-        "UPDATE media SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid; \
-         UPDATE lists SET visibility = 'hidden', restricted_to_group = NONE WHERE restricted_to_group = $gid; \
-         DELETE FROM user_group_members WHERE group_id = $gid; \
-         DELETE FROM user_groups WHERE id = $id;"
-    )
-    .bind(("gid", groupid.clone()))
-    .bind(("id", groupid.clone()))
-    .await
-    .expect("Database error");
+    // Clear group references from media and lists
+    sqlx::query("UPDATE media SET visibility = 'hidden', restricted_to_group = NULL WHERE restricted_to_group = $1;")
+        .bind(&groupid)
+        .execute(&pool)
+        .await
+        .expect("Database error");
+
+    sqlx::query("UPDATE lists SET visibility = 'hidden', restricted_to_group = NULL WHERE restricted_to_group = $1;")
+        .bind(&groupid)
+        .execute(&pool)
+        .await
+        .expect("Database error");
+
+    // Delete members and group
+    sqlx::query("DELETE FROM user_group_members WHERE group_id = $1;")
+        .bind(&groupid)
+        .execute(&pool)
+        .await
+        .expect("Database error");
+
+    sqlx::query("DELETE FROM user_groups WHERE id = $1;")
+        .bind(&groupid)
+        .execute(&pool)
+        .await
+        .expect("Database error");
 
     // Invalidate Redis group membership cache
     let _: Result<(), _> = redis.clone().del(format!("group:{}:members", groupid)).await;
@@ -226,13 +254,22 @@ async fn hx_delete_group(
         },
     ];
 
-    let mut resp = db
-        .query("SELECT id, name, owner, (SELECT count() FROM user_group_members WHERE group_id = $parent.id GROUP ALL)[0].count AS member_count FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", user_info.login.clone()))
-        .await
-        .expect("Database error");
-
-    let user_groups: Vec<UserGroupWithCount> = resp.take(0).unwrap_or_default();
+    let user_groups: Vec<UserGroupWithCount> = sqlx::query(
+        "SELECT g.id, g.name, g.owner, (SELECT COUNT(*) FROM user_group_members gm WHERE gm.group_id = g.id) AS member_count FROM user_groups g WHERE g.owner = $1 ORDER BY g.created DESC;"
+    )
+    .bind(&user_info.login)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        UserGroupWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            member_count: row.get("member_count"),
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
 
     groups.extend(user_groups);
 
@@ -249,12 +286,12 @@ struct HXGroupMembersTemplate {
 }
 
 async fn hx_group_members(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(groupid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -275,28 +312,37 @@ async fn hx_group_members(
         return Html(minifi_html(template.render().unwrap()));
     }
 
-    let mut resp = db
-        .query("SELECT id, name, owner FROM user_groups WHERE id = $id;")
-        .bind(("id", groupid.clone()))
+    let group_row: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE id = $1;")
+        .bind(&groupid)
+        .fetch_optional(&pool)
         .await
         .expect("Database error");
 
-    let group_row: Option<UserGroup> = resp.take(0).unwrap_or_default();
-
     let group = match group_row {
-        Some(g) => g,
+        Some(row) => {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        }
         None => return Html("".as_bytes().to_vec()),
     };
 
     let is_owner = group.owner == user_info.login;
 
-    let mut members_resp = db
-        .query("SELECT user_login FROM user_group_members WHERE group_id = $gid ORDER BY user_login;")
-        .bind(("gid", groupid.clone()))
+    let members: Vec<GroupMember> = sqlx::query("SELECT user_login FROM user_group_members WHERE group_id = $1 ORDER BY user_login;")
+        .bind(&groupid)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            GroupMember {
+                user_login: row.get("user_login"),
+            }
+        })
+        .fetch_all(&pool)
         .await
         .expect("Database error");
-
-    let members: Vec<GroupMember> = members_resp.take(0).unwrap_or_default();
 
     let template = HXGroupMembersTemplate {
         group,
@@ -307,13 +353,13 @@ async fn hx_group_members(
 }
 
 async fn hx_add_group_member(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(groupid): Path<String>,
     Form(form): Form<AddMemberForm>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -325,16 +371,21 @@ async fn hx_add_group_member(
     }
 
     // Verify group ownership
-    let mut resp = db
-        .query("SELECT id, name, owner FROM user_groups WHERE id = $id;")
-        .bind(("id", groupid.clone()))
+    let group_row: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE id = $1;")
+        .bind(&groupid)
+        .fetch_optional(&pool)
         .await
         .expect("Database error");
 
-    let group_row: Option<UserGroup> = resp.take(0).unwrap_or_default();
-
     let group = match group_row {
-        Some(g) => g,
+        Some(row) => {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        }
         None => return Html("".as_bytes().to_vec()),
     };
 
@@ -343,25 +394,18 @@ async fn hx_add_group_member(
     }
 
     // Check that the user exists
-    #[derive(Deserialize, SurrealValue)]
-    struct LoginRecord {
-        login: String,
-    }
-
-    let mut user_resp = db
-        .query("SELECT login FROM users WHERE login = $login;")
-        .bind(("login", form.user_login.clone()))
+    let user_exists: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT login FROM users WHERE login = $1;")
+        .bind(&form.user_login)
+        .fetch_optional(&pool)
         .await
         .expect("Database error");
 
-    let user_exists: Option<LoginRecord> = user_resp.take(0).unwrap_or_default();
-
     if user_exists.is_some() {
-        // Upsert member (ignore if already exists)
-        let _ = db
-            .query("UPSERT user_group_members:[$gid, $user] SET group_id = $gid, user_login = $user;")
-            .bind(("gid", groupid.clone()))
-            .bind(("user", form.user_login.clone()))
+        // Insert member (ignore if already exists)
+        let _ = sqlx::query("INSERT INTO user_group_members (group_id, user_login) VALUES ($1, $2) ON CONFLICT DO NOTHING;")
+            .bind(&groupid)
+            .bind(&form.user_login)
+            .execute(&pool)
             .await;
 
         // Invalidate Redis group membership cache
@@ -369,13 +413,17 @@ async fn hx_add_group_member(
     }
 
     // Return updated members list
-    let mut members_resp = db
-        .query("SELECT user_login FROM user_group_members WHERE group_id = $gid ORDER BY user_login;")
-        .bind(("gid", groupid.clone()))
+    let members: Vec<GroupMember> = sqlx::query("SELECT user_login FROM user_group_members WHERE group_id = $1 ORDER BY user_login;")
+        .bind(&groupid)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            GroupMember {
+                user_login: row.get("user_login"),
+            }
+        })
+        .fetch_all(&pool)
         .await
         .expect("Database error");
-
-    let members: Vec<GroupMember> = members_resp.take(0).unwrap_or_default();
 
     let template = HXGroupMembersTemplate {
         group,
@@ -386,12 +434,12 @@ async fn hx_add_group_member(
 }
 
 async fn hx_remove_group_member(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((groupid, login)): Path<(String, String)>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("".as_bytes().to_vec());
     }
@@ -403,16 +451,21 @@ async fn hx_remove_group_member(
     }
 
     // Verify group ownership
-    let mut resp = db
-        .query("SELECT id, name, owner FROM user_groups WHERE id = $id;")
-        .bind(("id", groupid.clone()))
+    let group_row: Option<sqlx::postgres::PgRow> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE id = $1;")
+        .bind(&groupid)
+        .fetch_optional(&pool)
         .await
         .expect("Database error");
 
-    let group_row: Option<UserGroup> = resp.take(0).unwrap_or_default();
-
     let group = match group_row {
-        Some(g) => g,
+        Some(row) => {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        }
         None => return Html("".as_bytes().to_vec()),
     };
 
@@ -420,9 +473,10 @@ async fn hx_remove_group_member(
         return Html("".as_bytes().to_vec());
     }
 
-    db.query("DELETE FROM user_group_members WHERE group_id = $gid AND user_login = $user;")
-        .bind(("gid", groupid.clone()))
-        .bind(("user", login.clone()))
+    sqlx::query("DELETE FROM user_group_members WHERE group_id = $1 AND user_login = $2;")
+        .bind(&groupid)
+        .bind(&login)
+        .execute(&pool)
         .await
         .expect("Database error");
 
@@ -430,13 +484,17 @@ async fn hx_remove_group_member(
     let _: Result<(), _> = redis.clone().del(format!("group:{}:members", groupid)).await;
 
     // Return updated members list
-    let mut members_resp = db
-        .query("SELECT user_login FROM user_group_members WHERE group_id = $gid ORDER BY user_login;")
-        .bind(("gid", groupid.clone()))
+    let members: Vec<GroupMember> = sqlx::query("SELECT user_login FROM user_group_members WHERE group_id = $1 ORDER BY user_login;")
+        .bind(&groupid)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            GroupMember {
+                user_login: row.get("user_login"),
+            }
+        })
+        .fetch_all(&pool)
         .await
         .expect("Database error");
-
-    let members: Vec<GroupMember> = members_resp.take(0).unwrap_or_default();
 
     let template = HXGroupMembersTemplate {
         group,
@@ -447,11 +505,11 @@ async fn hx_remove_group_member(
 }
 
 async fn hx_user_groups_json(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> Json<Vec<UserGroup>> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(vec![]);
     }
@@ -459,13 +517,19 @@ async fn hx_user_groups_json(
 
     let mut groups = system_groups_for_owner(&user_info.login);
 
-    let mut resp = db
-        .query("SELECT id, name, owner FROM user_groups WHERE owner = $owner ORDER BY created DESC;")
-        .bind(("owner", user_info.login.clone()))
+    let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
+        .bind(&user_info.login)
+        .map(|row: sqlx::postgres::PgRow| {
+            use sqlx::Row;
+            UserGroup {
+                id: row.get("id"),
+                name: row.get("name"),
+                owner: row.get("owner"),
+            }
+        })
+        .fetch_all(&pool)
         .await
-        .expect("Database error");
-
-    let user_groups: Vec<UserGroup> = resp.take(0).unwrap_or_default();
+        .unwrap_or_default();
 
     groups.extend(user_groups);
 

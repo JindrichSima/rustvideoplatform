@@ -18,65 +18,59 @@ async fn login(
     Html(minifi_html(template.render().unwrap()))
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct LoginForm {
     login: String,
     password: String,
 }
 
-#[derive(Serialize, Deserialize, SurrealValue, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 struct User {
     login: String,
     name: String,
     profile_picture: Option<String>,
 }
 
-#[derive(Deserialize, SurrealValue)]
-struct UserAuthRow {
-    password_hash: String,
-    totp_enabled: Option<bool>,
-}
-
 async fn hx_login(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(mut redis): Extension<RedisConn>,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
-    // Single query fetches both password_hash and totp_enabled
-    let mut resp = match db
-        .query("SELECT password_hash, totp_enabled FROM users WHERE id = $id")
-        .bind(("id", RecordId::new("users", form.login.as_str())))
-        .await
-    {
-        Ok(r) => r,
-        Err(_) => {
-            return (StatusCode::OK, HeaderMap::new(), "<b class=\"text-danger\">Wrong user name or password</b>".to_owned());
-        }
-    };
+    let password_hash_get = sqlx::query!(
+        "SELECT password_hash FROM users WHERE login=$1;",
+        form.login
+    )
+    .fetch_one(&pool)
+    .await;
 
-    let row: Option<UserAuthRow> = match resp.take(0) {
-        Ok(r) => r,
-        Err(_) => None,
-    };
+    if password_hash_get.is_err() {
+        let response_headers = HeaderMap::new();
+        let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
 
-    let auth_row = match row {
-        Some(r) => r,
-        None => {
-            return (StatusCode::OK, HeaderMap::new(), "<b class=\"text-danger\">Wrong user name or password</b>".to_owned());
-        }
-    };
+        return (StatusCode::OK, response_headers, response_body);
+    }
+
+    let password_hash = password_hash_get.unwrap().password_hash;
 
     if Argon2::default()
         .verify_password(
             form.password.as_bytes(),
-            &PasswordHash::new(&auth_row.password_hash).unwrap(),
+            &PasswordHash::new(&password_hash).unwrap(),
         )
         .is_ok()
     {
-        let totp_enabled = auth_row.totp_enabled.unwrap_or(false);
+        // Check if TOTP is enabled for this user
+        let totp_enabled: bool = sqlx::query_scalar(
+            "SELECT totp_enabled FROM users WHERE login=$1",
+        )
+        .bind(&form.login)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(false);
 
         if totp_enabled {
+            // Create a short-lived pending session and ask for TOTP code
             let pending_token = generate_secure_string();
             let _: () = redis
                 .set_ex(
@@ -119,7 +113,10 @@ async fn hx_login(
         let response_body = "<b class=\"text-sucess\">LOGIN SUCESS</b><script>window.location.replace(\"/\");</script>".to_owned();
         return (StatusCode::OK, response_headers, response_body);
     } else {
-        return (StatusCode::OK, HeaderMap::new(), "<b class=\"text-danger\">Wrong user name or password</b>".to_owned());
+        let response_headers = HeaderMap::new();
+        let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
+
+        return (StatusCode::OK, response_headers, response_body);
     }
 }
 

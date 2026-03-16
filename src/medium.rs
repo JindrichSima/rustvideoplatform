@@ -48,7 +48,7 @@ struct MediumTemplate {
     list_name: String,
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct Medium {
     id: String,
     name: String,
@@ -60,59 +60,40 @@ struct Medium {
     sprite_y: i32,
 }
 
-#[derive(Deserialize, SurrealValue)]
-struct MediumRow {
-    id: String,
-    name: String,
-    owner: String,
-    views: i64,
-    r#type: String,
-    visibility: String,
-    restricted_to_group: Option<String>,
-    upload: i64,
-    owner_name: Option<String>,
-    owner_picture: Option<String>,
-}
-
 async fn medium(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
     let is_logged_in = user.is_some();
 
     // Fetch media with visibility info and owner profile
-    let medium_row: Option<MediumRow> = db
-        .query(
-            "SELECT m.id, m.name, m.description, m.upload, m.owner, m.views, m.type, m.visibility, m.restricted_to_group, \
-             (SELECT name FROM users WHERE id = $parent.owner)[0] AS owner_name, \
-             (SELECT profile_picture FROM users WHERE id = $parent.owner)[0] AS owner_picture \
-             FROM media AS m WHERE m.id = $id LIMIT 1;"
-        )
-        .bind(("id", RecordId::new("media", mediumid.to_ascii_lowercase())))
-        .await
-        .and_then(|mut r| r.take(0))
-        .ok()
-        .and_then(|mut v: Vec<MediumRow>| if v.is_empty() { None } else { Some(v.remove(0)) });
+    let medium_row = sqlx::query(
+        "SELECT m.id, m.name, m.description, m.upload, m.owner, m.views, m.type, m.visibility, m.restricted_to_group, u.name as owner_name, u.profile_picture as owner_picture FROM media m LEFT JOIN users u ON m.owner = u.login WHERE m.id=$1;"
+    )
+    .bind(mediumid.to_ascii_lowercase())
+    .fetch_one(&pool)
+    .await;
 
     let medium = match medium_row {
-        Some(row) => row,
-        None => {
+        Ok(row) => row,
+        Err(_) => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
             ));
         }
     };
 
-    let visibility = medium.visibility.clone();
-    let restricted_to_group = medium.restricted_to_group.clone();
-    let owner = medium.owner.clone();
+    use sqlx::Row;
+    let visibility: String = medium.get("visibility");
+    let restricted_to_group: Option<String> = medium.get("restricted_to_group");
+    let owner: String = medium.get("owner");
 
     // Access control for restricted content
-    if !can_access_restricted(&db, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
+    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/\");</script>".to_owned(),
         ));
@@ -120,7 +101,7 @@ async fn medium(
 
     let common_headers = extract_common_headers(&headers).unwrap();
 
-    let medium_id = medium.id.clone();
+    let medium_id: String = medium.get("id");
     let medium_captions_exist: bool;
     let mut medium_captions_list: Vec<CaptionEntry> = Vec::new();
     if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
@@ -163,13 +144,13 @@ async fn medium(
     let template = MediumTemplate {
         sidebar,
         medium_id,
-        medium_name: medium.name,
-        medium_owner: medium.owner,
-        medium_owner_name: medium.owner_name.unwrap_or_default(),
-        medium_owner_picture: medium.owner_picture,
-        medium_upload: prettyunixtime(medium.upload).await,
-        medium_views: medium.views,
-        medium_type: medium.r#type,
+        medium_name: medium.get("name"),
+        medium_owner: medium.get("owner"),
+        medium_owner_name: medium.get("owner_name"),
+        medium_owner_picture: medium.get("owner_picture"),
+        medium_upload: prettyunixtime(medium.get("upload")).await,
+        medium_views: medium.get("views"),
+        medium_type: medium.get("type"),
         medium_captions_exist,
         medium_captions_list,
         medium_has_ass_captions,
@@ -241,26 +222,21 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
         .join("\n")
 }
 
-#[derive(Deserialize, SurrealValue)]
-struct DescriptionRow {
-    description: Option<String>,
-}
-
 async fn medium_description_prepare(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let description: Option<String> = db
-        .query("SELECT description FROM media WHERE id = $id LIMIT 1;")
-        .bind(("id", RecordId::new("media", mediumid.to_ascii_lowercase())))
+    Json(
+        sqlx::query!(
+            "SELECT description FROM media WHERE id=$1;",
+            mediumid.to_ascii_lowercase()
+        )
+        .fetch_one(&pool)
         .await
-        .and_then(|mut r| r.take(0))
-        .ok()
-        .and_then(|mut v: Vec<DescriptionRow>| v.pop())
-        .and_then(|row| row.description)
-        .unwrap_or_default()
-        .into();
-    Json(serde_json::Value::String(description.unwrap_or_default()))
+        .expect("Database error")
+        .description
+        .unwrap_or_default(),
+    )
 }
 
 #[derive(Template)]

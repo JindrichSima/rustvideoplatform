@@ -1,20 +1,20 @@
-<div class="sidebar d-flex flex-column text-white" id="sidebar">
-    <a href="/" class="text-white text-decoration-none my-3 text-center" preload="mouseover">
-        <span class="fs-3 fw-bold">{{ config.instancename }}</span>
+<div class="sidebar d-flex flex-column text-white text-center" id="sidebar">
+    <a href="/" class="text-white text-decoration-none my-3" preload="mouseover">
+        <span class="fs-2">{{ config.instancename }}</span>
     </a>
-    <hr class="mx-3">
-    <ul class="nav nav-pills flex-column mb-auto px-2">
-        <li class="nav-item text-center">
+    <hr>
+    <ul class="nav nav-pills flex-column mb-auto d-flex justify-content-center">
+        <li class="nav-item">
             <a href="/" class="nav-link {% if active_item == "home" %}active{% endif %} text-white
-                text-decoration-none my-1 fs-6 bg-hover" preload="mouseover">
-                <i class="fa-solid fa-house me-2"></i>
+                text-decoration-none my-2 fs-6 mx-3 bg-hover" preload="mouseover">
+                <i class="fa-solid fa-house"></i>
                 Home
             </a>
         </li>
-        <li class="nav-item text-center">
+        <li class="nav-item">
             <a href="/trending" class="nav-link {% if active_item == "trending" %}active{% endif %} text-white
-                text-decoration-none my-1 fs-6 bg-hover" preload="mouseover">
-                <i class="fa-solid fa-arrow-trend-up me-2"></i>
+                text-decoration-none my-2 fs-6 mx-3 bg-hover" preload="mouseover">
+                <i class="fa-solid fa-arrow-trend-up"></i>
                 Trending
             </a>
         </li>

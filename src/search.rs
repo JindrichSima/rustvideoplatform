@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct MeiliMedia {
     id: String,
     name: String,
@@ -8,7 +8,7 @@ struct MeiliMedia {
     likes: i64,
     #[serde(default)]
     dislikes: i64,
-    medium_type: String,
+    r#type: String,
     upload: i64,
     #[serde(default)]
     public: bool,
@@ -25,7 +25,7 @@ impl From<MeiliMedia> for Medium {
             name: media.name,
             owner: media.owner,
             views: media.views,
-            r#type: media.medium_type,
+            r#type: media.r#type,
             sprite_filename: None,
             sprite_x: 0,
             sprite_y: 0,
@@ -38,28 +38,24 @@ impl From<MeiliMedia> for Medium {
 /// Build a Meilisearch filter string that respects group-based visibility.
 /// For logged-in users, shows public media + restricted media in their groups.
 /// For anonymous users, shows only public media.
-async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
+async fn build_visibility_filter(pool: &PgPool, user: &Option<User>) -> String {
     if let Some(u) = user {
-        #[derive(serde::Deserialize, SurrealValue)]
-        struct GroupRow { group_id: String }
-        #[derive(serde::Deserialize, SurrealValue)]
-        struct TargetRow { target: String }
+        let group_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT group_id FROM user_group_members WHERE user_login = $1"
+        )
+        .bind(&u.login)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
 
-        let mut resp = db
-            .query("SELECT group_id FROM user_group_members WHERE user_login = $user")
-            .bind(("user", u.login.clone()))
-            .await
-            .unwrap_or_else(|_| unreachable!());
-        let group_rows: Vec<GroupRow> = resp.take(0).unwrap_or_default();
-        let group_ids: Vec<String> = group_rows.into_iter().map(|r| r.group_id).collect();
-
-        let mut resp2 = db
-            .query("SELECT target FROM subscriptions WHERE subscriber = $user")
-            .bind(("user", u.login.clone()))
-            .await
-            .unwrap_or_else(|_| unreachable!());
-        let target_rows: Vec<TargetRow> = resp2.take(0).unwrap_or_default();
-        let subscribed_channels: Vec<String> = target_rows.into_iter().map(|r| r.target).collect();
+        // Fetch channels the user is subscribed to
+        let subscribed_channels: Vec<String> = sqlx::query_scalar(
+            "SELECT target FROM subscriptions WHERE subscriber = $1"
+        )
+        .bind(&u.login)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
 
         // Build the list of group IDs + system group for all registered users
         let mut all_group_ids = group_ids;
@@ -99,7 +95,7 @@ async fn build_visibility_filter(db: &Db, user: &Option<User>) -> String {
 
 // --- Search suggestions (navbar autocomplete) ---
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct HXSearch {
     search: String,
 }
@@ -133,7 +129,7 @@ struct HXSearchSuggestionsTemplate {
 
 async fn hx_search_suggestions(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     headers: HeaderMap,
@@ -143,8 +139,8 @@ async fn hx_search_suggestions(
         return Html("".to_owned());
     }
 
-    let user = get_user_login(headers, &db, redis).await;
-    let visibility_filter = build_visibility_filter(&db, &user).await;
+    let user = get_user_login(headers, &pool, redis).await;
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
     let vis_filter_for_lists = format!("({})", visibility_filter);
 
     let (users_res, lists_res, media_res) = tokio::join!(
@@ -187,7 +183,7 @@ async fn hx_search_suggestions(
                 .with_highlight_pre_tag("<mark>")
                 .with_highlight_post_tag("</mark>")
                 .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-                    "id", "name", "owner", "views", "medium_type",
+                    "id", "name", "owner", "views", "type",
                 ]))
                 .execute::<MeiliMedia>()
                 .await
@@ -257,7 +253,7 @@ async fn hx_search_suggestions(
 
 // --- Full search with filters ---
 
-#[derive(Serialize, Deserialize, SurrealValue, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct HXSearchForm {
     search: String,
     #[serde(default)]
@@ -289,7 +285,7 @@ struct HXSearchTemplate {
 // --- List search ---
 
 /// Meilisearch document shape for the "lists" index.
-#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct MeiliList {
     id: String,
     name: String,
@@ -330,7 +326,7 @@ struct HXSearchListsTemplate {
 // --- User search ---
 
 /// Meilisearch document shape for the "users" index.
-#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct MeiliUser {
     login: String,
     name: String,
@@ -369,7 +365,7 @@ struct MeiliSearchHit {
     owner: String,
     views: i64,
     likes: i64,
-    medium_type: String,
+    r#type: String,
     upload: i64,
 }
 
@@ -391,7 +387,7 @@ struct HXSearchAllTemplate {
 
 async fn hx_search(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     Extension(meili): Extension<Arc<MeilisearchClient>>,
     headers: HeaderMap,
@@ -403,11 +399,11 @@ async fn hx_search(
     }
 
     let search_in = form.search_in.clone().unwrap_or_default();
-    let user = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
 
     match search_in.as_str() {
         "lists" => {
-            return hx_search_lists_inner(config, db.clone(), meili, user, pageid, form.search).await;
+            return hx_search_lists_inner(config, pool, meili, user, pageid, form.search).await;
         }
         "users" => {
             return hx_search_users_inner(config, meili, pageid, form.search).await;
@@ -415,7 +411,7 @@ async fn hx_search(
         "media" => {} // fall through to media-only Meilisearch
         _ => {
             // Default: search all types simultaneously
-            return hx_search_all_inner(config, db.clone(), meili, user, form.search).await;
+            return hx_search_all_inner(config, pool, meili, user, form.search).await;
         }
     }
 
@@ -428,14 +424,14 @@ async fn hx_search(
     let date_range = form.date_range.clone().unwrap_or_default();
 
     // Build filter string with visibility-aware access control
-    let visibility_filter = build_visibility_filter(&db, &user).await;
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
     let mut filters: Vec<String> = vec![format!("({})", visibility_filter)];
 
     // Media type filter
     match media_type.as_str() {
-        "video" => filters.push("medium_type = \"video\"".to_owned()),
-        "audio" => filters.push("medium_type = \"audio\"".to_owned()),
-        "picture" => filters.push("medium_type = \"picture\"".to_owned()),
+        "video" => filters.push("type = \"video\"".to_owned()),
+        "audio" => filters.push("type = \"audio\"".to_owned()),
+        "picture" => filters.push("type = \"picture\"".to_owned()),
         _ => {} // "all" or empty - no type filter
     }
 
@@ -471,7 +467,7 @@ async fn hx_search(
         .with_highlight_pre_tag("<mark>")
         .with_highlight_post_tag("</mark>")
         .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-            "id", "name", "owner", "views", "likes", "medium_type", "upload",
+            "id", "name", "owner", "views", "likes", "type", "upload",
         ]));
 
     if !sort_attrs.is_empty() {
@@ -504,7 +500,7 @@ async fn hx_search(
                         owner: hit.result.owner,
                         views: hit.result.views,
                         likes: hit.result.likes,
-                        medium_type: hit.result.medium_type,
+                        r#type: hit.result.r#type,
                         upload: hit.result.upload,
                     }
                 })
@@ -558,7 +554,7 @@ async fn hx_search(
 
 async fn hx_search_lists_inner(
     config: Config,
-    db: Db,
+    pool: PgPool,
     meili: Arc<MeilisearchClient>,
     user: Option<User>,
     pageid: usize,
@@ -568,7 +564,7 @@ async fn hx_search_lists_inner(
     let offset = pageid * 40;
 
     // Reuse the same visibility filter logic as media search
-    let visibility_filter = build_visibility_filter(&db, &user).await;
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
     let filter_str = format!("({})", visibility_filter);
 
     let index = meili.index("lists");
@@ -750,12 +746,12 @@ async fn hx_search_users_inner(
 
 async fn hx_search_all_inner(
     config: Config,
-    db: Db,
+    pool: PgPool,
     meili: Arc<MeilisearchClient>,
     user: Option<User>,
     search_term: String,
 ) -> axum::response::Html<String> {
-    let visibility_filter = build_visibility_filter(&db, &user).await;
+    let visibility_filter = build_visibility_filter(&pool, &user).await;
     let vis_filter_parens = format!("({})", visibility_filter);
 
     let (users_res, lists_res, media_res) = tokio::join!(
@@ -798,7 +794,7 @@ async fn hx_search_all_inner(
                 .with_highlight_pre_tag("<mark>")
                 .with_highlight_post_tag("</mark>")
                 .with_attributes_to_retrieve(meilisearch_sdk::search::Selectors::Some(&[
-                    "id", "name", "owner", "views", "likes", "medium_type", "upload",
+                    "id", "name", "owner", "views", "likes", "type", "upload",
                 ]))
                 .execute::<MeiliMedia>()
                 .await
@@ -867,7 +863,7 @@ async fn hx_search_all_inner(
                     owner: hit.result.owner,
                     views: hit.result.views,
                     likes: hit.result.likes,
-                    medium_type: hit.result.medium_type,
+                    r#type: hit.result.r#type,
                     upload: hit.result.upload,
                 }
             }).collect();
@@ -908,7 +904,7 @@ struct SearchTemplate {
     initial_query: String,
 }
 
-#[derive(Deserialize, SurrealValue)]
+#[derive(Deserialize)]
 struct SearchQuery {
     #[serde(default)]
     q: Option<String>,

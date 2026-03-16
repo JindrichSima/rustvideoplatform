@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct UserChannel {
     login: String,
     name: String,
@@ -6,16 +6,6 @@ struct UserChannel {
     channel_picture: Option<String>,
     subscribed: Option<i64>,
 }
-
-#[derive(Deserialize, SurrealValue)]
-struct UserChannelRow {
-    login: String,
-    name: String,
-    profile_picture: Option<String>,
-    channel_picture: Option<String>,
-    subscribed: Option<i64>,
-}
-
 #[derive(Template)]
 #[template(path = "pages/channel.html", escape = "none")]
 struct ChannelTemplate {
@@ -24,40 +14,41 @@ struct ChannelTemplate {
     common_headers: CommonHeaders,
     user: UserChannel,
 }
-
 async fn channel(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(config): Extension<Config>,
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let mut response = db
-        .query(
-            "SELECT
-    login,
-    name,
-    profile_picture,
-    channel_picture,
-    (SELECT count() FROM subscriptions WHERE target = $owner)[0].count AS subscribed
-FROM users
-WHERE login = $id;",
-        )
-        .bind(("id", userid.clone()))
-        .bind(("owner", userid.clone()))
-        .await
-        .expect("Database error");
-
-    let row: Option<UserChannelRow> = response.take(0).expect("Database error");
-    let row = row.expect("User not found");
-
-    let user = UserChannel {
-        login: row.login,
-        name: row.name,
-        profile_picture: row.profile_picture,
-        channel_picture: row.channel_picture,
-        subscribed: row.subscribed,
-    };
-
+    let user = sqlx::query_as!(
+        UserChannel,
+        "SELECT
+    u.login,
+    u.name,
+    u.profile_picture,
+    u.channel_picture,
+    COALESCE(subs.count, 0) AS subscribed
+FROM
+    users u
+LEFT JOIN
+    (
+        SELECT
+            target,
+            COUNT(*) AS count
+        FROM
+            subscriptions
+        GROUP BY
+            target
+    ) subs
+ON
+    u.login = subs.target
+WHERE
+    u.login = $1;",
+        userid
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     let sidebar = generate_sidebar(&config, "channel".to_owned());
     let common_headers = extract_common_headers(&headers).unwrap();
     let template = ChannelTemplate {
@@ -71,75 +62,58 @@ WHERE login = $id;",
 
 async fn hx_usermedia(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_usermedia_inner(config, db, redis, headers, userid, 0).await
+    hx_usermedia_inner(config, pool, redis, headers, userid, 0).await
 }
 
 async fn hx_usermedia_page(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((userid, page)): Path<(String, i64)>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_usermedia_inner(config, db, redis, headers, userid, page).await
-}
-
-#[derive(Deserialize, SurrealValue)]
-struct ChannelMediumRow {
-    id: RecordId,
-    name: String,
-    owner: String,
-    views: i64,
-    #[serde(rename = "type")]
-    r#type: String,
+    hx_usermedia_inner(config, pool, redis, headers, userid, page).await
 }
 
 async fn hx_usermedia_inner(
     config: Config,
-    db: Db,
+    pool: PgPool,
     redis: RedisConn,
     headers: HeaderMap,
     userid: String,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers, &db, redis.clone()).await;
+    let user = get_user_login(headers, &pool, redis.clone()).await;
     let user_login = user.map(|u| u.login).unwrap_or_default();
     let offset = page * 40;
-    let limit: i64 = 41;
 
-    let mut response = db
-        .query(
-            "SELECT id, name, owner, views, type FROM media \
-             WHERE owner = $owner \
-             AND fn::visible_to(visibility, restricted_to_group, owner, $user) \
-             ORDER BY upload DESC LIMIT $lim START $offset",
-        )
-        .bind(("owner", userid.clone()))
-        .bind(("user", user_login.clone()))
-        .bind(("lim", limit))
-        .bind(("offset", offset))
-        .await
-        .expect("Database error");
-
-    let rows: Vec<ChannelMediumRow> = response.take(0).expect("Database error");
-    let mut media: Vec<Medium> = rows
-        .into_iter()
-        .map(|row| Medium {
-            id: row.id.key_string(),
-            name: row.name,
-            owner: row.owner,
-            views: row.views,
-            r#type: row.r#type,
+    let mut media: Vec<Medium> = sqlx::query(
+        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND (restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) OR (restricted_to_group = '__all_registered__' AND $2 != '') OR (restricted_to_group = '__subscribers__' AND $2 != '' AND owner IN (SELECT target FROM subscriptions WHERE subscriber = $2))))) ORDER BY upload DESC LIMIT 41 OFFSET $3;"
+    )
+    .bind(&userid)
+    .bind(&user_login)
+    .bind(offset)
+    .map(|row: sqlx::postgres::PgRow| {
+        use sqlx::Row;
+        Medium {
+            id: row.get("id"),
+            name: row.get("name"),
+            owner: row.get("owner"),
+            views: row.get("views"),
+            r#type: row.get("type"),
             sprite_filename: None,
             sprite_x: 0,
             sprite_y: 0,
-        })
-        .collect();
+        }
+    })
+    .fetch_all(&pool)
+    .await
+    .expect("Database error");
 
     let has_more = media.len() == 41;
     if has_more {

@@ -1,18 +1,3 @@
-trait RecordIdKeyExt {
-    fn key_string(&self) -> String;
-}
-
-impl RecordIdKeyExt for RecordId {
-    fn key_string(&self) -> String {
-        use surrealdb::types::RecordIdKey;
-        match &self.key {
-            RecordIdKey::String(s) => s.clone(),
-            RecordIdKey::Number(n) => n.to_string(),
-            _ => String::new(),
-        }
-    }
-}
-
 fn minifi_html(html: String) -> Vec<u8> {
     let cfg = minify_html_onepass::Cfg {
         minify_css: true,
@@ -79,7 +64,7 @@ fn get_header_value(
         .map(|s| s.to_string())
 }
 
-#[derive(Serialize, Deserialize, SurrealValue)]
+#[derive(Serialize, Deserialize)]
 struct CommonHeaders {
     host: String,
     user_agent: Option<String>,
@@ -105,15 +90,9 @@ fn extract_common_headers(headers: &HeaderMap) -> Result<CommonHeaders, &'static
     })
 }
 
-#[derive(Serialize, Deserialize, SurrealValue, Debug, Clone)]
-struct UserRow {
-    name: String,
-    profile_picture: Option<String>,
-}
-
 async fn get_user_login(
     headers: HeaderMap,
-    db: &Db,
+    pool: &PgPool,
     mut redis: RedisConn,
 ) -> Option<User> {
     let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
@@ -125,37 +104,19 @@ async fn get_user_login(
         .await
         .ok()?;
 
-    // Try Redis cache for user profile first (avoids DB round-trip)
-    let cache_key = format!("usercache:{}", login);
-    let cached: Result<String, _> = redis.get(&cache_key).await;
-    if let Ok(json) = cached {
-        if let Ok(row) = serde_json::from_str::<UserRow>(&json) {
-            return Some(User {
-                login,
-                name: row.name,
-                profile_picture: row.profile_picture,
-            });
-        }
-    }
+    let row = sqlx::query(
+        "SELECT name, profile_picture FROM users WHERE login=$1;"
+    )
+    .bind(&login)
+    .fetch_one(pool)
+    .await
+    .ok()?;
 
-    let mut resp = db
-        .query("SELECT name, profile_picture FROM users WHERE id = $id")
-        .bind(("id", RecordId::new("users", login.as_str())))
-        .await
-        .ok()?;
-
-    let row: Option<UserRow> = resp.take(0).ok()?;
-    let row = row?;
-
-    // Cache user profile in Redis for 5 minutes
-    if let Ok(json) = serde_json::to_string(&row) {
-        let _: Result<(), _> = redis.set_ex(&cache_key, &json, 300u64).await;
-    }
-
+    use sqlx::Row;
     Some(User {
         login,
-        name: row.name,
-        profile_picture: row.profile_picture,
+        name: row.get("name"),
+        profile_picture: row.get("profile_picture"),
     })
 }
 
@@ -188,6 +149,7 @@ fn generate_medium_id() -> String {
 
     (0..10)
         .map(|_| {
+            // No 'rng' variable needed, no trait import needed
             let idx = rand::random_range(0..charset.len());
             charset[idx] as char
         })
@@ -197,72 +159,96 @@ fn generate_medium_id() -> String {
 fn detect_medium_type_mime(mime: String) -> String {
     let mime_type = mime.to_ascii_lowercase();
 
+    // --- Video ---
     if mime_type.contains("video")
         || matches!(
             mime_type.as_str(),
-            "application/x-matroska" | "application/ogg"
+            "application/x-matroska"
+                | "application/ogg"  // .ogv
         )
     {
         return "video".to_owned();
     }
 
+    // --- Audio ---
     if mime_type.contains("audio")
         || matches!(
             mime_type.as_str(),
-            "application/ogg"
+            "application/ogg"        // .ogg / .oga
                 | "application/x-ogg"
                 | "application/flac"
                 | "application/x-flac"
-                | "application/mp4"
+                | "application/mp4"  // audio-only mp4
         )
     {
         return "audio".to_owned();
     }
 
+    // --- Picture ---
     if mime_type.contains("image")
-        || matches!(mime_type.as_str(), "application/dicom")
+        || matches!(
+            mime_type.as_str(),
+            "application/dicom"      // medical imaging
+        )
     {
         return "picture".to_owned();
     }
 
+    // --- Document: PDF ---
     if mime_type == "application/pdf" {
         return "document_pdf".to_owned();
     }
 
+    // --- Document: Writer (word processors) ---
     if matches!(
         mime_type.as_str(),
+        // OpenDocument
         "application/vnd.oasis.opendocument.text"
             | "application/vnd.oasis.opendocument.text-template"
+            // Legacy MS Word
             | "application/msword"
+            // Modern MS Word
             | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             | "application/vnd.openxmlformats-officedocument.wordprocessingml.template"
+            // Apple Pages
             | "application/vnd.apple.pages"
+            // Rich Text / plain text variants
             | "application/rtf"
             | "text/rtf"
     ) {
         return "document_writer".to_owned();
     }
 
+    // --- Document: Spreadsheet ---
     if matches!(
         mime_type.as_str(),
+        // OpenDocument
         "application/vnd.oasis.opendocument.spreadsheet"
             | "application/vnd.oasis.opendocument.spreadsheet-template"
+            // Legacy MS Excel
             | "application/vnd.ms-excel"
+            // Modern MS Excel
             | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             | "application/vnd.openxmlformats-officedocument.spreadsheetml.template"
+            // Apple Numbers
             | "application/vnd.apple.numbers"
     ) {
         return "document_spreadsheet".to_owned();
     }
 
+    // --- Document: Presentation ---
     if matches!(
         mime_type.as_str(),
+        // OpenDocument
         "application/vnd.oasis.opendocument.presentation"
             | "application/vnd.oasis.opendocument.presentation-template"
+            // Legacy MS PowerPoint
             | "application/vnd.ms-powerpoint"
+            // Modern MS PowerPoint
             | "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             | "application/vnd.openxmlformats-officedocument.presentationml.template"
             | "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
+            // Apple Keynote
             | "application/vnd.apple.keynote"
     ) {
         return "document_presentation".to_owned();
@@ -326,48 +312,45 @@ fn system_groups_for_owner(owner: &str) -> Vec<UserGroup> {
     ]
 }
 
-async fn is_subscribed(db: &Db, subscriber: &str, target: &str) -> bool {
-    let mut resp = db
-        .query("SELECT id FROM subscriptions WHERE subscriber = $subscriber AND target = $target LIMIT 1")
-        .bind(("subscriber", subscriber.to_string()))
-        .bind(("target", target.to_string()))
-        .await
-        .unwrap_or_else(|_| unreachable!());
-    let rows: Vec<serde_json::Value> = resp.take(0).unwrap_or_default();
-    !rows.is_empty()
+async fn is_subscribed(pool: &PgPool, subscriber: &str, target: &str) -> bool {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE subscriber = $1 AND target = $2)"
+    )
+    .bind(subscriber)
+    .bind(target)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false)
 }
 
-async fn is_group_member(db: &Db, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
+async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
     let redis_key = format!("group:{}:members", group_id);
 
+    // Check if membership set is cached in Redis
     let key_exists: bool = redis.exists(&redis_key).await.unwrap_or(false);
 
     if key_exists {
         return redis.sismember(&redis_key, user_login).await.unwrap_or(false);
     }
 
-    #[derive(Deserialize, SurrealValue)]
-    struct MemberRow { user_login: String }
-
-    let mut resp = db
-        .query("SELECT user_login FROM user_group_members WHERE group_id = $group_id")
-        .bind(("group_id", group_id.to_string()))
+    // Cache miss - load all members from DB and cache in Redis
+    let members: Vec<String> = sqlx::query_scalar("SELECT user_login FROM user_group_members WHERE group_id = $1")
+        .bind(group_id)
+        .fetch_all(pool)
         .await
-        .unwrap_or_else(|_| unreachable!());
-    let members: Vec<MemberRow> = resp.take(0).unwrap_or_default();
-    let member_logins: Vec<String> = members.into_iter().map(|m| m.user_login).collect();
+        .unwrap_or_default();
 
-    let is_member = member_logins.contains(&user_login.to_owned());
+    let is_member = members.contains(&user_login.to_owned());
 
-    if !member_logins.is_empty() {
-        let _: Result<(), _> = redis.sadd(&redis_key, &member_logins).await;
+    if !members.is_empty() {
+        let _: Result<(), _> = redis.sadd(&redis_key, &members).await;
         let _: Result<(), _> = redis.expire(&redis_key, 3600).await;
     }
 
     is_member
 }
 
-async fn can_access_restricted(db: &Db, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
+async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
     match visibility {
         "public" => true,
         "restricted" => {
@@ -377,16 +360,16 @@ async fn can_access_restricted(db: &Db, visibility: &str, restricted_to_group: O
                 }
                 if let Some(group_id) = restricted_to_group {
                     if group_id == SYSTEM_GROUP_ALL_REGISTERED {
-                        return true;
+                        return true; // user is logged in
                     }
                     if group_id == SYSTEM_GROUP_SUBSCRIBERS {
-                        return is_subscribed(db, &u.login, owner).await;
+                        return is_subscribed(pool, &u.login, owner).await;
                     }
-                    return is_group_member(db, group_id, &u.login, redis).await;
+                    return is_group_member(pool, group_id, &u.login, redis).await;
                 }
             }
             false
         }
-        _ => true
+        _ => true // "hidden" - accessible via direct link (existing behavior)
     }
 }

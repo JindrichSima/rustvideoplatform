@@ -1,13 +1,12 @@
 #[derive(Template)]
 #[template(path = "pages/hx-studio-upload.html", escape = "none")]
 struct HXStudioUploadTemplate {}
-
 async fn hx_studio_upload(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -18,11 +17,11 @@ async fn hx_studio_upload(
 
 async fn upload(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -40,13 +39,13 @@ async fn upload(
 }
 
 async fn hx_upload(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Html<String> {
     // Step 1: Authenticate User
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }
@@ -104,14 +103,14 @@ async fn hx_upload(
         response_html.push_str("</table><br>");
 
         // Step 7: Save metadata to the database
-        let concept_id = RecordId::new("media_concepts", medium_id.as_str());
-        db.query(
-            "CREATE $id SET name = $name, owner = $owner, type = $type, processed = false;",
+        sqlx::query!(
+            "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1, $2, $3, $4)",
+            medium_id,
+            file_name,
+            user_info.clone().unwrap().login,
+            detect_medium_type_mime(file_type)
         )
-        .bind(("id", concept_id))
-        .bind(("name", file_name.clone()))
-        .bind(("owner", user_info.clone().unwrap().login))
-        .bind(("type", detect_medium_type_mime(file_type)))
+        .execute(&pool)
         .await
         .expect("Database error");
     }

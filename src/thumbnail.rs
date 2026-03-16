@@ -1,25 +1,21 @@
 async fn studio_thumbnail_get(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::json!({ "exists": false }));
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize, SurrealValue)]
-    struct OwnerRow { owner: String }
-    let mut _owner_resp = db
-        .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", mediumid.clone()))
-        .await
-        .unwrap_or_else(|_| unreachable!());
-    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
+
     match media_owner {
-        Some(record) if record.owner == user_info.login => {}
+        Ok(record) if record.owner == user_info.login => {}
         _ => return Json(serde_json::json!({ "exists": false })),
     }
 
@@ -29,13 +25,13 @@ async fn studio_thumbnail_get(
 }
 
 async fn studio_thumbnail_upload(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     mut multipart: Multipart,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -45,17 +41,12 @@ async fn studio_thumbnail_upload(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize, SurrealValue)]
-    struct OwnerRow { owner: String }
-    let mut _owner_resp = db
-        .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", mediumid.clone()))
-        .await
-        .unwrap_or_else(|_| unreachable!());
-    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
 
     match media_owner {
-        Some(record) => {
+        Ok(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -64,7 +55,7 @@ async fn studio_thumbnail_upload(
                     .unwrap();
             }
         }
-        None => {
+        Err(_) => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -200,12 +191,12 @@ async fn studio_thumbnail_upload(
 }
 
 async fn studio_thumbnail_delete(
-    Extension(db): Extension<Db>,
+    Extension(pool): Extension<PgPool>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -215,17 +206,12 @@ async fn studio_thumbnail_delete(
     }
     let user_info = user_info.unwrap();
 
-    #[derive(serde::Deserialize, SurrealValue)]
-    struct OwnerRow { owner: String }
-    let mut _owner_resp = db
-        .query("SELECT owner FROM media WHERE id = $id")
-        .bind(("id", mediumid.clone()))
-        .await
-        .unwrap_or_else(|_| unreachable!());
-    let media_owner: Option<OwnerRow> = _owner_resp.take(0).unwrap_or(None);
+    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
+        .fetch_one(&pool)
+        .await;
 
     match media_owner {
-        Some(record) => {
+        Ok(record) => {
             if record.owner != user_info.login {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
@@ -234,7 +220,7 @@ async fn studio_thumbnail_delete(
                     .unwrap();
             }
         }
-        None => {
+        Err(_) => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
