@@ -1,0 +1,27 @@
+@import url('/style.css');
+
+/* Forest theme - earthy green tones */
+
+:root,
+[data-bs-theme="light"] {
+    --bs-primary: #d4edda;
+    --bs-dark: #f0f7f0;
+    --bs-white: #1b4332;
+    --bs-secondary: #6a9e78;
+    --bs-success: #2d6a4f;
+    --bs-info: #40916c;
+    --bs-border-color: var(--bs-primary);
+    --bs-body-bg: var(--bs-dark);
+}
+
+[data-bs-theme="dark"] {
+    --bs-primary: #1b3a28;
+    --bs-dark: #0d1f16;
+    --bs-white: #d4edda;
+    --bs-secondary: #6a9e78;
+    --bs-success: #52b788;
+    --bs-info: #74c69d;
+    --bs-shadow-color: #000;
+    --bs-border-color: var(--bs-primary);
+    --bs-body-bg: var(--bs-dark);
+}

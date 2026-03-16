@@ -2,7 +2,8 @@
 Cargo.lock
 /config.json
 .env
-/source
+/source/*
+!/source/system_style
 /node_modules
 /assets/processed
 package-lock.json
