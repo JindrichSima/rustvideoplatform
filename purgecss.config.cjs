@@ -14,6 +14,12 @@ module.exports = {
       "sidebar-will-collapse",
       "fa-expand",
       "fa-compress",
+      "fa-sun",
+      "fa-moon",
+      // Theme toggle icon classes
+      "theme-icon-light",
+      "theme-icon-dark",
+      "theme-toggle-btn",
       // data-bs-theme attribute selectors (theme switching)
       /^\[data-bs-theme/,
     ],
@@ -26,11 +32,13 @@ module.exports = {
       /^ts-/,
       // HTMX (dynamically added)
       /^htmx-/,
+      // Theme-scoped selectors
+      /data-bs-theme/,
     ],
     greedy: [],
     // Vidstack player CSS variables (player loaded from CDN, so vars aren't
     // seen in scanned content but are consumed by vidstack's own stylesheets)
-    variables: [/^--video-/, /^--media-/],
+    variables: [/^--video-/, /^--media-/, /^--accent-/, /^--glass-/],
   },
   // Preserve CSS variables and keyframes
   variables: true,

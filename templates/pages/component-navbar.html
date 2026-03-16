@@ -1,10 +1,10 @@
 <div class="navbar-container mx-1">
     <div class="navbar-top-row align-items-center">
-        <a href="/" class="navbar-instance-name text-white text-decoration-none ms-3 me-auto fs-3 fw-semibold">
+        <a href="/" class="navbar-instance-name text-white text-decoration-none ms-3 me-auto fs-3 fw-bold">
             {{ config.instancename }}
         </a>
         {% if page_title is defined %}
-        <span class="navbar-page-title ms-3 me-auto fs-3 fw-semibold text-white">{{ page_title }}</span>
+        <span class="navbar-page-title ms-3 me-auto fs-3 fw-bold text-white">{{ page_title }}</span>
         {% else %}
         <span class="me-auto navbar-page-title"></span>
         {% endif %}
@@ -19,7 +19,7 @@
                     </button>
                 </div>
             </div>
-            <ul id="suggestions" class="list-group text-white p-2 m- border" style="display: none;">
+            <ul id="suggestions" class="list-group text-white p-2" style="display: none;">
               <a href="/search" class="suggestionitem p-2" preload="mouseover">
                 <li>
                     <i class="fa-solid fa-magnifying-glass me-2"></i><b>Use advanced search</b>
@@ -27,14 +27,18 @@
               </a>
             </ul>
         </form>
-        <div class="my-1 mx-4 text-white d-flex align-items-center gap-3">
-            <div hx-get="/hx/usernav" hx-trigger="load" style="width:120px;height:40px;" class="mx-3" preload="always">
+        <div class="my-1 mx-4 text-white d-flex align-items-center gap-2">
+            <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme">
+                <i class="fa-solid fa-sun theme-icon-light"></i>
+                <i class="fa-solid fa-moon theme-icon-dark"></i>
+            </button>
+            <div hx-get="/hx/usernav" hx-trigger="load" style="width:120px;height:40px;" class="mx-2" preload="always">
                 <a href="/login" preload="mouseover" style="visibility:hidden;"><button class="btn text-white"><i class="fa-solid fa-user mx-2"></i>Log in</button></a>
             </div>
-            <button class="btn btn-primary ms-3" onclick="toggleSidebar()"><i class="fa-solid fa-bars fa-xl"></i></button>
+            <button class="btn btn-primary" onclick="toggleSidebar()"><i class="fa-solid fa-bars fa-xl"></i></button>
         </div>
     </div>
     {% if page_title is defined %}
-    <div class="navbar-mobile-title text-white ms-3 fs-3 fw-semibold">{{ page_title }}</div>
+    <div class="navbar-mobile-title text-white ms-3 fs-3 fw-bold">{{ page_title }}</div>
     {% endif %}
 </div>

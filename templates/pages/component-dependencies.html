@@ -1,5 +1,9 @@
 <script>
-(function(){var d=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.setAttribute('data-bs-theme',d?'dark':'light');})();
+(function(){
+    var t=localStorage.getItem('theme');
+    var d=t||(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    document.documentElement.setAttribute('data-bs-theme',d);
+})();
 (function(){try{if(localStorage.getItem('sidebar-collapsed')==='1'){document.documentElement.classList.add('sidebar-will-collapse');}}catch(e){}})();
 </script>
 <style>
@@ -17,10 +21,11 @@ html.sidebar-will-collapse .sidebarbackground { transform: translateX(-100%); }
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/fontawesome.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/solid.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@600&family=Nunito:wght@600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@600&family=Nunito:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="{{ config.source_server_url }}/source/favicon.svg" />
 <link rel="stylesheet" href="/style.css" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
 <script src="https://cdn.jsdelivr.net/npm/htmx.org/dist/htmx.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/htmx-ext-preload/dist/preload.min.js"></script>
 <script src="/script.js"></script>
