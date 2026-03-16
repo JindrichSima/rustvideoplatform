@@ -1,0 +1,102 @@
+<div class="col-12">
+    <h5 class="mb-3"><i class="fa-solid fa-palette me-2"></i>Theme</h5>
+    <p class="text-secondary mb-3">Choose a theme for the interface. The default theme uses a modern glassmorphism design.</p>
+
+    <div class="mb-4">
+        <label class="form-label"><i class="fa-solid fa-circle-half-stroke me-2"></i>Color Mode</label>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="filter-chip" id="mode-system" onclick="setThemeMode('system')">
+                <i class="fa-solid fa-desktop me-1"></i>System
+            </button>
+            <button type="button" class="filter-chip" id="mode-light" onclick="setThemeMode('light')">
+                <i class="fa-solid fa-sun me-1"></i>Light
+            </button>
+            <button type="button" class="filter-chip" id="mode-dark" onclick="setThemeMode('dark')">
+                <i class="fa-solid fa-moon me-1"></i>Dark
+            </button>
+        </div>
+    </div>
+
+    <hr>
+
+    <label class="form-label"><i class="fa-solid fa-swatchbook me-2"></i>Style Theme</label>
+    <div id="theme-result" class="mb-3"></div>
+    <div class="theme-grid">
+        <div class="theme-card {% if current_theme == "default" %}active{% endif %}" onclick="selectTheme('default', this)">
+            <div class="theme-card-preview" style="background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);"></div>
+            <div class="theme-card-name">Default</div>
+            <small class="text-secondary">Glassmorphism</small>
+        </div>
+        {% for theme_name in available_themes %}
+        <div class="theme-card {% if current_theme.as_str() == theme_name.as_str() %}active{% endif %}" onclick="selectTheme('{{ theme_name }}', this)">
+            <div class="theme-card-preview" style="background: var(--surface-input);display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-paintbrush" style="font-size:1.5rem;color:var(--text-muted);"></i></div>
+            <div class="theme-card-name">{{ theme_name }}</div>
+            <small class="text-secondary">Custom</small>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script>
+(function(){
+    // Highlight current color mode
+    var saved = null;
+    try { saved = localStorage.getItem('theme-mode'); } catch(e){}
+    var mode = saved || 'system';
+    var btns = ['mode-system','mode-light','mode-dark'];
+    btns.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === 'mode-' + mode);
+    });
+})();
+
+function setThemeMode(mode) {
+    try {
+        if (mode === 'system') {
+            localStorage.removeItem('theme-mode');
+            var d = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-bs-theme', d ? 'dark' : 'light');
+        } else {
+            localStorage.setItem('theme-mode', mode);
+            document.documentElement.setAttribute('data-bs-theme', mode);
+        }
+    } catch(e){}
+    var btns = ['mode-system','mode-light','mode-dark'];
+    btns.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === 'mode-' + mode);
+    });
+}
+
+function selectTheme(name, el) {
+    // Update UI
+    document.querySelectorAll('.theme-card').forEach(function(c) { c.classList.remove('active'); });
+    el.classList.add('active');
+
+    // Save to server
+    fetch('/hx/settings/theme', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'theme=' + encodeURIComponent(name)
+    }).then(function(r) { return r.text(); })
+      .then(function(html) {
+          document.getElementById('theme-result').innerHTML = html;
+      });
+
+    // Apply immediately
+    try { localStorage.setItem('user-theme', name); } catch(e){}
+    var existing = document.getElementById('user-theme-css');
+    if (name && name !== 'default') {
+        if (!existing) {
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.id = 'user-theme-css';
+            link.href = '/source/system_style/' + encodeURIComponent(name) + '.css';
+            document.head.appendChild(link);
+        } else {
+            existing.href = '/source/system_style/' + encodeURIComponent(name) + '.css';
+        }
+    } else {
+        if (existing) existing.remove();
+    }
+}
+</script>

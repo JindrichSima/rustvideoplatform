@@ -16,6 +16,9 @@ module.exports = {
       "fa-compress",
       // data-bs-theme attribute selectors (theme switching)
       /^\[data-bs-theme/,
+      // Theme system
+      "active",
+      "dragover",
     ],
     deep: [
       // Quill editor classes (dynamically generated)
@@ -26,11 +29,15 @@ module.exports = {
       /^ts-/,
       // HTMX (dynamically added)
       /^htmx-/,
+      // Theme cards
+      /^theme-/,
+      // Filter chips
+      /^filter-/,
     ],
     greedy: [],
     // Vidstack player CSS variables (player loaded from CDN, so vars aren't
     // seen in scanned content but are consumed by vidstack's own stylesheets)
-    variables: [/^--video-/, /^--media-/],
+    variables: [/^--video-/, /^--media-/, /^--glass-/, /^--surface-/, /^--text-/, /^--accent-/, /^--color-/, /^--radius-/, /^--transition-/, /^--font-/, /^--scrollbar-/],
   },
   // Preserve CSS variables and keyframes
   variables: true,

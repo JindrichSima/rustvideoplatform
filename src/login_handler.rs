@@ -29,6 +29,7 @@ struct User {
     login: String,
     name: String,
     profile_picture: Option<String>,
+    theme: Option<String>,
 }
 
 async fn hx_login(

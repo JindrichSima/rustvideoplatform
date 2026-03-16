@@ -460,6 +460,127 @@ async fn hx_settings_channel_picture_save(
     Html(minifi_html("<b class=\"text-success\">Channel picture updated.</b>".to_owned()))
 }
 
+// --- Theme settings page route ---
+
+async fn settings_theme(
+    Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+    let sidebar = generate_sidebar(&config, "settings".to_owned());
+    let common_headers = extract_common_headers(&headers).unwrap();
+    let template = SettingsTemplate {
+        sidebar,
+        config,
+        common_headers,
+        active_tab: "theme".to_owned(),
+    };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+// --- Theme HTMX handlers ---
+
+#[derive(Template)]
+#[template(path = "pages/hx-settings-theme.html", escape = "none")]
+struct HXSettingsThemeTemplate {
+    current_theme: String,
+    available_themes: Vec<String>,
+}
+
+fn list_available_themes() -> Vec<String> {
+    let path = std::path::Path::new("source/system_style");
+    if !path.is_dir() {
+        return Vec::new();
+    }
+    let mut themes = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.ends_with(".css") {
+                let theme_name = name.trim_end_matches(".css").to_owned();
+                themes.push(theme_name);
+            }
+        }
+    }
+    themes.sort();
+    themes
+}
+
+async fn hx_settings_theme(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let current_theme: String = sqlx::query_scalar("SELECT COALESCE(theme, 'default') FROM users WHERE login=$1")
+        .bind(&user_info.login)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or_else(|_| "default".to_owned());
+
+    let available_themes = list_available_themes();
+
+    let template = HXSettingsThemeTemplate {
+        current_theme,
+        available_themes,
+    };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+#[derive(Serialize, Deserialize)]
+struct ThemeForm {
+    theme: String,
+}
+
+async fn hx_settings_theme_save(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Form(form): Form<ThemeForm>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html("<script>window.location.replace(\"/login\");</script>".to_owned()));
+    }
+    let user_info = user_info.unwrap();
+
+    let theme_name = form.theme.trim().to_owned();
+
+    // Validate: must be "default" or exist in source/system_style/
+    if theme_name != "default" {
+        let path = format!("source/system_style/{}.css", theme_name);
+        if !std::path::Path::new(&path).is_file() {
+            return Html(minifi_html("<b class=\"text-danger\">Theme not found.</b>".to_owned()));
+        }
+    }
+
+    // Also validate no path traversal
+    if theme_name.contains('/') || theme_name.contains('\\') || theme_name.contains("..") {
+        return Html(minifi_html("<b class=\"text-danger\">Invalid theme name.</b>".to_owned()));
+    }
+
+    let result = sqlx::query("UPDATE users SET theme=$1 WHERE login=$2;")
+        .bind(&theme_name)
+        .bind(&user_info.login)
+        .execute(&pool)
+        .await;
+    if result.is_err() {
+        return Html(minifi_html("<b class=\"text-danger\">Failed to save theme.</b>".to_owned()));
+    }
+    Html(minifi_html(format!("<b class=\"text-success\">Theme updated to \"{}\".</b>", askama::filters::escape(&theme_name, askama::filters::Html).unwrap())))
+}
+
 // --- Diagnostics ---
 
 fn get_os_distro() -> String {
