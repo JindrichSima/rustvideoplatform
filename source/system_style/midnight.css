@@ -1,0 +1,25 @@
+@import url('/style.css');
+
+/* Midnight theme - deep purple tones */
+
+:root,
+[data-bs-theme="light"] {
+    --bs-primary: #e8dfff;
+    --bs-dark: #f3f0ff;
+    --bs-white: #2d1b69;
+    --bs-secondary: #7c6bb0;
+    --bs-info: #7048e8;
+    --bs-border-color: var(--bs-primary);
+    --bs-body-bg: var(--bs-dark);
+}
+
+[data-bs-theme="dark"] {
+    --bs-primary: #2a1f4a;
+    --bs-dark: #13091f;
+    --bs-white: #e8dfff;
+    --bs-secondary: #7c6bb0;
+    --bs-info: #9d84e8;
+    --bs-shadow-color: #000;
+    --bs-border-color: var(--bs-primary);
+    --bs-body-bg: var(--bs-dark);
+}

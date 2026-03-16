@@ -520,3 +520,180 @@ async fn hx_settings_diagnostics(
     };
     Html(minifi_html(template.render().unwrap()))
 }
+
+// --- Theme ---
+
+/// Serve the user's preferred CSS theme. Falls back to a redirect to /style.css for
+/// unauthenticated users or those with the default theme.
+async fn user_style_css(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(user) = get_user_login(headers, &pool, redis).await {
+        let theme: Option<String> = sqlx::query_scalar(
+            "SELECT preferred_theme FROM users WHERE login=$1"
+        )
+        .bind(&user.login)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(None);
+
+        if let Some(ref name) = theme {
+            if name != "default" && is_valid_theme_name(name) {
+                let path = format!("source/system_style/{}.css", name);
+                if let Ok(content) = tokio::fs::read_to_string(&path).await {
+                    return Response::builder()
+                        .header("Content-Type", "text/css; charset=utf-8")
+                        .body(Body::from(content))
+                        .unwrap();
+                }
+            }
+        }
+    }
+
+    Redirect::to("/style.css").into_response()
+}
+
+/// Only allow alphanumeric characters, hyphens, and underscores in theme names to
+/// prevent path traversal attacks.
+fn is_valid_theme_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-settings-theme.html", escape = "none")]
+struct HXSettingsThemeTemplate {
+    available_themes: Vec<String>,
+    current_theme: String,
+}
+
+async fn hx_settings_theme(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers, &pool, redis).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+    let user_info = user_info.unwrap();
+
+    let current_theme: String = sqlx::query_scalar(
+        "SELECT COALESCE(preferred_theme, 'default') FROM users WHERE login=$1"
+    )
+    .bind(&user_info.login)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or_else(|_| "default".to_owned());
+
+    let available_themes = list_available_themes().await;
+
+    let template = HXSettingsThemeTemplate {
+        available_themes,
+        current_theme,
+    };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+#[derive(Serialize, Deserialize)]
+struct ThemeForm {
+    theme: String,
+}
+
+async fn hx_settings_theme_save(
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+    Form(form): Form<ThemeForm>,
+) -> axum::response::Html<Vec<u8>> {
+    let user_info = get_user_login(headers, &pool, redis).await;
+    if !is_logged(user_info.clone()).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+    let user_info = user_info.unwrap();
+
+    let theme = form.theme.trim().to_owned();
+
+    // "default" is always valid; otherwise validate name and check file exists
+    if theme != "default" {
+        if !is_valid_theme_name(&theme) {
+            return Html(minifi_html(
+                "<b class=\"text-danger\">Invalid theme name.</b>".to_owned(),
+            ));
+        }
+        let path = format!("source/system_style/{}.css", theme);
+        if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+            return Html(minifi_html(
+                "<b class=\"text-danger\">Theme not found.</b>".to_owned(),
+            ));
+        }
+    }
+
+    let result = sqlx::query("UPDATE users SET preferred_theme=$1 WHERE login=$2;")
+        .bind(&theme)
+        .bind(&user_info.login)
+        .execute(&pool)
+        .await;
+
+    if result.is_err() {
+        return Html(minifi_html(
+            "<b class=\"text-danger\">Failed to save theme preference.</b>".to_owned(),
+        ));
+    }
+
+    Html(minifi_html(
+        "<b class=\"text-success\">Theme updated. Reload the page to see the change.</b>"
+            .to_owned(),
+    ))
+}
+
+/// Return a sorted list of theme names (without the .css extension) found in
+/// source/system_style/.
+async fn list_available_themes() -> Vec<String> {
+    let mut themes = Vec::new();
+    if let Ok(mut entries) = tokio::fs::read_dir("source/system_style").await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if let Some(stem) = name_str.strip_suffix(".css") {
+                if is_valid_theme_name(stem) {
+                    themes.push(stem.to_owned());
+                }
+            }
+        }
+    }
+    themes.sort();
+    themes
+}
+
+// Settings page handler for the theme tab URL
+async fn settings_theme(
+    Extension(config): Extension<Config>,
+    Extension(pool): Extension<PgPool>,
+    Extension(redis): Extension<RedisConn>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/login\");</script>".to_owned(),
+        ));
+    }
+    let sidebar = generate_sidebar(&config, "settings".to_owned());
+    let common_headers = extract_common_headers(&headers).unwrap();
+    let template = SettingsTemplate {
+        sidebar,
+        config,
+        common_headers,
+        active_tab: "theme".to_owned(),
+    };
+    Html(minifi_html(template.render().unwrap()))
+}

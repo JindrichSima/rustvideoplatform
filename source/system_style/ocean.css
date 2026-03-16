@@ -1,0 +1,25 @@
+@import url('/style.css');
+
+/* Ocean theme - cool blue tones */
+
+:root,
+[data-bs-theme="light"] {
+    --bs-primary: #cce5ff;
+    --bs-dark: #e8f4fd;
+    --bs-white: #003566;
+    --bs-secondary: #5b8db8;
+    --bs-info: #0077b6;
+    --bs-border-color: var(--bs-primary);
+    --bs-body-bg: var(--bs-dark);
+}
+
+[data-bs-theme="dark"] {
+    --bs-primary: #1a3a5c;
+    --bs-dark: #0a1e30;
+    --bs-white: #cce5ff;
+    --bs-secondary: #5b8db8;
+    --bs-info: #48cae4;
+    --bs-shadow-color: #000;
+    --bs-border-color: var(--bs-primary);
+    --bs-body-bg: var(--bs-dark);
+}
