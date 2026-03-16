@@ -1,10 +1,5 @@
 @charset "UTF-8";
 
-/* ══════════════════════════════════════════════════════════════
-   Design System — Vision UI / SurrealDB inspired
-   Dark-first glassmorphic theme with purple-blue gradients
-   ══════════════════════════════════════════════════════════════ */
-
 :root {
     --bs-font-sans-serif: "Nunito";
     --bs-font-monospace: "Fira Code";
@@ -3493,7 +3488,6 @@ fieldset:disabled .btn {
 
 .btn-primary:hover {
     background: var(--accent-gradient-hover);
-    transform: translateY(-1px);
     box-shadow: 0 6px 30px rgba(121, 40, 202, 0.45);
 }
 
