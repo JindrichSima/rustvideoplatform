@@ -17,29 +17,3 @@
         <a class="dropdown-item" href="/hx/logout"><i class="fa-solid fa-arrow-right-from-bracket mx-2"></i>Log out</a>
     </div>
 </div>
-<script>
-(function(){
-    try {
-        var theme = '{{ user_theme }}';
-        var current = localStorage.getItem('user-theme');
-        if (current !== theme) {
-            localStorage.setItem('user-theme', theme);
-            if (theme && theme !== 'default') {
-                var existing = document.getElementById('user-theme-css');
-                if (!existing) {
-                    var link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.id = 'user-theme-css';
-                    link.href = '/source/system_style/' + encodeURIComponent(theme) + '.css';
-                    document.head.appendChild(link);
-                } else {
-                    existing.href = '/source/system_style/' + encodeURIComponent(theme) + '.css';
-                }
-            } else {
-                var existing = document.getElementById('user-theme-css');
-                if (existing) existing.remove();
-            }
-        }
-    } catch(e){}
-})();
-</script>
