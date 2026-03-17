@@ -122,6 +122,8 @@
 <script>
 (function() {
     var subtitles = [];
+    var tsSource = new TomSelect('#translate-source-select', { create: false, allowEmptyOption: true });
+    var tsTarget = new TomSelect('#translate-target-select', { create: false, allowEmptyOption: true });
 
     function renderSubtitles() {
         var tbody = document.getElementById('subtitles-tbody');
@@ -202,17 +204,15 @@
         .catch(function(err) { console.error('Failed to load subtitles:', err); });
 
     function updateTranslateSourceSelect() {
-        var sel = document.getElementById('translate-source-select');
-        var currentVal = sel.value;
-        sel.innerHTML = '<option value="">-- Select source --</option>';
+        var currentVal = tsSource.getValue();
+        tsSource.clearOptions();
+        tsSource.addOption({ value: '', text: '-- Select source --' });
         subtitles.forEach(function(sub) {
             if (sub.format === 'ass') return; // ASS subtitles cannot be used as translation source
-            var opt = document.createElement('option');
-            opt.value = sub.label;
-            opt.textContent = sub.label;
-            sel.appendChild(opt);
+            tsSource.addOption({ value: sub.label, text: sub.label });
         });
-        if (currentVal) sel.value = currentVal;
+        tsSource.refreshOptions(false);
+        if (currentVal) tsSource.setValue(currentVal, true);
     }
 
     function showTranslateStatus(type, msg) {
@@ -237,8 +237,8 @@
 
     document.getElementById('translate-subtitle-btn').addEventListener('click', function() {
         var btn = this;
-        var sourceLabel = document.getElementById('translate-source-select').value;
-        var targetLang = document.getElementById('translate-target-select').value;
+        var sourceLabel = tsSource.getValue();
+        var targetLang = tsTarget.getValue();
 
         if (!sourceLabel) {
             showTranslateStatus('danger', 'Please select a source subtitle.');
