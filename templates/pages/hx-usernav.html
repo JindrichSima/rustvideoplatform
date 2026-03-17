@@ -1,11 +1,11 @@
 <div class="dropdown">
-    <button class="btn d-flex align-items-center gap-2 p-1">
+    <button class="btn d-flex align-items-center gap-2 p-1" aria-label="User menu for {{ user.name }}" aria-haspopup="true">
         {% if user.profile_picture.is_some() %}
         <img src="{{ config.source_server_url }}/source/{{ user.profile_picture.clone().unwrap() }}/thumbnail-small.avif"
-             class="user-avatar" />
+             class="user-avatar" alt="{{ user.name }} profile picture" />
         {% else %}
         <div class="user-avatar-placeholder">
-            <i class="fa-solid fa-user" style="font-size:14px;color:white;"></i>
+            <i class="fa-solid fa-user" style="font-size:14px;color:white;" aria-hidden="true"></i>
         </div>
         {% endif %}
         <span class="text-white user-name-clamp">{{ user.name }}</span>

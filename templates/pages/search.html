@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="{{ config.locale }}">
 
 <head>
     {% include "component-dependencies.html" %}
 
     <title>Search - {{ config.instancename }}</title>
 
+    <meta name="description" content="{{ config.description }}" />
     <meta property="og:title" content="{{ config.instancename }} Search" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://{{ common_headers.host }}/search" />
@@ -19,20 +20,20 @@
     {% set page_title = "Search" %}
     {{ sidebar }}
     {% include "component-navbar.html" %}
-    <div class="row maincontentrow g-3 py-2 ps-2 w-100">
+    <div class="row maincontentrow g-3 py-2 ps-2 w-100" role="main">
         <div class="col-12">
             <div class="card py-3 px-3 text-white" style="min-height: 80vh;">
 
                 <div class="search-header">
                     <div class="search-bar-wrapper">
                         <form id="searchForm" hx-post="/hx/search/0" hx-target="#searchresults" hx-trigger="submit"
-                            hx-indicator="#search-loading">
+                            hx-indicator="#search-loading" role="search" aria-label="Advanced search">
                             <div class="search-input-group">
                                 <input class="search-main-input" id="searchMainInput" name="search"
                                     placeholder="Search for videos, audio, pictures..."
-                                    value="{{ initial_query }}" autocomplete="off" />
-                                <button type="submit" class="search-submit-btn">
-                                    <i class="fa-solid fa-solid fa-magnifying-glass"></i>
+                                    value="{{ initial_query }}" autocomplete="off" aria-label="Search query" />
+                                <button type="submit" class="search-submit-btn" aria-label="Submit search">
+                                    <i class="fa-solid fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                                 </button>
                             </div>
 

@@ -1,10 +1,11 @@
 <!doctype html>
-<html>
+<html lang="{{ config.locale }}">
     <head>
         {% include "component-dependencies.html" %}
 
-        <title>Subscriptions</title>
+        <title>Subscriptions - {{ config.instancename }}</title>
 
+        <meta name="description" content="{{ config.description }}" />
         <meta
             property="og:title"
             content="{{ config.instancename }} Subscriptions"
@@ -23,7 +24,7 @@
     <body hx-ext="preload">
         {% set page_title = "Subscriptions" %}
         {{ sidebar }} {% include "component-navbar.html" %}
-        <div class="row maincontentrow g-3 py-2 ps-2 w-100">
+        <div class="row maincontentrow g-3 py-2 ps-2 w-100" role="main">
             <div class="col-12 col-sm-12 col-md-12 col-lg-12">
                 <div
                     class="card py-3 px-3 text-white"

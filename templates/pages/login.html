@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="{{ config.locale }}">
 
 <head>
     {% include "component-dependencies.html" %}
 
     <title>{{ config.instancename }} - Login</title>
 
+    <meta name="description" content="Log in to {{ config.instancename }}" />
     <meta property="og:title" content="{{ config.instancename }} - Login" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://{{ common_headers.host }}/login" />

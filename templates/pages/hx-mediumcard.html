@@ -23,6 +23,7 @@
                             class="{% if item.type == "video" %}thumbnail-static{% endif %}"
                             width="176"
                             height="99"
+                            alt="thumb-{{ item.id }}"
                         />
                         {% endif %}
                         <div class="search-card-type-badge">
@@ -52,6 +53,7 @@
                             width="176"
                             height="99"
                             loading="lazy"
+                            alt="thumb-{{ item.id }}"
                         />
                         {% endif %}
                     </div>

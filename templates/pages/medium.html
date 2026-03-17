@@ -1,6 +1,7 @@
 <!doctype html>
-<html>
+<html lang="{{ config.locale }}">
     <head>
+        <meta name="description" content="{{ medium_name }} - {{ config.instancename }}" />
         <meta property="og:title" content="{{ medium_name }}" />
         <meta
             property="og:url"
@@ -107,7 +108,7 @@
 
     <body hx-ext="preload">
         {{ sidebar }} {% include "component-navbar.html" %}
-        <div class="row maincontentrow g-3 py-2 ps-2 w-100">
+        <div class="row maincontentrow g-3 py-2 ps-2 w-100" role="main">
             <div class="col-12 col-sm-12 col-md-12 col-lg-9">
                 <div class="card py-3 px-3 text-white" style="min-height: 85vh">
                     <div
@@ -268,10 +269,12 @@
                                 class="pdf-fullscreen-btn"
                                 onclick="togglePdfFullscreen()"
                                 title="Toggle fullscreen"
+                                aria-label="Toggle fullscreen"
                             >
                                 <i
                                     class="fa-solid fa-expand"
                                     id="pdfFullscreenIcon"
+                                    aria-hidden="true"
                                 ></i>
                             </button>
                         </div>
@@ -303,6 +306,7 @@
                                         border-radius: 50%;
                                         object-fit: cover;
                                     "
+                                    alt="{{ medium_owner_name }} profile picture"
                                 />
                                 {% else %}
                                 <div
@@ -351,8 +355,10 @@
                                         href="/m/{{ medium_id }}/video.mp4"
                                         class="text-white text-decoration-none"
                                         download="{{ medium_name }}.mp4"
+                                        aria-label="Download {{ medium_name }}"
                                         ><i
                                             class="fa-solid fa-download fa-xl"
+                                            aria-hidden="true"
                                         ></i
                                     ></a>
                                     {% else if medium_type == "audio" %}
@@ -360,8 +366,10 @@
                                         href="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg"
                                         class="text-white text-decoration-none"
                                         download="{{ medium_id }}.ogg"
+                                        aria-label="Download {{ medium_name }}"
                                         ><i
                                             class="fa-solid fa-download fa-xl"
+                                            aria-hidden="true"
                                         ></i
                                     ></a>
                                     {% else if medium_type == "picture" %}
@@ -369,8 +377,10 @@
                                         href="{{ config.source_server_url }}/source/{{ medium_id }}/picture.avif"
                                         class="text-white text-decoration-none"
                                         download="{{ medium_id }}.avif"
+                                        aria-label="Download {{ medium_name }}"
                                         ><i
                                             class="fa-solid fa-download fa-xl"
+                                            aria-hidden="true"
                                         ></i
                                     ></a>
                                     {% else if medium_type == "document_pdf" %}
@@ -378,8 +388,10 @@
                                         href="{{ config.source_server_url }}/source/{{ medium_id }}/document.pdf"
                                         class="text-white text-decoration-none"
                                         download="{{ medium_id }}.pdf"
+                                        aria-label="Download {{ medium_name }}"
                                         ><i
                                             class="fa-solid fa-download fa-xl"
+                                            aria-hidden="true"
                                         ></i
                                     ></a>
                                     {% endif %}
@@ -389,12 +401,14 @@
                                     <a
                                         class="text-decoration-none text-white"
                                         style="cursor: pointer"
+                                        aria-label="Add to list"
+                                        role="button"
                                         onclick="
                                             document.getElementById(
                                                 'listModalOverlay',
                                             ).style.display = 'flex'
                                         "
-                                        ><i class="fa-solid fa-list fa-xl"></i
+                                        ><i class="fa-solid fa-list fa-xl" aria-hidden="true"></i
                                     ></a>
                                 </li>
                                 {% endif %}

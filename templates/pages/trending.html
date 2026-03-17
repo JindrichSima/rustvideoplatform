@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="{{ config.locale }}">
 
 <head>
     {% include "component-dependencies.html" %}
 
-    <title>Trending</title>
+    <title>Trending - {{ config.instancename }}</title>
 
+    <meta name="description" content="{{ config.description }}" />
     <meta property="og:title" content="{{ config.instancename }} Trending" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://{{ common_headers.host }}/trending" />
@@ -19,7 +20,7 @@
     {% set page_title = "Trending" %}
     {{ sidebar }}
     {% include "component-navbar.html" %}
-    <div class="row maincontentrow g-3 py-2 ps-2 w-100">
+    <div class="row maincontentrow g-3 py-2 ps-2 w-100" role="main">
         <div class="col-12 col-sm-12 col-md-12 col-lg-12">
             <div class="card py-3 px-3 text-white" style="min-height:100vh;">
                 <div hx-get="/hx/trending" hx-trigger="load" class="row mb-3 hx-placeholder" preload="always">
