@@ -16569,44 +16569,6 @@ body.sidebar-collapsed .sidebarbackground {
     align-self: center;
 }
 
-/* Cross-document view transitions: thumbnail card → media player */
-@view-transition {
-    navigation: auto;
-}
-
-/* The group handles geometry (position + size) morphing automatically.
-   We just tune the duration and easing. */
-::view-transition-group(medium-player) {
-    animation-duration: 560ms;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Fade out the thumbnail snapshot */
-::view-transition-old(medium-player) {
-    animation: 280ms ease-out both fade-out-vt;
-}
-
-/* Fade in the player snapshot, slightly delayed so the morph leads */
-::view-transition-new(medium-player) {
-    animation: 300ms 240ms ease-in both fade-in-vt;
-}
-
-@keyframes fade-out-vt {
-    to { opacity: 0; }
-}
-
-@keyframes fade-in-vt {
-    from { opacity: 0; }
-}
-
-/* Respect reduced-motion preference */
-@media (prefers-reduced-motion: reduce) {
-    ::view-transition-group(medium-player),
-    ::view-transition-old(medium-player),
-    ::view-transition-new(medium-player) {
-        animation-duration: 0.01ms !important;
-    }
-}
 
 /* User display name - always single line, max 150px, responsive font size */
 .user-name-clamp {
