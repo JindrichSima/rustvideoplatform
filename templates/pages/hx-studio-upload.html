@@ -47,14 +47,16 @@
         return true;
     }
 
-    htmx.on("#upload-form", "htmx:xhr:progress", function(evt) {
-        htmx.find("#upload-progress").setAttribute(
-            "value",
-            (evt.detail.loaded / evt.detail.total) * 100
-        );
-    });
+    document.addEventListener('DOMContentLoaded', function() {
+        htmx.on("#upload-form", "htmx:xhr:progress", function(evt) {
+            htmx.find("#upload-progress").setAttribute(
+                "value",
+                (evt.detail.loaded / evt.detail.total) * 100
+            );
+        });
 
-    htmx.on("#upload-form", "htmx:afterRequest", function() {
-        window.isUploading = false;
+        htmx.on("#upload-form", "htmx:afterRequest", function() {
+            window.isUploading = false;
+        });
     });
 </script>
