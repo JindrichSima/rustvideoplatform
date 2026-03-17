@@ -37,6 +37,7 @@
                         <td class="text-center my-3">
                             <b class="text-white font-weight-bold">{{ user.name }}</b>
                             <p class="text-secondary">{{ user.login }}<br>{{ user.subscribed.unwrap_or(0) }} subscribtions</p>
+                            <div hx-get="/hx/subscribebutton/{{ user.login }}" hx-trigger="load" class="subscribe-placeholder p-1"></div>
                         </td>
                     </tr>
                 </table>
