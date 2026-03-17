@@ -131,6 +131,7 @@ async fn main() {
     let memory_router = MemoryServe::new(load_assets!("assets/processed")).into_router();
 
     let app = Router::new()
+        .route("/sitemap.xml", get(sitemap_xml))
         .route("/", get(home))
         .route("/login", get(login))
         .route("/trending", get(trending))
@@ -299,3 +300,4 @@ include!("lists.rs");
 include!("groups.rs");
 include!("settings.rs");
 include!("two_factor.rs");
+include!("sitemap.rs");

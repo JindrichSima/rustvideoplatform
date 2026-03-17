@@ -1,4 +1,4 @@
-<div class="sidebar d-flex flex-column text-white text-center" id="sidebar">
+<nav class="sidebar d-flex flex-column text-white text-center" id="sidebar" role="navigation" aria-label="Sidebar navigation">
     <a href="/" class="text-white text-decoration-none my-3" preload="mouseover">
         <span class="fs-2">{{ config.instancename }}</span>
     </a>
@@ -20,5 +20,5 @@
         </li>
         <div hx-get="/hx/sidebar/{{ active_item }}" hx-swap="outerHTML" hx-trigger="load" class="sidebar-hx-placeholder"></div>
     </ul>
-</div>
+</nav>
 <div class="sidebarbackground" id="sidebarbackground"></div>
