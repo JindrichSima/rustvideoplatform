@@ -140,7 +140,7 @@ async fn stream_video_as_mp4(
         let path = if lowest_quality {
             hls_variant_for_quality(&m3u8_path, true)
         } else {
-            m3u8_path
+            m3u8_path.clone()
         };
         (path, true)
     } else if std::path::Path::new(&mpd_path).exists() {
@@ -164,12 +164,30 @@ async fn stream_video_as_mp4(
 
     cmd.arg("-i").arg(&input_path);
 
-    // For DASH with lowest quality, explicitly map the lowest-bandwidth video stream.
-    // For HLS, quality selection is done by passing the variant playlist directly as input.
-    if !is_hls && lowest_quality {
+    // For HLS lowest quality, the variant playlist may be video-only (audio in a
+    // separate rendition), so add the master playlist as a second input for audio.
+    if is_hls && lowest_quality {
+        cmd.arg("-protocol_whitelist")
+            .arg("file,pipe,crypto,data")
+            .arg("-allowed_extensions")
+            .arg("ALL")
+            .arg("-i")
+            .arg(&m3u8_path);
+        cmd.arg("-map").arg("0:v:0")
+            .arg("-map").arg("1:a:0?");
+    } else if is_hls {
+        // Full quality HLS: explicitly map video and audio from the master playlist.
+        cmd.arg("-map").arg("0:v:0")
+            .arg("-map").arg("0:a:0?");
+    } else if !is_hls && lowest_quality {
+        // DASH with lowest quality: map the lowest-bandwidth video stream and first audio.
         let idx = mpd_lowest_video_stream_idx(&mpd_path);
         cmd.arg("-map").arg(format!("0:v:{}", idx))
-            .arg("-map").arg("0:a:0");
+            .arg("-map").arg("0:a:0?");
+    } else {
+        // DASH full quality: explicitly map video and first audio.
+        cmd.arg("-map").arg("0:v:0")
+            .arg("-map").arg("0:a:0?");
     }
 
     cmd.arg("-c")
