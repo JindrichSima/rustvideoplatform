@@ -71,23 +71,23 @@ struct CommonHeaders {
     accept_language: Option<String>,
     cookie: Option<String>,
 }
-fn extract_common_headers(headers: &HeaderMap) -> Result<CommonHeaders, &'static str> {
+fn extract_common_headers(headers: &HeaderMap) -> CommonHeaders {
     let host = headers
         .get(HOST)
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-        .ok_or("Missing or invalid 'Host' header")?;
+        .unwrap_or("localhost")
+        .to_string();
 
     let user_agent = get_header_value(headers, USER_AGENT);
     let accept_language = get_header_value(headers, ACCEPT_LANGUAGE);
     let cookie = get_header_value(headers, COOKIE);
 
-    Ok(CommonHeaders {
+    CommonHeaders {
         host,
         user_agent,
         accept_language,
         cookie,
-    })
+    }
 }
 
 async fn get_user_login(

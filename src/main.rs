@@ -9,6 +9,7 @@ use mimalloc::MiMalloc;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
+
 use ahash::AHashMap;
 use argon2::password_hash::PasswordHash;
 use askama::Template;
@@ -38,6 +39,13 @@ use tokio::{fs, io, io::AsyncWriteExt};
 use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 
+// HTTP/3 / QUIC
+use std::net::SocketAddr;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use quinn::{Endpoint, ServerConfig as QuinnServerConfig};
+use axum::http::{HeaderValue, Request};
+use axum::http::header::HeaderName;
+
 type RedisConn = redis::aio::ConnectionManager;
 
 #[derive(Deserialize, Clone)]
@@ -52,24 +60,111 @@ struct Config {
     meilisearch_url: String,
     meilisearch_key: Option<String>,
     source_server_url: String,
+
     /// WebAuthn Relying Party ID (e.g. "example.com"). Required to enable WebAuthn/passkey login.
     webauthn_rp_id: Option<String>,
+
     /// WebAuthn Relying Party origin (e.g. "https://example.com"). Required to enable WebAuthn/passkey login.
     webauthn_rp_origin: Option<String>,
+
     /// Path to TLS certificate PEM file. When set (and valid), the server starts in HTTPS mode.
     tls_cert: Option<String>,
+
     /// Path to TLS private key PEM file. Required when tls_cert is set.
     tls_key: Option<String>,
+
     /// When HTTPS is active, also advertise HTTP/2 via ALPN (default: true).
     enable_http2: Option<bool>,
+
     /// Enable Brotli compression of HTTP responses (default: false).
     enable_brotli: Option<bool>,
+
     /// Enable Zstandard (zstd) compression of HTTP responses (default: false).
     enable_zstd: Option<bool>,
+
     /// Send Strict-Transport-Security header (max-age=31536000; includeSubDomains; preload).
     /// Only active when HTTPS is enabled (default: false).
     enable_hsts: Option<bool>,
+
+    /// Enable HTTP/3 over QUIC (default: false).
+    enable_http3: Option<bool>,
 }
+
+fn request_authority<B>(req: &Request<B>) -> Option<String> {
+    req.headers()
+        .get(HOST)
+        .and_then(|h| h.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| req.uri().authority().map(|a| a.as_str().to_string()))
+}
+
+fn request_hostname<B>(req: &Request<B>) -> String {
+    request_authority(req)
+        .map(|h| h.split(':').next().unwrap_or(&h).to_string())
+        .unwrap_or_else(|| "localhost".to_string())
+}
+
+fn add_alt_svc_header(mut response: Response, enabled: bool) -> Response {
+    if enabled {
+        response.headers_mut().insert(
+            HeaderName::from_static("alt-svc"),
+            HeaderValue::from_static(r#"h3=":8443"; ma=86400"#),
+        );
+    }
+    response
+}
+
+fn load_certs_from_pem(cert_pem: &[u8]) -> Vec<CertificateDer<'static>> {
+    let mut reader = std::io::BufReader::new(cert_pem);
+    rustls_pemfile::certs(&mut reader)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("Failed to parse TLS certificate PEM")
+}
+
+fn load_private_key_from_pem(key_pem: &[u8]) -> PrivateKeyDer<'static> {
+    let mut reader = std::io::BufReader::new(key_pem);
+
+    let pkcs8_keys = rustls_pemfile::pkcs8_private_keys(&mut reader)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("Failed to parse PKCS#8 private key");
+
+    if let Some(key) = pkcs8_keys.into_iter().next() {
+        return PrivateKeyDer::Pkcs8(key);
+    }
+
+    let mut reader = std::io::BufReader::new(key_pem);
+    let rsa_keys = rustls_pemfile::rsa_private_keys(&mut reader)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("Failed to parse RSA private key");
+
+    if let Some(key) = rsa_keys.into_iter().next() {
+        return PrivateKeyDer::Pkcs1(key);
+    }
+
+    panic!("No supported private key found in PEM");
+}
+
+fn build_quinn_server_config(cert_pem: &[u8], key_pem: &[u8]) -> QuinnServerConfig {
+    let certs = load_certs_from_pem(cert_pem);
+    let key = load_private_key_from_pem(key_pem);
+
+    let mut tls_config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .expect("Failed to build rustls server config for QUIC");
+
+    tls_config.alpn_protocols = vec![b"h3".to_vec()];
+
+    let quic_crypto = quinn::crypto::rustls::QuicServerConfig::try_from(tls_config)
+        .expect("Failed to convert rustls config to QUIC config");
+
+    let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(quic_crypto));
+    let transport_config = Arc::get_mut(&mut server_config.transport).unwrap();
+    transport_config.max_concurrent_uni_streams(0u8.into());
+
+    server_config
+}
+
 #[tokio::main]
 async fn main() {
     rustls::crypto::ring::default_provider()
@@ -83,9 +178,11 @@ async fn main() {
     let tls_cert = config.tls_cert.clone();
     let tls_key = config.tls_key.clone();
     let enable_http2 = config.enable_http2.unwrap_or(true);
+    let enable_http3 = config.enable_http3.unwrap_or(false);
     let enable_brotli = config.enable_brotli.unwrap_or(false);
     let enable_zstd = config.enable_zstd.unwrap_or(false);
     let enable_hsts = config.enable_hsts.unwrap_or(false);
+
     // HSTS is only meaningful over HTTPS; pre-compute the flag used in the middleware.
     let hsts_active = tls_cert.is_some() && enable_hsts;
 
@@ -129,7 +226,10 @@ async fn main() {
                     "WARNING: Meilisearch '{}' index not accessible: {:?}",
                     index_name, e
                 );
-                eprintln!("Ensure the '{}' index is created and populated by the indexer.", index_name);
+                eprintln!(
+                    "Ensure the '{}' index is created and populated by the indexer.",
+                    index_name
+                );
             }
         }
     }
@@ -139,23 +239,25 @@ async fn main() {
     println!("Redis connected: url={}", &config.redis_url);
 
     // Build WebAuthn instance (optional – only when rp_id and rp_origin are configured)
-    let webauthn_instance: Option<webauthn_rs::Webauthn> = match (&config.webauthn_rp_id, &config.webauthn_rp_origin) {
-        (Some(rp_id), Some(rp_origin_str)) => {
-            let rp_origin = url::Url::parse(rp_origin_str)
-                .expect("Invalid webauthn_rp_origin in config.json");
-            let webauthn = webauthn_rs::WebauthnBuilder::new(rp_id, &rp_origin)
-                .expect("Invalid WebAuthn configuration")
-                .rp_name(&config.instancename)
-                .build()
-                .expect("Failed to build WebAuthn");
-            println!("WebAuthn enabled: rp_id={}, origin={}", rp_id, rp_origin_str);
-            Some(webauthn)
-        }
-        _ => {
-            println!("WebAuthn disabled (webauthn_rp_id / webauthn_rp_origin not set in config.json)");
-            None
-        }
-    };
+    let webauthn_instance: Option<webauthn_rs::Webauthn> =
+        match (&config.webauthn_rp_id, &config.webauthn_rp_origin) {
+            (Some(rp_id), Some(rp_origin_str)) => {
+                let rp_origin = url::Url::parse(rp_origin_str)
+                    .expect("Invalid webauthn_rp_origin in config.json");
+                let webauthn = webauthn_rs::WebauthnBuilder::new(rp_id, &rp_origin)
+                    .expect("Invalid WebAuthn configuration")
+                    .rp_name(&config.instancename)
+                    .build()
+                    .expect("Failed to build WebAuthn");
+                println!("WebAuthn enabled: rp_id={}, origin={}", rp_id, rp_origin_str);
+                Some(webauthn)
+            }
+            _ => {
+                println!("WebAuthn disabled (webauthn_rp_id / webauthn_rp_origin not set in config.json)");
+                None
+            }
+        };
+
     let webauthn_ext = std::sync::Arc::new(std::sync::RwLock::new(webauthn_instance));
 
     let memory_router = MemoryServe::new(load_assets!("assets/processed")).into_router();
@@ -209,23 +311,65 @@ async fn main() {
         .route("/studio/edit/{mediumid}/chapters", post(studio_chapters_save))
         .route("/studio/edit/{mediumid}/subtitles.json", get(studio_subtitles_get))
         .route("/studio/edit/{mediumid}/subtitles/add", post(studio_subtitles_add))
-        .route("/studio/edit/{mediumid}/subtitles/translate/status", get(studio_subtitles_translate_status))
-        .route("/studio/edit/{mediumid}/subtitles/translate", post(studio_subtitles_translate))
-        .route("/studio/edit/{mediumid}/subtitles/delete", post(studio_subtitles_delete))
-        .route("/studio/edit/{mediumid}/subtitles/font.json", get(studio_subtitle_font_get))
-        .route("/studio/edit/{mediumid}/subtitles/font", post(studio_subtitle_font_upload))
-        .route("/studio/edit/{mediumid}/subtitles/font/delete", post(studio_subtitle_font_delete))
+        .route(
+            "/studio/edit/{mediumid}/subtitles/translate/status",
+            get(studio_subtitles_translate_status),
+        )
+        .route(
+            "/studio/edit/{mediumid}/subtitles/translate",
+            post(studio_subtitles_translate),
+        )
+        .route(
+            "/studio/edit/{mediumid}/subtitles/delete",
+            post(studio_subtitles_delete),
+        )
+        .route(
+            "/studio/edit/{mediumid}/subtitles/font.json",
+            get(studio_subtitle_font_get),
+        )
+        .route(
+            "/studio/edit/{mediumid}/subtitles/font",
+            post(studio_subtitle_font_upload),
+        )
+        .route(
+            "/studio/edit/{mediumid}/subtitles/font/delete",
+            post(studio_subtitle_font_delete),
+        )
         .route("/studio/edit/{mediumid}/thumbnail.json", get(studio_thumbnail_get))
         .route("/studio/edit/{mediumid}/thumbnail", post(studio_thumbnail_upload))
-        .route("/studio/edit/{mediumid}/thumbnail/delete", post(studio_thumbnail_delete))
+        .route(
+            "/studio/edit/{mediumid}/thumbnail/delete",
+            post(studio_thumbnail_delete),
+        )
         .route("/hx/studio/delete/{mediumid}", get(hx_delete_video))
-        .route("/hx/studio/edit/{mediumid}/description", get(hx_studio_edit_description))
-        .route("/hx/studio/edit/{mediumid}/chapters", get(hx_studio_edit_chapters_tab))
-        .route("/hx/studio/edit/{mediumid}/subtitles", get(hx_studio_edit_subtitles_tab))
-        .route("/hx/studio/edit/{mediumid}/thumbnail", get(hx_studio_edit_thumbnail_tab))
-        .route("/hx/studio/edit/{mediumid}/permissions", get(hx_studio_edit_permissions_tab))
-        .route("/studio/edit/{mediumid}/permissions", post(studio_edit_permissions_save))
-        .route("/hx/studio/edit/{mediumid}/danger", get(hx_studio_edit_danger_tab))
+        .route(
+            "/hx/studio/edit/{mediumid}/description",
+            get(hx_studio_edit_description),
+        )
+        .route(
+            "/hx/studio/edit/{mediumid}/chapters",
+            get(hx_studio_edit_chapters_tab),
+        )
+        .route(
+            "/hx/studio/edit/{mediumid}/subtitles",
+            get(hx_studio_edit_subtitles_tab),
+        )
+        .route(
+            "/hx/studio/edit/{mediumid}/thumbnail",
+            get(hx_studio_edit_thumbnail_tab),
+        )
+        .route(
+            "/hx/studio/edit/{mediumid}/permissions",
+            get(hx_studio_edit_permissions_tab),
+        )
+        .route(
+            "/studio/edit/{mediumid}/permissions",
+            post(studio_edit_permissions_save),
+        )
+        .route(
+            "/hx/studio/edit/{mediumid}/danger",
+            get(hx_studio_edit_danger_tab),
+        )
         .route("/studio/lists", get(studio_lists))
         .route("/hx/studio/lists", get(hx_studio_lists))
         .route("/hx/studio/lists/{page}", get(hx_studio_lists_page))
@@ -248,9 +392,7 @@ async fn main() {
         .route("/hx/deletelist/{listid}", get(hx_delete_list))
         .route("/hx/userlists/{userid}", get(hx_user_lists))
         .route("/hx/userlists/{userid}/{page}", get(hx_user_lists_page))
-        // Theme CSS (dynamic, per-user)
         .route("/user-style.css", get(user_style_css))
-        // Settings routes
         .route("/settings", get(settings))
         .route("/settings/password", get(settings_password))
         .route("/settings/profile-picture", get(settings_profile_picture))
@@ -269,19 +411,21 @@ async fn main() {
         .route("/hx/settings/diagnostics", get(hx_settings_diagnostics))
         .route("/hx/settings/theme", get(hx_settings_theme))
         .route("/hx/settings/theme", post(hx_settings_theme_save))
-        // 2FA settings
         .route("/hx/settings/2fa", get(hx_settings_2fa))
         .route("/hx/settings/2fa/totp/setup", post(hx_settings_2fa_totp_setup))
-        .route("/hx/settings/2fa/totp/verify-setup", post(hx_settings_2fa_totp_verify_setup))
+        .route(
+            "/hx/settings/2fa/totp/verify-setup",
+            post(hx_settings_2fa_totp_verify_setup),
+        )
         .route("/hx/settings/2fa/totp/disable", post(hx_settings_2fa_totp_disable))
-        .route("/hx/settings/2fa/webauthn/delete/{credid}", post(hx_settings_2fa_webauthn_delete))
-        // WebAuthn registration (for logged-in users)
+        .route(
+            "/hx/settings/2fa/webauthn/delete/{credid}",
+            post(hx_settings_2fa_webauthn_delete),
+        )
         .route("/hx/webauthn/register/start", post(hx_webauthn_register_start))
         .route("/hx/webauthn/register/finish", post(hx_webauthn_register_finish))
-        // WebAuthn authentication (passwordless login)
         .route("/hx/webauthn/auth/start", post(hx_webauthn_auth_start))
         .route("/hx/webauthn/auth/finish", post(hx_webauthn_auth_finish))
-        // Group management routes
         .route("/studio/groups", get(studio_groups))
         .route("/hx/studio/groups", get(hx_studio_groups))
         .route("/hx/creategroup", post(hx_create_group))
@@ -303,9 +447,6 @@ async fn main() {
                 .br(enable_brotli)
                 .zstd(enable_zstd),
         )
-        // When both zstd and brotli are enabled, strip "br" from Accept-Encoding
-        // whenever "zstd" is present so CompressionLayer always picks zstd and
-        // falls back to brotli only when the client does not advertise zstd support.
         .layer(axum::middleware::from_fn(
             move |mut req: axum::http::Request<Body>, next: Next| async move {
                 if enable_brotli && enable_zstd {
@@ -318,19 +459,15 @@ async fn main() {
                                 .split(',')
                                 .map(str::trim)
                                 .filter(|part| {
-                                    let token =
-                                        part.split(';').next().unwrap_or(part).trim();
+                                    let token = part.split(';').next().unwrap_or(part).trim();
                                     !token.eq_ignore_ascii_case("br")
                                 })
                                 .collect::<Vec<_>>()
                                 .join(", ");
-                            if let Ok(val) =
-                                axum::http::header::HeaderValue::from_str(&filtered)
+                            if let Ok(val) = axum::http::header::HeaderValue::from_str(&filtered)
                             {
                                 req.headers_mut().insert(
-                                    axum::http::header::HeaderName::from_static(
-                                        "accept-encoding",
-                                    ),
+                                    axum::http::header::HeaderName::from_static("accept-encoding"),
                                     val,
                                 );
                             }
@@ -340,10 +477,10 @@ async fn main() {
                 next.run(req).await
             },
         ))
-        // Inject Strict-Transport-Security on every HTTPS response when HSTS is enabled.
         .layer(axum::middleware::from_fn(
             move |req: axum::http::Request<Body>, next: Next| async move {
                 let mut response = next.run(req).await;
+
                 if hsts_active {
                     response.headers_mut().insert(
                         axum::http::header::HeaderName::from_static(
@@ -354,6 +491,14 @@ async fn main() {
                         ),
                     );
                 }
+
+                if tls_cert.is_some() && enable_http3 {
+                    response.headers_mut().insert(
+                        axum::http::header::HeaderName::from_static("alt-svc"),
+                        axum::http::header::HeaderValue::from_static(r#"h3=":8443"; ma=86400"#),
+                    );
+                }
+
                 response
             },
         ));
@@ -370,31 +515,25 @@ async fn main() {
             .expect("Failed to read TLS private key file");
 
         // Load TLS configuration from PEM data.
-        // RustlsConfig::from_pem sets ALPN to ["h2", "http/1.1"] by default.
-        let rustls_config = RustlsConfig::from_pem(cert_bytes, key_bytes)
+        // RustlsConfig::from_pem sets ALPN to ["h2", "http/1.1"] by default [1].
+        let rustls_config = RustlsConfig::from_pem(cert_bytes.clone(), key_bytes.clone())
             .await
             .expect("Failed to configure TLS: ensure cert and key are valid PEM files");
 
-        // When HTTP/2 is disabled, override ALPN to advertise http/1.1 only.
+        // When HTTP/2 is disabled, override ALPN to advertise http/1.1 only [1].
         if !enable_http2 {
             let mut server_cfg = (*rustls_config.get_inner()).clone();
             server_cfg.alpn_protocols = vec![b"http/1.1".to_vec()];
             rustls_config.reload_from_config(Arc::new(server_cfg));
         }
 
-        let https_addr: std::net::SocketAddr = "0.0.0.0:8443".parse().unwrap();
-        let http_addr: std::net::SocketAddr = "0.0.0.0:8080".parse().unwrap();
+        let https_addr: SocketAddr = "0.0.0.0:8443".parse().unwrap();
+        let http_addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
 
-        // Plain-HTTP server on :8080 — redirects every request to HTTPS on :8443.
+        // Plain-HTTP server on :8080 — redirects every request to HTTPS on :8443 [1].
         let redirect_app = Router::new().fallback(
             |req: axum::http::Request<Body>| async move {
-                let host = req
-                    .headers()
-                    .get(HOST)
-                    .and_then(|h| h.to_str().ok())
-                    .unwrap_or("localhost");
-                // Strip any existing port so we can substitute 8443.
-                let hostname = host.split(':').next().unwrap_or(host);
+                let hostname = request_hostname(&req);
                 let path_and_query = req
                     .uri()
                     .path_and_query()
@@ -408,21 +547,43 @@ async fn main() {
         let redirect_listener = tokio::net::TcpListener::bind(http_addr)
             .await
             .unwrap();
+
         println!(
             "HTTP  redirect on: http://{}  →  https://<host>:8443",
             http_addr
         );
         println!(
-            "HTTPS listening on: https://{} (HTTP/2: {}, brotli: {}, zstd: {}, HSTS: {})",
-            https_addr, enable_http2, enable_brotli, enable_zstd, hsts_active
+            "HTTPS listening on: https://{} (HTTP/2: {}, HTTP/3: {}, brotli: {}, zstd: {}, HSTS: {})",
+            https_addr, enable_http2, enable_http3, enable_brotli, enable_zstd, hsts_active
         );
 
-        // Spawn the plain-HTTP redirect server; run the HTTPS server in the foreground.
+        // Spawn the plain-HTTP redirect server; run the HTTPS server in the foreground [1].
         tokio::spawn(async move {
             axum::serve(redirect_listener, redirect_app)
                 .await
                 .unwrap();
         });
+
+        // Optional HTTP/3 server on UDP/8443.
+        if enable_http3 {
+            let app_h3 = app.clone();
+
+            tokio::spawn(async move {
+                let quinn_config = build_quinn_server_config(&cert_bytes, &key_bytes);
+                let endpoint = Endpoint::server(quinn_config, https_addr)
+                    .expect("Failed to bind QUIC endpoint for HTTP/3");
+
+                println!("HTTP/3 listening on: https://{} over QUIC/UDP", https_addr);
+
+                // NOTE:
+                // This block may require small adjustments depending on your axum-h3 version.
+                // For some versions the API is axum_h3::serve(endpoint, app.into_make_service()).
+                // For others it may use a builder.
+                axum_h3::serve(endpoint, app_h3.into_make_service())
+                    .await
+                    .expect("HTTP/3 server failed");
+            });
+        }
 
         axum_server::bind_rustls(https_addr, rustls_config)
             .serve(app.into_make_service())
