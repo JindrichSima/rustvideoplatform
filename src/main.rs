@@ -72,6 +72,10 @@ struct Config {
 }
 #[tokio::main]
 async fn main() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     let config: Config =
         serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
 
