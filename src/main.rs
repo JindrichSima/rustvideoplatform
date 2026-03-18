@@ -66,6 +66,9 @@ struct Config {
     enable_brotli: Option<bool>,
     /// Enable Zstandard (zstd) compression of HTTP responses (default: false).
     enable_zstd: Option<bool>,
+    /// Send Strict-Transport-Security header (max-age=31536000; includeSubDomains; preload).
+    /// Only active when HTTPS is enabled (default: false).
+    enable_hsts: Option<bool>,
 }
 #[tokio::main]
 async fn main() {
@@ -78,6 +81,9 @@ async fn main() {
     let enable_http2 = config.enable_http2.unwrap_or(true);
     let enable_brotli = config.enable_brotli.unwrap_or(false);
     let enable_zstd = config.enable_zstd.unwrap_or(false);
+    let enable_hsts = config.enable_hsts.unwrap_or(false);
+    // HSTS is only meaningful over HTTPS; pre-compute the flag used in the middleware.
+    let hsts_active = tls_cert.is_some() && enable_hsts;
 
     let pool = PgPoolOptions::new()
         .max_connections(100)
@@ -329,6 +335,23 @@ async fn main() {
                 }
                 next.run(req).await
             },
+        ))
+        // Inject Strict-Transport-Security on every HTTPS response when HSTS is enabled.
+        .layer(axum::middleware::from_fn(
+            move |req: axum::http::Request<Body>, next: Next| async move {
+                let mut response = next.run(req).await;
+                if hsts_active {
+                    response.headers_mut().insert(
+                        axum::http::header::HeaderName::from_static(
+                            "strict-transport-security",
+                        ),
+                        axum::http::header::HeaderValue::from_static(
+                            "max-age=31536000; includeSubDomains; preload",
+                        ),
+                    );
+                }
+                response
+            },
         ));
 
     if let Some(cert_path) = tls_cert {
@@ -355,10 +378,13 @@ async fn main() {
                 .expect("Failed to parse TLS private key")
                 .expect("No private key found in TLS key file");
 
-        let mut tls_server_config = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certs, key)
-            .expect("Invalid TLS certificate or key");
+        // Restrict to TLS 1.2 and 1.3 only; older versions are explicitly rejected.
+        let mut tls_server_config = rustls::ServerConfig::builder_with_protocol_versions(
+            &[&rustls::version::TLS12, &rustls::version::TLS13],
+        )
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .expect("Invalid TLS certificate or key");
 
         // Advertise HTTP/2 via ALPN when enable_http2 is true (default).
         tls_server_config.alpn_protocols = if enable_http2 {
@@ -400,8 +426,8 @@ async fn main() {
             http_addr
         );
         println!(
-            "HTTPS listening on: https://{} (HTTP/2: {}, brotli: {}, zstd: {})",
-            https_addr, enable_http2, enable_brotli, enable_zstd
+            "HTTPS listening on: https://{} (HTTP/2: {}, brotli: {}, zstd: {}, HSTS: {})",
+            https_addr, enable_http2, enable_brotli, enable_zstd, hsts_active
         );
 
         // Spawn the plain-HTTP redirect server; run the HTTPS server in the foreground.
