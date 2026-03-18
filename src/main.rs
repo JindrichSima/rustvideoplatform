@@ -17,6 +17,7 @@ use axum::{
     extract::{DefaultBodyLimit, Form, Multipart, Path},
     http::header::HeaderMap,
     http::header::{ACCEPT_LANGUAGE, COOKIE, HOST, USER_AGENT},
+    middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     routing::get,
     routing::post,
@@ -291,9 +292,44 @@ async fn main() {
             CompressionLayer::new()
                 .br(enable_brotli)
                 .zstd(enable_zstd),
-        );
-
-    let addr: std::net::SocketAddr = "0.0.0.0:8080".parse().unwrap();
+        )
+        // When both zstd and brotli are enabled, strip "br" from Accept-Encoding
+        // whenever "zstd" is present so CompressionLayer always picks zstd and
+        // falls back to brotli only when the client does not advertise zstd support.
+        .layer(axum::middleware::from_fn(
+            move |mut req: axum::http::Request<Body>, next: Next| async move {
+                if enable_brotli && enable_zstd {
+                    if let Some(enc_val) = req.headers().get("accept-encoding") {
+                        let enc = enc_val.to_str().unwrap_or("").to_string();
+                        if enc.to_ascii_lowercase().contains("zstd")
+                            && enc.to_ascii_lowercase().contains("br")
+                        {
+                            let filtered: String = enc
+                                .split(',')
+                                .map(str::trim)
+                                .filter(|part| {
+                                    let token =
+                                        part.split(';').next().unwrap_or(part).trim();
+                                    !token.eq_ignore_ascii_case("br")
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            if let Ok(val) =
+                                axum::http::header::HeaderValue::from_str(&filtered)
+                            {
+                                req.headers_mut().insert(
+                                    axum::http::header::HeaderName::from_static(
+                                        "accept-encoding",
+                                    ),
+                                    val,
+                                );
+                            }
+                        }
+                    }
+                }
+                next.run(req).await
+            },
+        ));
 
     if let Some(cert_path) = tls_cert {
         let key_path = tls_key
@@ -333,16 +369,54 @@ async fn main() {
 
         let rustls_config = RustlsConfig::from_config(Arc::new(tls_server_config));
 
-        println!(
-            "Listening on: https://{} (HTTP/2: {}, brotli: {}, zstd: {})",
-            addr, enable_http2, enable_brotli, enable_zstd
+        let https_addr: std::net::SocketAddr = "0.0.0.0:8443".parse().unwrap();
+        let http_addr: std::net::SocketAddr = "0.0.0.0:8080".parse().unwrap();
+
+        // Plain-HTTP server on :8080 — redirects every request to HTTPS on :8443.
+        let redirect_app = Router::new().fallback(
+            |req: axum::http::Request<Body>| async move {
+                let host = req
+                    .headers()
+                    .get(HOST)
+                    .and_then(|h| h.to_str().ok())
+                    .unwrap_or("localhost");
+                // Strip any existing port so we can substitute 8443.
+                let hostname = host.split(':').next().unwrap_or(host);
+                let path_and_query = req
+                    .uri()
+                    .path_and_query()
+                    .map(|pq| pq.as_str())
+                    .unwrap_or("/");
+                let url = format!("https://{}:8443{}", hostname, path_and_query);
+                Redirect::permanent(&url)
+            },
         );
-        axum_server::bind_rustls(addr, rustls_config)
+
+        let redirect_listener = tokio::net::TcpListener::bind(http_addr)
+            .await
+            .unwrap();
+        println!(
+            "HTTP  redirect on: http://{}  →  https://<host>:8443",
+            http_addr
+        );
+        println!(
+            "HTTPS listening on: https://{} (HTTP/2: {}, brotli: {}, zstd: {})",
+            https_addr, enable_http2, enable_brotli, enable_zstd
+        );
+
+        // Spawn the plain-HTTP redirect server; run the HTTPS server in the foreground.
+        tokio::spawn(async move {
+            axum::serve(redirect_listener, redirect_app)
+                .await
+                .unwrap();
+        });
+
+        axum_server::bind_rustls(https_addr, rustls_config)
             .serve(app.into_make_service())
             .await
             .unwrap();
     } else {
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
         println!(
             "Listening on: http://{} (brotli: {}, zstd: {})",
             listener.local_addr().unwrap(),
