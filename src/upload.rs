@@ -28,7 +28,7 @@ async fn upload(
     }
 
     let sidebar = generate_sidebar(&config, "studio".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = StudioTemplate {
         sidebar,
         config,

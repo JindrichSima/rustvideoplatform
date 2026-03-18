@@ -11,7 +11,7 @@ async fn subscriptions(
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
     let sidebar = generate_sidebar(&config, "subscribed".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = SubscriptionsTemplate {
         sidebar,
         config,

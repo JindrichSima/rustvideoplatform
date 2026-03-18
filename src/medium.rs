@@ -99,7 +99,7 @@ async fn medium(
         ));
     }
 
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
 
     let medium_id: String = medium.get("id");
     let medium_captions_exist: bool;

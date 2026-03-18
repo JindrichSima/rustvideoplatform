@@ -57,7 +57,7 @@ WHERE
         }
     };
     let sidebar = generate_sidebar(&config, "channel".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = ChannelTemplate {
         sidebar,
         config,

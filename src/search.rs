@@ -916,7 +916,7 @@ async fn search(
     axum::extract::Query(params): axum::extract::Query<SearchQuery>,
 ) -> axum::response::Html<Vec<u8>> {
     let sidebar = generate_sidebar(&config, "search".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let initial_query = params.q.unwrap_or_default();
     let template = SearchTemplate {
         sidebar,

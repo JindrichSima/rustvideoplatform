@@ -19,7 +19,7 @@ async fn settings(
         ));
     }
     let sidebar = generate_sidebar(&config, "settings".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = SettingsTemplate {
         sidebar,
         config,
@@ -41,7 +41,7 @@ async fn settings_password(
         ));
     }
     let sidebar = generate_sidebar(&config, "settings".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = SettingsTemplate {
         sidebar,
         config,
@@ -63,7 +63,7 @@ async fn settings_profile_picture(
         ));
     }
     let sidebar = generate_sidebar(&config, "settings".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = SettingsTemplate {
         sidebar,
         config,
@@ -85,7 +85,7 @@ async fn settings_channel_picture(
         ));
     }
     let sidebar = generate_sidebar(&config, "settings".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = SettingsTemplate {
         sidebar,
         config,
@@ -107,7 +107,7 @@ async fn settings_diagnostics(
         ));
     }
     let sidebar = generate_sidebar(&config, "settings".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = SettingsTemplate {
         sidebar,
         config,

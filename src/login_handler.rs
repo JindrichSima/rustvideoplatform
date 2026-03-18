@@ -8,12 +8,7 @@ async fn login(
     Extension(config): Extension<Config>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let common_headers = extract_common_headers(&headers).unwrap_or(CommonHeaders {
-        host: String::new(),
-        user_agent: None,
-        accept_language: None,
-        cookie: None,
-    });
+    let common_headers = extract_common_headers(&headers);
     let template = LoginTemplate { config, common_headers };
     Html(minifi_html(template.render().unwrap()))
 }

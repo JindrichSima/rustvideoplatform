@@ -10,7 +10,7 @@ async fn home(
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
     let sidebar = generate_sidebar(&config, "home".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = HomeTemplate {
         config,
         sidebar,

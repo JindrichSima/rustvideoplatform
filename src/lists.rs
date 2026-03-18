@@ -114,7 +114,7 @@ async fn list_page(
         ));
     }
 
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let sidebar = generate_sidebar(&config, "list".to_owned());
     let template = ListPageTemplate {
         sidebar,
@@ -169,7 +169,7 @@ async fn medium_in_list(
         ));
     }
 
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
 
     // Also check media access
     let medium_row = sqlx::query(
