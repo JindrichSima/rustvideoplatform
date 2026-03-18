@@ -17,6 +17,7 @@ use axum::{
     extract::{DefaultBodyLimit, Form, Multipart, Path},
     http::header::HeaderMap,
     http::header::{ACCEPT_LANGUAGE, COOKIE, HOST, USER_AGENT},
+    middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     routing::get,
     routing::post,
@@ -30,9 +31,11 @@ use serde::Deserialize;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use std::io::BufRead;
+use axum_server::tls_rustls::RustlsConfig;
+use std::io::{BufRead, BufReader};
 use std::sync::Arc;
 use tokio::{fs, io, io::AsyncWriteExt};
+use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 
 type RedisConn = redis::aio::ConnectionManager;
@@ -53,11 +56,34 @@ struct Config {
     webauthn_rp_id: Option<String>,
     /// WebAuthn Relying Party origin (e.g. "https://example.com"). Required to enable WebAuthn/passkey login.
     webauthn_rp_origin: Option<String>,
+    /// Path to TLS certificate PEM file. When set (and valid), the server starts in HTTPS mode.
+    tls_cert: Option<String>,
+    /// Path to TLS private key PEM file. Required when tls_cert is set.
+    tls_key: Option<String>,
+    /// When HTTPS is active, also advertise HTTP/2 via ALPN (default: true).
+    enable_http2: Option<bool>,
+    /// Enable Brotli compression of HTTP responses (default: false).
+    enable_brotli: Option<bool>,
+    /// Enable Zstandard (zstd) compression of HTTP responses (default: false).
+    enable_zstd: Option<bool>,
+    /// Send Strict-Transport-Security header (max-age=31536000; includeSubDomains; preload).
+    /// Only active when HTTPS is enabled (default: false).
+    enable_hsts: Option<bool>,
 }
 #[tokio::main]
 async fn main() {
     let config: Config =
         serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
+
+    // Extract TLS/compression settings before config is moved into the Extension layer.
+    let tls_cert = config.tls_cert.clone();
+    let tls_key = config.tls_key.clone();
+    let enable_http2 = config.enable_http2.unwrap_or(true);
+    let enable_brotli = config.enable_brotli.unwrap_or(false);
+    let enable_zstd = config.enable_zstd.unwrap_or(false);
+    let enable_hsts = config.enable_hsts.unwrap_or(false);
+    // HSTS is only meaningful over HTTPS; pre-compute the flag used in the middleware.
+    let hsts_active = tls_cert.is_some() && enable_hsts;
 
     let pool = PgPoolOptions::new()
         .max_connections(100)
@@ -267,11 +293,161 @@ async fn main() {
         .layer(Extension(Arc::new(meilisearch_client)))
         .layer(Extension(webauthn_ext))
         .layer(DefaultBodyLimit::disable())
-        .merge(memory_router);
+        .merge(memory_router)
+        .layer(
+            CompressionLayer::new()
+                .br(enable_brotli)
+                .zstd(enable_zstd),
+        )
+        // When both zstd and brotli are enabled, strip "br" from Accept-Encoding
+        // whenever "zstd" is present so CompressionLayer always picks zstd and
+        // falls back to brotli only when the client does not advertise zstd support.
+        .layer(axum::middleware::from_fn(
+            move |mut req: axum::http::Request<Body>, next: Next| async move {
+                if enable_brotli && enable_zstd {
+                    if let Some(enc_val) = req.headers().get("accept-encoding") {
+                        let enc = enc_val.to_str().unwrap_or("").to_string();
+                        if enc.to_ascii_lowercase().contains("zstd")
+                            && enc.to_ascii_lowercase().contains("br")
+                        {
+                            let filtered: String = enc
+                                .split(',')
+                                .map(str::trim)
+                                .filter(|part| {
+                                    let token =
+                                        part.split(';').next().unwrap_or(part).trim();
+                                    !token.eq_ignore_ascii_case("br")
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            if let Ok(val) =
+                                axum::http::header::HeaderValue::from_str(&filtered)
+                            {
+                                req.headers_mut().insert(
+                                    axum::http::header::HeaderName::from_static(
+                                        "accept-encoding",
+                                    ),
+                                    val,
+                                );
+                            }
+                        }
+                    }
+                }
+                next.run(req).await
+            },
+        ))
+        // Inject Strict-Transport-Security on every HTTPS response when HSTS is enabled.
+        .layer(axum::middleware::from_fn(
+            move |req: axum::http::Request<Body>, next: Next| async move {
+                let mut response = next.run(req).await;
+                if hsts_active {
+                    response.headers_mut().insert(
+                        axum::http::header::HeaderName::from_static(
+                            "strict-transport-security",
+                        ),
+                        axum::http::header::HeaderValue::from_static(
+                            "max-age=31536000; includeSubDomains; preload",
+                        ),
+                    );
+                }
+                response
+            },
+        ));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
-    println!("Listening on: {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    if let Some(cert_path) = tls_cert {
+        let key_path = tls_key
+            .expect("config: tls_key must be set when tls_cert is provided");
+
+        let cert_bytes = tokio::fs::read(&cert_path)
+            .await
+            .expect("Failed to read TLS certificate file");
+        let key_bytes = tokio::fs::read(&key_path)
+            .await
+            .expect("Failed to read TLS private key file");
+
+        let certs: Vec<rustls::pki_types::CertificateDer<'static>> =
+            rustls_pemfile::certs(&mut BufReader::new(cert_bytes.as_slice()))
+                .collect::<Result<Vec<_>, _>>()
+                .expect("Failed to parse TLS certificate")
+                .into_iter()
+                .map(|c| c.into_owned())
+                .collect();
+
+        let key: rustls::pki_types::PrivateKeyDer<'static> =
+            rustls_pemfile::private_key(&mut BufReader::new(key_bytes.as_slice()))
+                .expect("Failed to parse TLS private key")
+                .expect("No private key found in TLS key file");
+
+        let mut tls_server_config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .expect("Invalid TLS certificate or key");
+
+        // Advertise HTTP/2 via ALPN when enable_http2 is true (default).
+        tls_server_config.alpn_protocols = if enable_http2 {
+            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+        } else {
+            vec![b"http/1.1".to_vec()]
+        };
+
+        let rustls_config = RustlsConfig::from_config(Arc::new(tls_server_config));
+
+        let https_addr: std::net::SocketAddr = "0.0.0.0:8443".parse().unwrap();
+        let http_addr: std::net::SocketAddr = "0.0.0.0:8080".parse().unwrap();
+
+        // Plain-HTTP server on :8080 — redirects every request to HTTPS on :8443.
+        let redirect_app = Router::new().fallback(
+            |req: axum::http::Request<Body>| async move {
+                let host = req
+                    .headers()
+                    .get(HOST)
+                    .and_then(|h| h.to_str().ok())
+                    .unwrap_or("localhost");
+                // Strip any existing port so we can substitute 8443.
+                let hostname = host.split(':').next().unwrap_or(host);
+                let path_and_query = req
+                    .uri()
+                    .path_and_query()
+                    .map(|pq| pq.as_str())
+                    .unwrap_or("/");
+                let url = format!("https://{}:8443{}", hostname, path_and_query);
+                Redirect::permanent(&url)
+            },
+        );
+
+        let redirect_listener = tokio::net::TcpListener::bind(http_addr)
+            .await
+            .unwrap();
+        println!(
+            "HTTP  redirect on: http://{}  →  https://<host>:8443",
+            http_addr
+        );
+        println!(
+            "HTTPS listening on: https://{} (HTTP/2: {}, brotli: {}, zstd: {}, HSTS: {})",
+            https_addr, enable_http2, enable_brotli, enable_zstd, hsts_active
+        );
+
+        // Spawn the plain-HTTP redirect server; run the HTTPS server in the foreground.
+        tokio::spawn(async move {
+            axum::serve(redirect_listener, redirect_app)
+                .await
+                .unwrap();
+        });
+
+        axum_server::bind_rustls(https_addr, rustls_config)
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    } else {
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+        println!(
+            "Listening on: http://{} (brotli: {}, zstd: {})",
+            listener.local_addr().unwrap(),
+            enable_brotli,
+            enable_zstd
+        );
+        axum::serve(listener, app).await.unwrap();
+    }
 }
 
 include!("helper_functions.rs");
