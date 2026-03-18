@@ -32,7 +32,7 @@ use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use axum_server::tls_rustls::RustlsConfig;
-use std::io::{BufRead, BufReader};
+use std::io::BufRead;
 use std::sync::Arc;
 use tokio::{fs, io, io::AsyncWriteExt};
 use tower_http::compression::CompressionLayer;
@@ -369,32 +369,18 @@ async fn main() {
             .await
             .expect("Failed to read TLS private key file");
 
-        let certs: Vec<rustls::pki_types::CertificateDer<'static>> =
-            rustls_pemfile::certs(&mut BufReader::new(cert_bytes.as_slice()))
-                .collect::<Result<Vec<_>, _>>()
-                .expect("Failed to parse TLS certificate")
-                .into_iter()
-                .map(|c| c.into_owned())
-                .collect();
+        // Load TLS configuration from PEM data.
+        // RustlsConfig::from_pem sets ALPN to ["h2", "http/1.1"] by default.
+        let rustls_config = RustlsConfig::from_pem(cert_bytes, key_bytes)
+            .await
+            .expect("Failed to configure TLS: ensure cert and key are valid PEM files");
 
-        let key: rustls::pki_types::PrivateKeyDer<'static> =
-            rustls_pemfile::private_key(&mut BufReader::new(key_bytes.as_slice()))
-                .expect("Failed to parse TLS private key")
-                .expect("No private key found in TLS key file");
-
-        let mut tls_server_config = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certs, key)
-            .expect("Invalid TLS certificate or key");
-
-        // Advertise HTTP/2 via ALPN when enable_http2 is true (default).
-        tls_server_config.alpn_protocols = if enable_http2 {
-            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
-        } else {
-            vec![b"http/1.1".to_vec()]
-        };
-
-        let rustls_config = RustlsConfig::from_config(Arc::new(tls_server_config));
+        // When HTTP/2 is disabled, override ALPN to advertise http/1.1 only.
+        if !enable_http2 {
+            let mut server_cfg = (*rustls_config.get_inner()).clone();
+            server_cfg.alpn_protocols = vec![b"http/1.1".to_vec()];
+            rustls_config.reload_from_config(Arc::new(server_cfg));
+        }
 
         let https_addr: std::net::SocketAddr = "0.0.0.0:8443".parse().unwrap();
         let http_addr: std::net::SocketAddr = "0.0.0.0:8080".parse().unwrap();
