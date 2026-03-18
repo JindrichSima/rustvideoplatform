@@ -30,9 +30,11 @@ use serde::Deserialize;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use std::io::BufRead;
+use axum_server::tls_rustls::RustlsConfig;
+use std::io::{BufRead, BufReader};
 use std::sync::Arc;
 use tokio::{fs, io, io::AsyncWriteExt};
+use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 
 type RedisConn = redis::aio::ConnectionManager;
@@ -53,11 +55,28 @@ struct Config {
     webauthn_rp_id: Option<String>,
     /// WebAuthn Relying Party origin (e.g. "https://example.com"). Required to enable WebAuthn/passkey login.
     webauthn_rp_origin: Option<String>,
+    /// Path to TLS certificate PEM file. When set (and valid), the server starts in HTTPS mode.
+    tls_cert: Option<String>,
+    /// Path to TLS private key PEM file. Required when tls_cert is set.
+    tls_key: Option<String>,
+    /// When HTTPS is active, also advertise HTTP/2 via ALPN (default: true).
+    enable_http2: Option<bool>,
+    /// Enable Brotli compression of HTTP responses (default: false).
+    enable_brotli: Option<bool>,
+    /// Enable Zstandard (zstd) compression of HTTP responses (default: false).
+    enable_zstd: Option<bool>,
 }
 #[tokio::main]
 async fn main() {
     let config: Config =
         serde_json::from_str(&fs::read_to_string("config.json").await.unwrap()).unwrap();
+
+    // Extract TLS/compression settings before config is moved into the Extension layer.
+    let tls_cert = config.tls_cert.clone();
+    let tls_key = config.tls_key.clone();
+    let enable_http2 = config.enable_http2.unwrap_or(true);
+    let enable_brotli = config.enable_brotli.unwrap_or(false);
+    let enable_zstd = config.enable_zstd.unwrap_or(false);
 
     let pool = PgPoolOptions::new()
         .max_connections(100)
@@ -267,11 +286,71 @@ async fn main() {
         .layer(Extension(Arc::new(meilisearch_client)))
         .layer(Extension(webauthn_ext))
         .layer(DefaultBodyLimit::disable())
-        .merge(memory_router);
+        .merge(memory_router)
+        .layer(
+            CompressionLayer::new()
+                .br(enable_brotli)
+                .zstd(enable_zstd),
+        );
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
-    println!("Listening on: {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    let addr: std::net::SocketAddr = "0.0.0.0:8080".parse().unwrap();
+
+    if let Some(cert_path) = tls_cert {
+        let key_path = tls_key
+            .expect("config: tls_key must be set when tls_cert is provided");
+
+        let cert_bytes = tokio::fs::read(&cert_path)
+            .await
+            .expect("Failed to read TLS certificate file");
+        let key_bytes = tokio::fs::read(&key_path)
+            .await
+            .expect("Failed to read TLS private key file");
+
+        let certs: Vec<rustls::pki_types::CertificateDer<'static>> =
+            rustls_pemfile::certs(&mut BufReader::new(cert_bytes.as_slice()))
+                .collect::<Result<Vec<_>, _>>()
+                .expect("Failed to parse TLS certificate")
+                .into_iter()
+                .map(|c| c.into_owned())
+                .collect();
+
+        let key: rustls::pki_types::PrivateKeyDer<'static> =
+            rustls_pemfile::private_key(&mut BufReader::new(key_bytes.as_slice()))
+                .expect("Failed to parse TLS private key")
+                .expect("No private key found in TLS key file");
+
+        let mut tls_server_config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .expect("Invalid TLS certificate or key");
+
+        // Advertise HTTP/2 via ALPN when enable_http2 is true (default).
+        tls_server_config.alpn_protocols = if enable_http2 {
+            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+        } else {
+            vec![b"http/1.1".to_vec()]
+        };
+
+        let rustls_config = RustlsConfig::from_config(Arc::new(tls_server_config));
+
+        println!(
+            "Listening on: https://{} (HTTP/2: {}, brotli: {}, zstd: {})",
+            addr, enable_http2, enable_brotli, enable_zstd
+        );
+        axum_server::bind_rustls(addr, rustls_config)
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    } else {
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        println!(
+            "Listening on: http://{} (brotli: {}, zstd: {})",
+            listener.local_addr().unwrap(),
+            enable_brotli,
+            enable_zstd
+        );
+        axum::serve(listener, app).await.unwrap();
+    }
 }
 
 include!("helper_functions.rs");

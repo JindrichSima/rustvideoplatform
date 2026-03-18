@@ -8,6 +8,13 @@
     "meilisearch_url": "http://meilisearch:7700",
     "meilisearch_key": "SECRET_PASSWORD_HERE",
     "source_server_url": "https://source.vids.cz",
+
+    "tls_cert": null,
+    "tls_key": null,
+    "enable_http2": true,
+    "enable_brotli": true,
+    "enable_zstd": true,
+
     "whisper": {
         "url": "http://whisper:8080/inference",
         "model": "whisper-1",
