@@ -378,13 +378,10 @@ async fn main() {
                 .expect("Failed to parse TLS private key")
                 .expect("No private key found in TLS key file");
 
-        // Restrict to TLS 1.2 and 1.3 only; older versions are explicitly rejected.
-        let mut tls_server_config = rustls::ServerConfig::builder_with_protocol_versions(
-            &[&rustls::version::TLS12, &rustls::version::TLS13],
-        )
-        .with_no_client_auth()
-        .with_single_cert(certs, key)
-        .expect("Invalid TLS certificate or key");
+        let mut tls_server_config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .expect("Invalid TLS certificate or key");
 
         // Advertise HTTP/2 via ALPN when enable_http2 is true (default).
         tls_server_config.alpn_protocols = if enable_http2 {
