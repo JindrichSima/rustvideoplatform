@@ -108,7 +108,7 @@ fn add_alt_svc_header(mut response: Response, enabled: bool) -> Response {
     if enabled {
         response.headers_mut().insert(
             HeaderName::from_static("alt-svc"),
-            HeaderValue::from_static(r#"h3=":8443"; ma=86400"#),
+            HeaderValue::from_static(r#"h3=":443"; ma=86400"#),
         );
     }
     response
@@ -480,7 +480,7 @@ async fn main() {
                 if has_tls && enable_http3 {
                     response.headers_mut().insert(
                         axum::http::header::HeaderName::from_static("alt-svc"),
-                        axum::http::header::HeaderValue::from_static(r#"h3=":8443"; ma=86400"#),
+                        axum::http::header::HeaderValue::from_static(r#"h3=":443"; ma=86400"#),
                     );
                 }
 
