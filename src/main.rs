@@ -262,6 +262,7 @@ async fn main() {
 
     let memory_router = MemoryServe::new(load_assets!("assets/processed")).into_router();
 
+    let has_tls = tls_cert.is_some();
     let app = Router::new()
         .route("/sitemap.xml", get(sitemap_xml))
         .route("/", get(home))
@@ -492,7 +493,7 @@ async fn main() {
                     );
                 }
 
-                if tls_cert.is_some() && enable_http3 {
+                if has_tls && enable_http3 {
                     response.headers_mut().insert(
                         axum::http::header::HeaderName::from_static("alt-svc"),
                         axum::http::header::HeaderValue::from_static(r#"h3=":8443"; ma=86400"#),
@@ -575,11 +576,9 @@ async fn main() {
 
                 println!("HTTP/3 listening on: https://{} over QUIC/UDP", https_addr);
 
-                // NOTE:
-                // This block may require small adjustments depending on your axum-h3 version.
-                // For some versions the API is axum_h3::serve(endpoint, app.into_make_service()).
-                // For others it may use a builder.
-                axum_h3::serve(endpoint, app_h3.into_make_service())
+                let acceptor = h3_util::quinn::H3QuinnAcceptor::new(endpoint);
+                axum_h3::H3Router::new(app_h3)
+                    .serve(acceptor)
                     .await
                     .expect("HTTP/3 server failed");
             });
