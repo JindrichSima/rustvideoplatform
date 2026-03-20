@@ -2,61 +2,159 @@
     <div class="w-100" style="max-width: 600px">
         <h1 class="m-3 text-center">What do you want to upload today?</h1>
         <div id="upload-container">
-            <form
-                id="upload-form"
-                hx-encoding="multipart/form-data"
-                hx-post="/hx/upload"
-                class="m-3"
-                onsubmit="beginupload()"
-                hx-target="#upload-result"
-            >
-                <div class="d-flex flex-column align-items-center">
-                    <input
-                        class="btn btn-primary m-3"
-                        type="file"
-                        name="file"
-                        style="width: 100%; max-width: 500px;"
-                    />
-                    <br />
-                    <button
-                        class="btn btn-primary text-center m-3"
-                        id="upload-submitbutton"
-                        style="width: 150px"
-                    >
-                        <i class="fa-solid fa-upload"></i>&nbsp;Upload
-                    </button>
-                    <progress
-                        id="upload-progress"
-                        value="0"
-                        max="100"
-                        class="m-3"
-                        style="display: none; width: 100%; max-width: 500px;"
-                    ></progress>
+            <div class="d-flex flex-column align-items-center">
+                <input
+                    class="btn btn-primary m-3"
+                    type="file"
+                    name="file"
+                    id="upload-file-input"
+                    style="width: 100%; max-width: 500px;"
+                />
+                <br />
+                <button
+                    class="btn btn-primary text-center m-3"
+                    id="upload-submitbutton"
+                    style="width: 150px"
+                    onclick="startUpload()"
+                >
+                    <i class="fa-solid fa-upload"></i>&nbsp;Upload
+                </button>
+
+                <div id="upload-progress-area" style="display: none; width: 100%; max-width: 500px;">
+                    <div class="mb-2" style="position: relative; height: 28px; background: var(--bs-secondary); border-radius: var(--bs-border-radius); overflow: hidden;">
+                        <div id="upload-progress-bar" style="
+                            height: 100%;
+                            width: 0%;
+                            background: linear-gradient(90deg, var(--bs-success), #20c997);
+                            border-radius: var(--bs-border-radius);
+                            transition: width 0.3s ease;
+                        "></div>
+                        <span id="upload-progress-text" style="
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            font-weight: 700;
+                            font-size: 0.85rem;
+                            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+                            color: #fff;
+                        ">0%</span>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size: 0.8rem; opacity: 0.85;">
+                        <span id="upload-stats-transferred">0 MB / 0 MB</span>
+                        <span id="upload-stats-speed">-- MB/s</span>
+                        <span id="upload-stats-eta">ETA: --</span>
+                    </div>
                 </div>
-            </form>
-            <div id="upload-result"></div>
+            </div>
+
+            <div id="upload-result" class="mt-3"></div>
         </div>
     </div>
 </div>
 <script>
-    function beginupload() {
-        window.isUploading = true;
-        document.getElementById("upload-submitbutton").disabled = true;
-        document.getElementById("upload-submitbutton").style.display = "none";
-        document.getElementById("upload-progress").style.display = "inline";
-        return true;
+function formatBytes(bytes) {
+    if (bytes >= 1e9) return (bytes / 1e9).toFixed(2) + ' GB';
+    if (bytes >= 1e6) return (bytes / 1e6).toFixed(2) + ' MB';
+    if (bytes >= 1e3) return (bytes / 1e3).toFixed(1) + ' KB';
+    return bytes + ' B';
+}
+
+function formatETA(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '--';
+    if (seconds < 60) return Math.ceil(seconds) + 's';
+    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.ceil(seconds % 60) + 's';
+    var h = Math.floor(seconds / 3600);
+    var m = Math.ceil((seconds % 3600) / 60);
+    return h + 'h ' + m + 'm';
+}
+
+function startUpload() {
+    var fileInput = document.getElementById('upload-file-input');
+    if (!fileInput.files || !fileInput.files[0]) {
+        return;
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        htmx.on("#upload-form", "htmx:xhr:progress", function(evt) {
-            htmx.find("#upload-progress").setAttribute(
-                "value",
-                (evt.detail.loaded / evt.detail.total) * 100
-            );
-        });
+    var file = fileInput.files[0];
+    var formData = new FormData();
+    formData.append('file', file);
 
-        htmx.on("#upload-form", "htmx:afterRequest", function() {
-            window.isUploading = false;
-        });
+    window.isUploading = true;
+    document.getElementById('upload-submitbutton').disabled = true;
+    document.getElementById('upload-submitbutton').style.display = 'none';
+    document.getElementById('upload-file-input').disabled = true;
+    document.getElementById('upload-progress-area').style.display = 'block';
+
+    var progressBar = document.getElementById('upload-progress-bar');
+    var progressText = document.getElementById('upload-progress-text');
+    var statsTransferred = document.getElementById('upload-stats-transferred');
+    var statsSpeed = document.getElementById('upload-stats-speed');
+    var statsETA = document.getElementById('upload-stats-eta');
+
+    var totalSize = file.size;
+    var startTime = Date.now();
+    var lastLoaded = 0;
+    var lastTime = startTime;
+    var smoothSpeed = 0;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/hx/upload', true);
+
+    xhr.upload.addEventListener('progress', function(evt) {
+        if (evt.lengthComputable) {
+            var pct = (evt.loaded / evt.total) * 100;
+            progressBar.style.width = pct + '%';
+            progressText.textContent = Math.floor(pct) + '%';
+
+            var now = Date.now();
+            var elapsed = (now - lastTime) / 1000;
+            if (elapsed > 0.3) {
+                var bytesPerSec = (evt.loaded - lastLoaded) / elapsed;
+                smoothSpeed = smoothSpeed > 0 ? smoothSpeed * 0.7 + bytesPerSec * 0.3 : bytesPerSec;
+                lastLoaded = evt.loaded;
+                lastTime = now;
+
+                statsSpeed.textContent = formatBytes(smoothSpeed) + '/s';
+                var remaining = evt.total - evt.loaded;
+                statsETA.textContent = 'ETA: ' + formatETA(remaining / smoothSpeed);
+            }
+
+            statsTransferred.textContent = formatBytes(evt.loaded) + ' / ' + formatBytes(evt.total);
+        }
     });
+
+    xhr.addEventListener('load', function() {
+        window.isUploading = false;
+        progressBar.style.width = '100%';
+        progressText.textContent = '100%';
+        statsSpeed.textContent = '';
+        var totalTime = (Date.now() - startTime) / 1000;
+        statsETA.textContent = 'Done in ' + formatETA(totalTime);
+
+        document.getElementById('upload-result').innerHTML = xhr.responseText;
+    });
+
+    xhr.addEventListener('error', function() {
+        window.isUploading = false;
+        progressBar.style.background = 'var(--bs-danger)';
+        progressText.textContent = 'Error';
+        statsSpeed.textContent = '';
+        statsETA.textContent = '';
+        document.getElementById('upload-result').innerHTML =
+            '<div class="alert alert-danger text-center">Upload failed. Please check your connection and try again.</div>';
+        document.getElementById('upload-submitbutton').disabled = false;
+        document.getElementById('upload-submitbutton').style.display = '';
+        document.getElementById('upload-file-input').disabled = false;
+    });
+
+    xhr.addEventListener('abort', function() {
+        window.isUploading = false;
+        progressText.textContent = 'Cancelled';
+        document.getElementById('upload-submitbutton').disabled = false;
+        document.getElementById('upload-submitbutton').style.display = '';
+        document.getElementById('upload-file-input').disabled = false;
+    });
+
+    xhr.send(formData);
+}
 </script>
