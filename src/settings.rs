@@ -688,7 +688,7 @@ async fn settings_theme(
         ));
     }
     let sidebar = generate_sidebar(&config, "settings".to_owned());
-    let common_headers = extract_common_headers(&headers).unwrap();
+    let common_headers = extract_common_headers(&headers);
     let template = SettingsTemplate {
         sidebar,
         config,
