@@ -123,25 +123,9 @@ fn load_certs_from_pem(cert_pem: &[u8]) -> Vec<CertificateDer<'static>> {
 
 fn load_private_key_from_pem(key_pem: &[u8]) -> PrivateKeyDer<'static> {
     let mut reader = std::io::BufReader::new(key_pem);
-
-    let pkcs8_keys = rustls_pemfile::pkcs8_private_keys(&mut reader)
-        .collect::<Result<Vec<_>, _>>()
-        .expect("Failed to parse PKCS#8 private key");
-
-    if let Some(key) = pkcs8_keys.into_iter().next() {
-        return PrivateKeyDer::Pkcs8(key);
-    }
-
-    let mut reader = std::io::BufReader::new(key_pem);
-    let rsa_keys = rustls_pemfile::rsa_private_keys(&mut reader)
-        .collect::<Result<Vec<_>, _>>()
-        .expect("Failed to parse RSA private key");
-
-    if let Some(key) = rsa_keys.into_iter().next() {
-        return PrivateKeyDer::Pkcs1(key);
-    }
-
-    panic!("No supported private key found in PEM");
+    rustls_pemfile::private_key(&mut reader)
+        .expect("Failed to parse private key PEM")
+        .expect("No supported private key found in PEM")
 }
 
 fn build_quinn_server_config(cert_pem: &[u8], key_pem: &[u8]) -> QuinnServerConfig {
