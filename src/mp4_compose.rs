@@ -92,7 +92,7 @@ async fn stream_video_as_mp4(
         .and_then(|r| r.into_rows_result().ok())
         .and_then(|rows| rows.maybe_first_row::<(String, String, String, String, Option<String>, String)>().ok().flatten());
 
-    let (id, name, owner, visibility, restricted_to_group, medium_type) = match medium_row {
+    let (_id, name, owner, visibility, restricted_to_group, medium_type) = match medium_row {
         Some(row) => row,
         None => {
             return Response::builder()

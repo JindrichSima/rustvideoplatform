@@ -1,6 +1,6 @@
 async fn hx_new_view(
     Extension(db): Extension<ScyllaDb>,
-    Extension(mut redis): Extension<RedisConn>,
+    Extension(_redis): Extension<RedisConn>,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<String> {
     // Increment counter in ScyllaDB

@@ -99,9 +99,9 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
 
 async fn hx_trending_inner(
     config: Config,
-    db: ScyllaDb,
+    _db: ScyllaDb,
     mut redis: RedisConn,
-    headers: HeaderMap,
+    _headers: HeaderMap,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
     let offset = page * 30;

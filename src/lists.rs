@@ -653,7 +653,7 @@ async fn hx_user_lists_inner(
     // Filter visibility at app level
     let mut visible_lists: Vec<(String, String, String, Option<String>, i64)> = Vec::new();
     for list_row in all_lists {
-        let (ref id, ref name, ref visibility, ref restricted_to_group, _created) = list_row;
+        let (ref _id, ref _name, ref visibility, ref restricted_to_group, _created) = list_row;
         let is_owner = userid == user_login;
         if is_owner || visibility == "public" || can_access_restricted(&db, visibility, restricted_to_group.as_deref(), &userid, &user, redis.clone()).await {
             visible_lists.push(list_row);

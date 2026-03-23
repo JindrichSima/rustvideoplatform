@@ -6,7 +6,7 @@ fn like_dislike_html(mediumid: &str, likes: i64, dislikes: i64, user_reaction: O
     )
 }
 
-fn like_dislike_html_unauth(mediumid: &str, likes: i64, dislikes: i64) -> String {
+fn like_dislike_html_unauth(_mediumid: &str, likes: i64, dislikes: i64) -> String {
     format!(
         r#"<li class="d-flex align-items-center mx-2"><a class="text-decoration-none" href="/login"><i class="fa-solid fa-thumbs-up fa-xl"></i>&nbsp;<b>{likes}</b></a><span class="text-white mx-2">|</span><a class="text-decoration-none" href="/login"><i class="fa-solid fa-thumbs-down fa-xl"></i>&nbsp;<b>{dislikes}</b></a></li>"#
     )
