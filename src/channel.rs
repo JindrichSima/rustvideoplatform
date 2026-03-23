@@ -23,10 +23,10 @@ async fn channel(
     // Get user name + profile_picture from users table
     let user_info = db.session.execute_unpaged(&db.get_user_by_login, (&userid,)).await
         .ok().and_then(|r| r.into_rows_result().ok())
-        .and_then(|rows| rows.maybe_first_row::<(String, Option<String>)>().ok().flatten());
+        .and_then(|rows| rows.maybe_first_row::<(Option<String>, Option<String>)>().ok().flatten());
 
     let (name, profile_picture) = match user_info {
-        Some(row) => row,
+        Some((name_opt, pic)) => (name_opt.unwrap_or_default(), pic),
         None => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
