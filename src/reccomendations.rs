@@ -5,10 +5,48 @@ async fn hx_recommended(
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
-    // Recommendations will come from Meilisearch or the Redis cache in production.
-    // There is no efficient ScyllaDB query for "random public media" without knowing an owner,
-    // so we return an empty list here — the template handles empty gracefully.
-    let media: Vec<Medium> = Vec::new();
+    let mediumid = mediumid.to_ascii_lowercase();
+
+    // Look up the owner of the current medium, then fetch their other public media.
+    let owner: Option<String> = db
+        .session
+        .execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten())
+        .map(|r| r.0);
+
+    let media: Vec<Medium> = if let Some(ref owner) = owner {
+        db.session
+            .execute_unpaged(&db.get_media_by_owner, (owner, 21i64))
+            .await
+            .ok()
+            .and_then(|r| r.into_rows_result().ok())
+            .map(|rows| {
+                rows.rows::<(String, String, Option<String>, i64, String, i64, String, Option<String>)>()
+                    .unwrap()
+                    .filter_map(|r| r.ok())
+                    .filter(|(id, _, _, _, _, _, visibility, _)| {
+                        id != &mediumid && visibility == "public"
+                    })
+                    .take(20)
+                    .map(|(id, name, _, views, media_type, _, _, _)| Medium {
+                        id,
+                        name,
+                        owner: owner.clone(),
+                        views,
+                        r#type: media_type,
+                        sprite_filename: None,
+                        sprite_x: 0,
+                        sprite_y: 0,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
 
     let template = HXMediumListTemplate {
         current_medium_id: mediumid,

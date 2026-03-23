@@ -47,11 +47,19 @@ async fn hx_login(
         }
     };
 
+    let parsed_hash = match PasswordHash::new(&password_hash) {
+        Ok(h) => h,
+        Err(_) => {
+            return (
+                StatusCode::OK,
+                HeaderMap::new(),
+                "<b class=\"text-danger\">Wrong user name or password</b>".to_owned(),
+            );
+        }
+    };
+
     if Argon2::default()
-        .verify_password(
-            form.password.as_bytes(),
-            &PasswordHash::new(&password_hash).unwrap(),
-        )
+        .verify_password(form.password.as_bytes(), &parsed_hash)
         .is_ok()
     {
         // Check if TOTP is enabled for this user
@@ -97,15 +105,22 @@ async fn hx_login(
             session_restriction = "Path=/".to_owned()
         }
         let session_cookie_set = format!("session={}; {}", session_cookie_value, session_restriction);
-        let _: () = redis
+        if redis
             .set(format!("session:{}", session_cookie_value), &form.login)
             .await
-            .unwrap();
+            .is_err()
+        {
+            return (
+                StatusCode::OK,
+                HeaderMap::new(),
+                "<b class=\"text-danger\">Server error, please try again</b>".to_owned(),
+            );
+        }
 
         let mut response_headers = HeaderMap::new();
         response_headers.insert("Set-Cookie", session_cookie_set.parse().unwrap());
-        let response_body = "<b class=\"text-sucess\">LOGIN SUCESS</b><script>window.location.replace(\"/\");</script>".to_owned();
-        return (StatusCode::OK, response_headers, response_body);
+        response_headers.insert("HX-Redirect", "/".parse().unwrap());
+        return (StatusCode::OK, response_headers, String::new());
     } else {
         let response_headers = HeaderMap::new();
         let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
@@ -118,10 +133,15 @@ async fn hx_logout(
     headers: HeaderMap,
     Extension(mut redis): Extension<RedisConn>,
 ) -> axum::response::Html<String> {
-    let session_cookie = parse_cookie_header(headers.get("Cookie").unwrap().to_str().unwrap())
-        .get("session")
-        .unwrap()
-        .to_owned();
-    let _: () = redis.del(format!("session:{}", session_cookie)).await.unwrap();
+    if let Some(cookie_header) = headers.get("Cookie") {
+        if let Ok(cookie_str) = cookie_header.to_str() {
+            if let Some(session_cookie) = parse_cookie_header(cookie_str).get("session").cloned() {
+                let _: () = redis
+                    .del(format!("session:{}", session_cookie))
+                    .await
+                    .unwrap_or(());
+            }
+        }
+    }
     Html("<h1>LOGOUT SUCESS</h1><script>window.location.replace(\"/\");</script>".to_owned())
 }
