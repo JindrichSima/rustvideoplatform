@@ -104,8 +104,11 @@ async fn get_user_login(
         .await
         .ok()?;
 
-    let result = db.session.execute_unpaged(&db.get_user_by_login, (&login,)).await.ok()?;
-    let row = result.into_rows_result().ok()?.maybe_first_row::<(Option<String>, Option<String>)>().ok()??;
+    let row = db.session.execute_unpaged(&db.get_user_by_login, (&login,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(Option<String>, Option<String>)>().ok().flatten())?;
 
     Some(User {
         login,
@@ -115,14 +118,7 @@ async fn get_user_login(
 }
 
 async fn is_logged(user: Option<User>) -> bool {
-    let isloggedin: bool;
-    if user.is_some() && user.unwrap().login != "".to_owned() {
-        isloggedin = true;
-    }
-    else {
-        isloggedin = false;
-    }
-    isloggedin
+    user.as_ref().is_some_and(|u| !u.login.is_empty())
 }
 
 fn format_file_size(size_bytes: usize) -> String {
