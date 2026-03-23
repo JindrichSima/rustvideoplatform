@@ -90,66 +90,36 @@ fn extract_common_headers(headers: &HeaderMap) -> CommonHeaders {
     }
 }
 
+fn build_session_cookie(token: &str, config: &Config) -> String {
+    let domain_part = match &config.custom_session_domain {
+        Some(d) => format!("; Domain={}", d),
+        None => String::new(),
+    };
+    format!(
+        "session={}; Path=/; HttpOnly; SameSite=Lax{}",
+        token, domain_part
+    )
+}
+
 async fn get_user_login(
     headers: HeaderMap,
     db: &ScyllaDb,
     mut redis: RedisConn,
 ) -> Option<User> {
-    let cookie_header = match headers.get("Cookie") {
-        Some(v) => v.to_str().ok()?.to_owned(),
-        None => {
-            eprintln!("[auth] No Cookie header in request");
-            return None;
-        }
-    };
+    let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
+        .get("session")?
+        .to_owned();
 
-    let session_cookie = match parse_cookie_header(&cookie_header).get("session") {
-        Some(v) => v.to_owned(),
-        None => {
-            eprintln!("[auth] No 'session' cookie found in: {}", cookie_header);
-            return None;
-        }
-    };
+    let login: String = redis
+        .get(format!("session:{}", session_cookie))
+        .await
+        .ok()?;
 
-    let login: String = match redis.get::<_, Option<String>>(format!("session:{}", session_cookie)).await {
-        Ok(Some(l)) => l,
-        Ok(None) => {
-            eprintln!("[auth] Session key not found in Redis for cookie");
-            return None;
-        }
-        Err(e) => {
-            eprintln!("[auth] Redis GET error: {}", e);
-            return None;
-        }
-    };
-
-    let result = match db.session.execute_unpaged(&db.get_user_by_login, (&login,)).await {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("[auth] ScyllaDB execute error for login '{}': {}", login, e);
-            return None;
-        }
-    };
-
-    let rows_result = match result.into_rows_result() {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("[auth] into_rows_result error for login '{}': {}", login, e);
-            return None;
-        }
-    };
-
-    let row = match rows_result.maybe_first_row::<(Option<String>, Option<String>)>() {
-        Ok(Some(r)) => r,
-        Ok(None) => {
-            eprintln!("[auth] No user row found in ScyllaDB for login '{}'", login);
-            return None;
-        }
-        Err(e) => {
-            eprintln!("[auth] Row deserialization error for login '{}': {}", login, e);
-            return None;
-        }
-    };
+    let row = db.session.execute_unpaged(&db.get_user_by_login, (&login,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(Option<String>, Option<String>)>().ok().flatten())?;
 
     Some(User {
         login,

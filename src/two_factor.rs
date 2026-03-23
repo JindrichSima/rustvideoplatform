@@ -125,10 +125,6 @@ async fn hx_login_2fa_totp(
 
     // Create real session
     let session_token = generate_secure_string();
-    let session_restriction = match &config.custom_session_domain {
-        Some(d) => format!("Path=/;Domain={}", d),
-        None => "Path=/".to_owned(),
-    };
     let _: () = redis
         .set(format!("session:{}", session_token), &login)
         .await
@@ -141,9 +137,7 @@ async fn hx_login_2fa_totp(
     let mut headers = HeaderMap::new();
     headers.insert(
         "Set-Cookie",
-        format!("session={}; {}", session_token, session_restriction)
-            .parse()
-            .unwrap(),
+        build_session_cookie(&session_token, &config).parse().unwrap(),
     );
     headers.insert("HX-Redirect", "/".parse().unwrap());
     (StatusCode::OK, headers, String::new())
@@ -773,20 +767,15 @@ async fn hx_webauthn_auth_finish(
 
     // Create session and set cookie
     let session_token = generate_secure_string();
-    let session_restriction = match &config.custom_session_domain {
-        Some(d) => format!("Path=/;Domain={}", d),
-        None => "Path=/".to_owned(),
-    };
     let _: () = redis
         .set(format!("session:{}", session_token), &login)
         .await
         .unwrap();
 
-    let cookie = format!("session={}; {}", session_token, session_restriction);
     let mut response = (StatusCode::OK, axum::Json(serde_json::json!({"success": true})))
         .into_response();
     response
         .headers_mut()
-        .insert(axum::http::header::SET_COOKIE, cookie.parse().unwrap());
+        .insert(axum::http::header::SET_COOKIE, build_session_cookie(&session_token, &config).parse().unwrap());
     response
 }
