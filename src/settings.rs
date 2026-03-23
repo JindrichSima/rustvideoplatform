@@ -236,7 +236,8 @@ async fn hx_settings_password_save(
     }
 
     // Hash new password with Argon2id
-    let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+    let salt_bytes: [u8; 16] = rand::random();
+    let salt = argon2::password_hash::SaltString::encode_b64(&salt_bytes).unwrap();
     let new_hash = Argon2::default()
         .hash_password(form.new_password.as_bytes(), &salt);
     if new_hash.is_err() {

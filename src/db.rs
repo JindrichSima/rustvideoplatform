@@ -1,6 +1,6 @@
-use scylla::prepared_statement::PreparedStatement;
-use scylla::transport::session::Session;
-use scylla::SessionBuilder;
+use scylla::statement::prepared::PreparedStatement;
+use scylla::client::session::Session;
+use scylla::client::session_builder::SessionBuilder;
 use std::sync::Arc;
 
 /// Wrapper around a ScyllaDB session with pre-prepared statements for all queries.

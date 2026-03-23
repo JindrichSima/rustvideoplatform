@@ -11,9 +11,9 @@ async fn hx_new_view(
         .await
         .ok()
         .and_then(|r| r.into_rows_result().ok())
-        .and_then(|rows| rows.maybe_first_row::<(scylla::frame::response::result::CqlValue,)>().ok().flatten())
+        .and_then(|rows| rows.maybe_first_row::<(scylla::value::CqlValue,)>().ok().flatten())
         .map(|r| match r.0 {
-            scylla::frame::response::result::CqlValue::Counter(c) => c.0,
+            scylla::value::CqlValue::Counter(c) => c.0,
             _ => 0,
         })
         .unwrap_or(0);
