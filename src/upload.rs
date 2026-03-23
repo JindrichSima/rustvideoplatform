@@ -2,11 +2,11 @@
 #[template(path = "pages/hx-studio-upload.html", escape = "none")]
 struct HXStudioUploadTemplate {}
 async fn hx_studio_upload(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -17,11 +17,11 @@ async fn hx_studio_upload(
 
 async fn upload(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -39,13 +39,13 @@ async fn upload(
 }
 
 async fn hx_upload(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Html<String>, (StatusCode, Html<String>)> {
     // Step 1: Authenticate User
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Ok(Html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -153,25 +153,22 @@ async fn hx_upload(
 
     // Step 6: Save metadata to the database
     let medium_type = detect_medium_type_mime(file_type.clone());
-    if let Err(e) = sqlx::query!(
-        "INSERT INTO media_concepts (id, name, owner, type) VALUES ($1, $2, $3, $4)",
-        medium_id,
-        file_name,
-        user_info.unwrap().login,
-        medium_type
-    )
-    .execute(&pool)
-    .await
-    {
+    let owner = user_info.unwrap().login;
+
+    let insert_result = db.session.execute_unpaged(&db.insert_concept, (&medium_id, &file_name, &owner, &medium_type)).await;
+    if insert_result.is_err() {
         let _ = tokio::fs::remove_file(&file_path).await;
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Html(format!(
                 "<div class=\"alert alert-danger\">Database error: {}</div>",
-                e
+                insert_result.unwrap_err()
             )),
         ));
     }
+
+    let _ = db.session.execute_unpaged(&db.insert_concept_by_owner, (&owner, &medium_id, &file_name, &medium_type)).await;
+    let _ = db.session.execute_unpaged(&db.insert_unprocessed_concept, (&medium_id, &medium_type)).await;
 
     // Step 7: Format success response
     let formatted_file_size = format_file_size(file_size);

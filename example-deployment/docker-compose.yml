@@ -9,7 +9,7 @@ services:
      - ./config.json:/config.json
    restart: always
    depends_on:
-     - postgres
+     - scylladb
      - meilisearch
      - indexer
  source:
@@ -24,38 +24,37 @@ services:
    image: panmourovaty/rustvideoplatform-processor
    volumes:
      - ./upload:/upload
-     - ./config.json:/config.json
+     - ./processor-config.json:/config.json
    restart: always
    devices:
      - /dev/dri/renderD128:/dev/dri/renderD128
    depends_on:
-     - postgres
+     - scylladb
      - whisper
      - translatellama
  indexer:
    image: panmourovaty/rustvideoplatform-indexer
    volumes:
-     - ./config.json:/config.json
+     - ./source:/source
+     - ./indexer-config.json:/config.json
    restart: always
    depends_on:
-     - postgres
+     - scylladb
      - meilisearch
      - dragonfly
  dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
     volumes:
       - ./dragonfly:/data
- postgres:
-    image: postgres:18-alpine
+ scylladb:
+    image: scylladb/scylla:latest
     ports:
-      - "5432:5432"
+      - "9042:9042"
     volumes:
-      - ./postgres:/var/lib/postgresql
+      - ./scylladb:/var/lib/scylla
+      - ./scylla.yaml:/etc/scylla/scylla.yaml
+    command: --smp 1 --memory 750M --overprovisioned 1 --developer-mode 1
     restart: always
-    environment:
-      - POSTGRES_PASSWORD=SECRET_PASSWORD
-      - POSTGRES_USER=vids
-      - POSTGRES_DB=vids
  meilisearch:
    image: getmeili/meilisearch:latest
    environment:

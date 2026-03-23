@@ -92,7 +92,7 @@ fn extract_common_headers(headers: &HeaderMap) -> CommonHeaders {
 
 async fn get_user_login(
     headers: HeaderMap,
-    pool: &PgPool,
+    db: &ScyllaDb,
     mut redis: RedisConn,
 ) -> Option<User> {
     let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
@@ -104,19 +104,13 @@ async fn get_user_login(
         .await
         .ok()?;
 
-    let row = sqlx::query(
-        "SELECT name, profile_picture FROM users WHERE login=$1;"
-    )
-    .bind(&login)
-    .fetch_one(pool)
-    .await
-    .ok()?;
+    let result = db.session.execute_unpaged(&db.get_user_by_login, (&login,)).await.ok()?;
+    let row = result.into_rows_result().ok()?.maybe_first_row::<(String, Option<String>)>().ok()??;
 
-    use sqlx::Row;
     Some(User {
         login,
-        name: row.get("name"),
-        profile_picture: row.get("profile_picture"),
+        name: row.0,
+        profile_picture: row.1,
     })
 }
 
@@ -149,7 +143,6 @@ fn generate_medium_id() -> String {
 
     (0..10)
         .map(|_| {
-            // No 'rng' variable needed, no trait import needed
             let idx = rand::random_range(0..charset.len());
             charset[idx] as char
         })
@@ -312,18 +305,16 @@ fn system_groups_for_owner(owner: &str) -> Vec<UserGroup> {
     ]
 }
 
-async fn is_subscribed(pool: &PgPool, subscriber: &str, target: &str) -> bool {
-    sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE subscriber = $1 AND target = $2)"
-    )
-    .bind(subscriber)
-    .bind(target)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(false)
+async fn is_subscribed(db: &ScyllaDb, subscriber: &str, target: &str) -> bool {
+    db.session.execute_unpaged(&db.is_subscribed, (subscriber, target))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.maybe_first_row::<(String,)>().ok().flatten().is_some())
+        .unwrap_or(false)
 }
 
-async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
+async fn is_group_member(db: &ScyllaDb, group_id: &str, user_login: &str, mut redis: RedisConn) -> bool {
     let redis_key = format!("group:{}:members", group_id);
 
     // Check if membership set is cached in Redis
@@ -334,10 +325,17 @@ async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut re
     }
 
     // Cache miss - load all members from DB and cache in Redis
-    let members: Vec<String> = sqlx::query_scalar("SELECT user_login FROM user_group_members WHERE group_id = $1")
-        .bind(group_id)
-        .fetch_all(pool)
+    let members: Vec<String> = db.session.execute_unpaged(&db.get_group_members, (group_id,))
         .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| {
+            rows.rows::<(String,)>()
+                .unwrap()
+                .filter_map(|r| r.ok())
+                .map(|r| r.0)
+                .collect()
+        })
         .unwrap_or_default();
 
     let is_member = members.contains(&user_login.to_owned());
@@ -350,7 +348,7 @@ async fn is_group_member(pool: &PgPool, group_id: &str, user_login: &str, mut re
     is_member
 }
 
-async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
+async fn can_access_restricted(db: &ScyllaDb, visibility: &str, restricted_to_group: Option<&str>, owner: &str, user: &Option<User>, redis: RedisConn) -> bool {
     match visibility {
         "public" => true,
         "restricted" => {
@@ -363,13 +361,23 @@ async fn can_access_restricted(pool: &PgPool, visibility: &str, restricted_to_gr
                         return true; // user is logged in
                     }
                     if group_id == SYSTEM_GROUP_SUBSCRIBERS {
-                        return is_subscribed(pool, &u.login, owner).await;
+                        return is_subscribed(db, &u.login, owner).await;
                     }
-                    return is_group_member(pool, group_id, &u.login, redis).await;
+                    return is_group_member(db, group_id, &u.login, redis).await;
                 }
             }
             false
         }
         _ => true // "hidden" - accessible via direct link (existing behavior)
     }
+}
+
+/// Generate a timestamp-based comment ID (millisecond precision + random suffix)
+fn generate_comment_id() -> i64 {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    // Shift left 16 bits, add random lower bits for uniqueness
+    (now << 16) | (rand::random_range(0..65536) as i64)
 }

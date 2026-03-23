@@ -62,46 +62,46 @@ struct Medium {
 
 async fn medium(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user = get_user_login(headers.clone(), &db, redis.clone()).await;
     let is_logged_in = user.is_some();
 
-    // Fetch media with visibility info and owner profile
-    let medium_row = sqlx::query(
-        "SELECT m.id, m.name, m.description, m.upload, m.owner, m.views, m.type, m.visibility, m.restricted_to_group, u.name as owner_name, u.profile_picture as owner_picture FROM media m LEFT JOIN users u ON m.owner = u.login WHERE m.id=$1;"
-    )
-    .bind(mediumid.to_ascii_lowercase())
-    .fetch_one(&pool)
-    .await;
+    let mediumid = mediumid.to_ascii_lowercase();
 
-    let medium = match medium_row {
-        Ok(row) => row,
-        Err(_) => {
+    // Fetch media row from ScyllaDB
+    let result = db.session.execute_unpaged(&db.get_media_by_id, (&mediumid,)).await;
+    let media_row = match result.ok().and_then(|r| r.into_rows_result().ok()).and_then(|rows| rows.maybe_first_row::<(String, String, Option<String>, i64, String, i64, String, String, Option<String>)>().ok().flatten()) {
+        Some(r) => r,
+        None => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
             ));
         }
     };
 
-    use sqlx::Row;
-    let visibility: String = medium.get("visibility");
-    let restricted_to_group: Option<String> = medium.get("restricted_to_group");
-    let owner: String = medium.get("owner");
+    let (id, name, _description, upload, owner, views, media_type, visibility, restricted_to_group) = media_row;
 
     // Access control for restricted content
-    if !can_access_restricted(&pool, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
+    if !can_access_restricted(&db, &visibility, restricted_to_group.as_deref(), &owner, &user, redis.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/\");</script>".to_owned(),
         ));
     }
 
+    // Fetch owner info from users table (separate query since no JOINs in Cassandra)
+    let user_result = db.session.execute_unpaged(&db.get_user_by_login, (&owner,)).await;
+    let (owner_name, owner_picture) = match user_result.ok().and_then(|r| r.into_rows_result().ok()).and_then(|rows| rows.maybe_first_row::<(String, Option<String>)>().ok().flatten()) {
+        Some(r) => r,
+        None => (owner.clone(), None),
+    };
+
     let common_headers = extract_common_headers(&headers);
 
-    let medium_id: String = medium.get("id");
+    let medium_id = id;
     let medium_captions_exist: bool;
     let mut medium_captions_list: Vec<CaptionEntry> = Vec::new();
     if std::path::Path::new(&format!("source/{}/captions/list.txt", medium_id)).exists() {
@@ -144,13 +144,13 @@ async fn medium(
     let template = MediumTemplate {
         sidebar,
         medium_id,
-        medium_name: medium.get("name"),
-        medium_owner: medium.get("owner"),
-        medium_owner_name: medium.get("owner_name"),
-        medium_owner_picture: medium.get("owner_picture"),
-        medium_upload: prettyunixtime(medium.get("upload")).await,
-        medium_views: medium.get("views"),
-        medium_type: medium.get("type"),
+        medium_name: name,
+        medium_owner: owner,
+        medium_owner_name: owner_name,
+        medium_owner_picture: owner_picture,
+        medium_upload: prettyunixtime(upload).await,
+        medium_views: views,
+        medium_type: media_type,
         medium_captions_exist,
         medium_captions_list,
         medium_has_ass_captions,
@@ -223,20 +223,16 @@ fn fix_vtt_urls(vtt_content: &str, mediumid: &str) -> String {
 }
 
 async fn medium_description_prepare(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    Json(
-        sqlx::query!(
-            "SELECT description FROM media WHERE id=$1;",
-            mediumid.to_ascii_lowercase()
-        )
-        .fetch_one(&pool)
-        .await
-        .expect("Database error")
-        .description
-        .unwrap_or_default(),
-    )
+    let result = db.session.execute_unpaged(&db.get_media_description, (&mediumid.to_ascii_lowercase(),)).await;
+    let description = result.ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(Option<String>,)>().ok().flatten())
+        .and_then(|r| r.0)
+        .unwrap_or_default();
+    Json(serde_json::Value::String(description))
 }
 
 #[derive(Template)]

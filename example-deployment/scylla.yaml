@@ -1,0 +1,33 @@
+# ScyllaDB single-node configuration for development / small deployments
+# See https://opensource.docs.scylladb.com/stable/getting-started/system-configuration.html
+
+cluster_name: 'rustvideoplatform'
+
+# Listen on all interfaces inside the container
+listen_address: 0.0.0.0
+rpc_address: 0.0.0.0
+broadcast_rpc_address: scylladb
+
+seed_provider:
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      - seeds: "scylladb"
+
+# Single-node: use SimpleStrategy with RF=1 by default
+# (The schema CQL sets replication per-keyspace; this is the cluster default.)
+endpoint_snitch: SimpleSnitch
+
+# Developer mode relaxes production checks (clock sync, disk I/O, etc.)
+# Remove for production deployments.
+developer_mode: true
+
+# Data directories
+data_file_directories:
+  - /var/lib/scylla/data
+commitlog_directory: /var/lib/scylla/commitlog
+
+# CQL native transport
+native_transport_port: 9042
+
+# Disable inter-node encryption for single-node dev setup
+internode_encryption: none

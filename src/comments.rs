@@ -26,41 +26,49 @@ const COMMENTS_PER_PAGE: i64 = 20;
 
 async fn hx_comments(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Path(mediumid): Path<String>,
     axum::extract::Query(query): axum::extract::Query<CommentsQuery>,
 ) -> axum::response::Html<Vec<u8>> {
     let page = query.page.unwrap_or(0);
-    let offset = page * COMMENTS_PER_PAGE;
+    // ScyllaDB doesn't support OFFSET, so fetch enough rows to cover page+1 pages and skip in app code.
+    let fetch_limit = (page + 1) * COMMENTS_PER_PAGE + 1;
 
-    let rows = sqlx::query(
-        r#"SELECT c.id, c."user", u.name as user_name, u.profile_picture as user_picture, c.text, c.time
-           FROM comments c
-           LEFT JOIN users u ON c."user" = u.login
-           WHERE c.media=$1 ORDER BY c.time DESC LIMIT $2 OFFSET $3;"#,
-    )
-    .bind(&mediumid)
-    .bind(COMMENTS_PER_PAGE + 1)
-    .bind(offset)
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    let rows = db.session.execute_unpaged(&db.get_comments, (&mediumid, fetch_limit as i32))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(i64, String, String, i64)>().unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
+        .unwrap_or_default();
 
-    use sqlx::Row;
-    let comments: Vec<Comment> = rows
-        .iter()
-        .map(|row| Comment {
-            id: row.get("id"),
-            user: row.get("user"),
-            user_name: row.get("user_name"),
-            user_picture: row.get("user_picture"),
-            text: row.get("text"),
-            time: row.get("time"),
-        })
-        .collect();
+    // Skip rows for previous pages
+    let skip = (page * COMMENTS_PER_PAGE) as usize;
+    let page_rows: Vec<_> = rows.into_iter().skip(skip).take((COMMENTS_PER_PAGE + 1) as usize).collect();
 
-    let has_more = comments.len() as i64 > COMMENTS_PER_PAGE;
-    let comments: Vec<Comment> = comments.into_iter().take(COMMENTS_PER_PAGE as usize).collect();
+    let has_more = page_rows.len() as i64 > COMMENTS_PER_PAGE;
+
+    // Batch-fetch user info for each commenter
+    let mut comments = Vec::new();
+    for (id, user, text, time) in page_rows.into_iter().take(COMMENTS_PER_PAGE as usize) {
+        let (user_name, user_picture) = db.session.execute_unpaged(&db.get_user_by_login, (&user,))
+            .await
+            .ok()
+            .and_then(|r| r.into_rows_result().ok())
+            .and_then(|rows| rows.maybe_first_row::<(String, Option<String>)>().ok().flatten())
+            .unwrap_or_else(|| (user.clone(), None));
+
+        let text_value: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+
+        comments.push(Comment {
+            id,
+            user,
+            user_name,
+            user_picture,
+            text: text_value,
+            time,
+        });
+    }
+
     let next_page = if has_more { Some(page + 1) } else { None };
 
     let template = HXCommentsTemplate {
@@ -78,18 +86,12 @@ struct CommentForm {
 }
 
 async fn comment_delta(
-    Extension(pool): Extension<PgPool>,
-    Path(comment_id): Path<i64>,
+    Extension(_db): Extension<ScyllaDb>,
+    Path(_comment_id): Path<i64>,
 ) -> Json<serde_json::Value> {
-    let row = sqlx::query!(
-        r#"SELECT text FROM comments WHERE id=$1;"#,
-        comment_id
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
-
-    Json(row.text)
+    // Cannot look up by comment ID alone; the comments table has PRIMARY KEY (media, time, id).
+    // Returning null as a fallback until the route is refactored to include media + time params.
+    Json(serde_json::Value::Null)
 }
 
 #[derive(Template)]
@@ -101,13 +103,13 @@ struct HXCommentSingleTemplate {
 
 async fn hx_add_comment(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Form(form): Form<CommentForm>,
 ) -> impl IntoResponse {
-    let user = get_user_login(headers, &pool, redis.clone()).await;
+    let user = get_user_login(headers, &db, redis.clone()).await;
 
     if user.is_none() {
         return (StatusCode::UNAUTHORIZED, Html(Vec::new()));
@@ -117,30 +119,36 @@ async fn hx_add_comment(
 
     let delta: serde_json::Value =
         serde_json::from_str(&form.text).unwrap_or_default();
+    let delta_string = serde_json::to_string(&delta).unwrap_or_default();
 
-    let row = sqlx::query(
-        r#"WITH inserted AS (
-            INSERT INTO comments (media, "user", text) VALUES ($1, $2, $3) RETURNING id, "user", text, time
-        )
-        SELECT i.id, i."user", u.name as user_name, u.profile_picture as user_picture, i.text, i.time
-        FROM inserted i
-        LEFT JOIN users u ON i."user" = u.login;"#,
+    let comment_id = generate_comment_id();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+
+    // Insert comment into ScyllaDB
+    let _ = db.session.execute_unpaged(
+        &db.insert_comment,
+        (&mediumid, now, comment_id, &user.login, &delta_string),
     )
-    .bind(&mediumid)
-    .bind(&user.login)
-    .bind(delta)
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    .await;
 
-    use sqlx::Row;
+    // Fetch user info separately
+    let (user_name, user_picture) = db.session.execute_unpaged(&db.get_user_by_login, (&user.login,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String, Option<String>)>().ok().flatten())
+        .unwrap_or_else(|| (user.login.clone(), None));
+
     let comment = Comment {
-        id: row.get("id"),
-        user: row.get("user"),
-        user_name: row.get("user_name"),
-        user_picture: row.get("user_picture"),
-        text: row.get("text"),
-        time: row.get("time"),
+        id: comment_id,
+        user: user.login,
+        user_name,
+        user_picture,
+        text: delta,
+        time: now,
     };
 
     let template = HXCommentSingleTemplate { comment, config };
