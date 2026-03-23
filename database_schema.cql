@@ -2,8 +2,11 @@
 -- Designed for query-driven access patterns with denormalization.
 -- Use NetworkTopologyStrategy for multi-datacenter deployments.
 
+-- For single-node / development deployments use SimpleStrategy with RF=1.
+-- For production multi-datacenter clusters switch to:
+--   {'class': 'NetworkTopologyStrategy', '<dc_name>': 3}
 CREATE KEYSPACE IF NOT EXISTS videoplatform
-  WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 3}
+  WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}
   AND durable_writes = true;
 
 USE videoplatform;
