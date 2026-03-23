@@ -368,7 +368,7 @@ async fn can_access_restricted(db: &ScyllaDb, visibility: &str, restricted_to_gr
             }
             false
         }
-        _ => true // "hidden" - accessible via direct link (existing behavior)
+        _ => false // "hidden" and unknown - not shown in feeds, only accessible via direct link
     }
 }
 
