@@ -5,30 +5,26 @@ struct ChapterData {
 }
 
 async fn studio_chapters_get(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::Value::Array(vec![]));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Json(serde_json::Value::Array(vec![]));
-            }
-        }
-        Err(_) => {
-            return Json(serde_json::Value::Array(vec![]));
-        }
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        _ => return Json(serde_json::Value::Array(vec![])),
     }
 
     let vtt_path = format!("source/{}/chapters.vtt", mediumid);
@@ -42,13 +38,13 @@ async fn studio_chapters_get(
 }
 
 async fn studio_chapters_save(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(chapters): Json<Vec<ChapterData>>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -58,21 +54,22 @@ async fn studio_chapters_save(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from("{\"error\":\"not authorized\"}"))
-                    .unwrap();
-            }
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        Some(_) => {
+            return Response::builder()
+                .status(StatusCode::FORBIDDEN)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"error\":\"not authorized\"}"))
+                .unwrap();
         }
-        Err(_) => {
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")

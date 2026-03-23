@@ -15,47 +15,47 @@ struct ChannelTemplate {
     user: UserChannel,
 }
 async fn channel(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(config): Extension<Config>,
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = match sqlx::query_as!(
-        UserChannel,
-        "SELECT
-    u.login,
-    u.name,
-    u.profile_picture,
-    u.channel_picture,
-    COALESCE(subs.count, 0) AS subscribed
-FROM
-    users u
-LEFT JOIN
-    (
-        SELECT
-            target,
-            COUNT(*) AS count
-        FROM
-            subscriptions
-        GROUP BY
-            target
-    ) subs
-ON
-    u.login = subs.target
-WHERE
-    u.login = $1;",
-        userid
-    )
-    .fetch_one(&pool)
-    .await
-    {
-        Ok(u) => u,
-        Err(_) => {
+    // Get user name + profile_picture from users table
+    let user_info = db.session.execute_unpaged(&db.get_user_by_login, (&userid,)).await
+        .ok().and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String, Option<String>)>().ok().flatten());
+
+    let (name, profile_picture) = match user_info {
+        Some(row) => row,
+        None => {
             return Html(minifi_html(
                 "<script>window.location.replace(\"/\");</script>".to_owned(),
             ));
         }
     };
+
+    // Get channel_picture from users table
+    let channel_picture = db.session.execute_unpaged(&db.get_user_channel_picture, (&userid,)).await
+        .ok().and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(Option<String>,)>().ok().flatten())
+        .map(|row| row.0)
+        .unwrap_or(None);
+
+    // Count subscribers
+    let subscriber_rows = db.session.execute_unpaged(&db.count_subscribers, (&userid,)).await
+        .ok().and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String,)>().unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let subscriber_count = subscriber_rows.len() as i64;
+
+    let user = UserChannel {
+        login: userid,
+        name,
+        profile_picture,
+        channel_picture,
+        subscribed: Some(subscriber_count),
+    };
+
     let sidebar = generate_sidebar(&config, "channel".to_owned());
     let common_headers = extract_common_headers(&headers);
     let template = ChannelTemplate {
@@ -69,59 +69,68 @@ WHERE
 
 async fn hx_usermedia(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(userid): Path<String>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_usermedia_inner(config, pool, redis, headers, userid, 0).await
+    hx_usermedia_inner(config, db, redis, headers, userid, 0).await
 }
 
 async fn hx_usermedia_page(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path((userid, page)): Path<(String, i64)>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_usermedia_inner(config, pool, redis, headers, userid, page).await
+    hx_usermedia_inner(config, db, redis, headers, userid, page).await
 }
 
 async fn hx_usermedia_inner(
     config: Config,
-    pool: PgPool,
+    db: ScyllaDb,
     redis: RedisConn,
     headers: HeaderMap,
     userid: String,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = get_user_login(headers, &pool, redis.clone()).await;
-    let user_login = user.map(|u| u.login).unwrap_or_default();
-    let offset = page * 40;
+    let user = get_user_login(headers, &db, redis.clone()).await;
+    let offset = (page * 40) as usize;
 
-    let mut media: Vec<Medium> = sqlx::query(
-        "SELECT id,name,owner,views,type FROM media WHERE owner=$1 AND (visibility = 'public' OR (visibility = 'restricted' AND (restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $2) OR (restricted_to_group = '__all_registered__' AND $2 != '') OR (restricted_to_group = '__subscribers__' AND $2 != '' AND owner IN (SELECT target FROM subscriptions WHERE subscriber = $2))))) ORDER BY upload DESC LIMIT 41 OFFSET $3;"
-    )
-    .bind(&userid)
-    .bind(&user_login)
-    .bind(offset)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        Medium {
-            id: row.get("id"),
-            name: row.get("name"),
-            owner: row.get("owner"),
-            views: row.get("views"),
-            r#type: row.get("type"),
-            sprite_filename: None,
-            sprite_x: 0,
-            sprite_y: 0,
+    // Fetch more than needed to handle app-level filtering and pagination.
+    // No OFFSET in Cassandra, so we fetch a larger batch and skip in app code.
+    let fetch_limit = (offset + 41) as i32;
+
+    let all_rows = db.session.execute_unpaged(&db.get_media_by_owner, (&userid, fetch_limit)).await
+        .ok().and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String, String, Option<String>, i64, String, i64, String, Option<String>)>()
+            .unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    // Filter visibility at application level (no subqueries in Cassandra)
+    let mut filtered = Vec::new();
+    for row in all_rows {
+        let visibility = row.6.as_str();
+        let restricted_to_group = row.7.as_deref();
+        if can_access_restricted(&db, visibility, restricted_to_group, &userid, &user, redis.clone()).await {
+            filtered.push(Medium {
+                id: row.0,
+                name: row.1,
+                owner: userid.clone(),
+                views: row.3,
+                r#type: row.4,
+                sprite_filename: None,
+                sprite_x: 0,
+                sprite_y: 0,
+            });
         }
-    })
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    }
 
+    // Paginate in app code: skip `offset` items, take up to 41 for has_more check
+    let paginated: Vec<Medium> = filtered.into_iter().skip(offset).take(41).collect();
+
+    let mut media = paginated;
     let has_more = media.len() == 41;
     if has_more {
         media.truncate(40);

@@ -30,8 +30,8 @@ use meilisearch_sdk::client::Client as MeilisearchClient;
 use redis::AsyncCommands;
 use serde::Deserialize;
 use serde::Serialize;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::PgPool;
+mod db;
+use db::ScyllaDb;
 use axum_server::tls_rustls::RustlsConfig;
 use std::io::BufRead;
 use std::sync::Arc;
@@ -50,7 +50,8 @@ type RedisConn = redis::aio::ConnectionManager;
 
 #[derive(Deserialize, Clone)]
 struct Config {
-    dbconnection: String,
+    scylla_nodes: Vec<String>,
+    scylla_keyspace: Option<String>,
     redis_url: String,
     instancename: String,
     welcome: String,
@@ -170,11 +171,11 @@ async fn main() {
     // HSTS is only meaningful over HTTPS; pre-compute the flag used in the middleware.
     let hsts_active = tls_cert.is_some() && enable_hsts;
 
-    let pool = PgPoolOptions::new()
-        .max_connections(100)
-        .connect(&config.dbconnection)
+    let keyspace = config.scylla_keyspace.clone().unwrap_or_else(|| "videoplatform".to_string());
+    let db = ScyllaDb::connect(&config.scylla_nodes, &keyspace)
         .await
-        .unwrap();
+        .expect("Failed to connect to ScyllaDB");
+    println!("ScyllaDB connected: nodes={:?}, keyspace={}", &config.scylla_nodes, keyspace);
 
     let meilisearch_client = MeilisearchClient::new(
         &config.meilisearch_url,
@@ -420,7 +421,7 @@ async fn main() {
         .route("/hx/group/{groupid}/removemember/{login}", get(hx_remove_group_member))
         .route("/hx/usergroups.json", get(hx_user_groups_json))
         .nest("/source", static_router("source"))
-        .layer(Extension(pool))
+        .layer(Extension(db))
         .layer(Extension(config))
         .layer(Extension(redis_conn))
         .layer(Extension(Arc::new(meilisearch_client)))

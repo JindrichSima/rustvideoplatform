@@ -21,21 +21,21 @@ async fn trending(
 
 async fn hx_trending(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, pool, redis, headers, 0).await
+    hx_trending_inner(config, db, redis, headers, 0).await
 }
 
 async fn hx_trending_page(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(page): Path<i64>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, pool, redis, headers, page).await
+    hx_trending_inner(config, db, redis, headers, page).await
 }
 
 /// Try to load a page of trending media from the Redis cache.
@@ -99,7 +99,7 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
 
 async fn hx_trending_inner(
     config: Config,
-    pool: PgPool,
+    db: ScyllaDb,
     mut redis: RedisConn,
     headers: HeaderMap,
     page: i64,
@@ -110,35 +110,9 @@ async fn hx_trending_inner(
     let mut media = match try_trending_from_cache(&mut redis, offset).await {
         Some(cached) => cached,
         None => {
-            // Cache not available — fall back to direct DB query
-            let user = get_user_login(headers, &pool, redis.clone()).await;
-            let user_login = user.map(|u| u.login).unwrap_or_default();
-            sqlx::query(
-                "SELECT m.id, m.name, m.owner, m.views, m.type \
-                 FROM media m \
-                 LEFT JOIN media_likes ml ON m.id = ml.media_id \
-                 WHERE m.visibility = 'public' OR (m.visibility = 'restricted' AND (m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1) OR (m.restricted_to_group = '__all_registered__' AND $1 != '') OR (m.restricted_to_group = '__subscribers__' AND $1 != '' AND m.owner IN (SELECT target FROM subscriptions WHERE subscriber = $1)))) \
-                 GROUP BY m.id, m.name, m.owner, m.views, m.type \
-                 ORDER BY COUNT(*) FILTER (WHERE ml.reaction = 'like') DESC LIMIT 31 OFFSET $2;"
-            )
-            .bind(&user_login)
-            .bind(offset)
-            .map(|row: sqlx::postgres::PgRow| {
-                use sqlx::Row;
-                Medium {
-                    id: row.get("id"),
-                    name: row.get("name"),
-                    owner: row.get("owner"),
-                    views: row.get("views"),
-                    r#type: row.get("type"),
-                    sprite_filename: None,
-                    sprite_x: 0,
-                    sprite_y: 0,
-                }
-            })
-            .fetch_all(&pool)
-            .await
-            .expect("Database error")
+            // Cache not available — trending is cache-driven, so return empty.
+            // The indexer will populate the cache.
+            Vec::new()
         }
     };
 

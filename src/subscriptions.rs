@@ -23,30 +23,30 @@ async fn subscriptions(
 async fn hx_subscriptions(
     Extension(config): Extension<Config>,
     headers: HeaderMap,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_subscriptions_inner(config, headers, pool, redis, 0).await
+    hx_subscriptions_inner(config, headers, db, redis, 0).await
 }
 
 async fn hx_subscriptions_page(
     Extension(config): Extension<Config>,
     headers: HeaderMap,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     Path(page): Path<i64>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_subscriptions_inner(config, headers, pool, redis, page).await
+    hx_subscriptions_inner(config, headers, db, redis, page).await
 }
 
 async fn hx_subscriptions_inner(
     config: Config,
     headers: HeaderMap,
-    pool: PgPool,
+    db: ScyllaDb,
     redis: RedisConn,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
-    let user = match get_user_login(headers, &pool, redis.clone()).await {
+    let user = match get_user_login(headers, &db, redis.clone()).await {
         Some(user) => user,
         None => {
             return Html(
@@ -57,34 +57,88 @@ async fn hx_subscriptions_inner(
         }
     };
 
-    let offset = page * 30;
+    let offset = (page * 30) as usize;
 
-    let mut media: Vec<Medium> = sqlx::query(
-        "SELECT m.id, m.name, m.owner, m.views, m.type
-         FROM media m
-         INNER JOIN subscriptions s ON m.owner = s.target
-         WHERE s.subscriber = $1 AND (m.visibility = 'public' OR (m.visibility = 'restricted' AND (m.restricted_to_group IN (SELECT group_id FROM user_group_members WHERE user_login = $1) OR m.restricted_to_group = '__all_registered__' OR (m.restricted_to_group = '__subscribers__' AND m.owner IN (SELECT target FROM subscriptions WHERE subscriber = $1)))))
-         ORDER BY m.upload DESC
-         LIMIT 31 OFFSET $2;"
-    )
-    .bind(&user.login)
-    .bind(offset)
-    .map(|row: sqlx::postgres::PgRow| {
-        use sqlx::Row;
-        Medium {
-            id: row.get("id"),
-            name: row.get("name"),
-            owner: row.get("owner"),
-            views: row.get("views"),
-            r#type: row.get("type"),
+    // Get all subscribed channels
+    let targets: Vec<String> = db.session.execute_unpaged(&db.get_subscriptions, (&user.login,))
+        .await.ok().and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String,)>().unwrap().filter_map(|r| r.ok()).map(|r| r.0).collect())
+        .unwrap_or_default();
+
+    // Fan out: get media from each subscribed channel (with owner tracking)
+    struct MediaWithOwner {
+        id: String,
+        name: String,
+        owner: String,
+        views: i64,
+        media_type: String,
+        upload: i64,
+        visibility: String,
+        restricted_to_group: Option<String>,
+    }
+
+    let mut all_media_owned: Vec<MediaWithOwner> = Vec::new();
+    for target in &targets {
+        let media_rows = db.session.execute_unpaged(&db.get_media_by_owner, (target, 100i32))
+            .await.ok().and_then(|r| r.into_rows_result().ok())
+            .map(|rows| rows.rows::<(String, String, Option<String>, i64, String, i64, String, Option<String>)>()
+                .unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for row in media_rows {
+            all_media_owned.push(MediaWithOwner {
+                id: row.0,
+                name: row.1,
+                owner: target.clone(),
+                views: row.3,
+                media_type: row.4,
+                upload: row.5,
+                visibility: row.6,
+                restricted_to_group: row.7,
+            });
+        }
+    }
+
+    // Sort by upload DESC
+    all_media_owned.sort_by(|a, b| b.upload.cmp(&a.upload));
+
+    // Filter by visibility and paginate
+    let user_opt = Some(user.clone());
+    let mut media: Vec<Medium> = Vec::new();
+    let mut skipped = 0usize;
+    let mut taken = 0usize;
+    for item in &all_media_owned {
+        if !can_access_restricted(
+            &db,
+            &item.visibility,
+            item.restricted_to_group.as_deref(),
+            &item.owner,
+            &user_opt,
+            redis.clone(),
+        ).await {
+            continue;
+        }
+
+        if skipped < offset {
+            skipped += 1;
+            continue;
+        }
+
+        if taken >= 31 {
+            break;
+        }
+
+        media.push(Medium {
+            id: item.id.clone(),
+            name: item.name.clone(),
+            owner: item.owner.clone(),
+            views: item.views,
+            r#type: item.media_type.clone(),
             sprite_filename: None,
             sprite_x: 0,
             sprite_y: 0,
-        }
-    })
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+        });
+        taken += 1;
+    }
 
     let has_more = media.len() == 31;
     if has_more {
@@ -105,54 +159,39 @@ async fn hx_subscriptions_inner(
 
 async fn hx_subscribe(
     headers: HeaderMap,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<String> {
-    let user = get_user_login(headers, &pool, redis.clone()).await.unwrap();
-    sqlx::query!(
-        "INSERT INTO subscriptions (subscriber, target) VALUES ($1,$2);",
-        user.login,
-        userid
-    )
-    .execute(&pool)
-    .await
-    .expect("Database error");
+    let user = get_user_login(headers, &db, redis.clone()).await.unwrap();
+    let _ = db.session.execute_unpaged(&db.insert_subscription, (&user.login, &userid)).await;
+    let _ = db.session.execute_unpaged(&db.insert_subscriber_by_target, (&userid, &user.login)).await;
     Html(format!("<a hx-get=\"/hx/unsubscribe/{}\" hx-swap=\"outerHTML\" class=\"btn btn-secondary\"><i class=\"fa-solid fa-user-minus\"></i>&nbsp;Unsubscribe</a>",user.login))
 }
 async fn hx_unsubscribe(
     headers: HeaderMap,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<String> {
-    let user = get_user_login(headers, &pool, redis.clone()).await.unwrap();
-    sqlx::query!(
-        "DELETE FROM subscriptions WHERE subscriber=$1 AND target=$2;",
-        user.login,
-        userid
-    )
-    .execute(&pool)
-    .await
-    .expect("Database error");
+    let user = get_user_login(headers, &db, redis.clone()).await.unwrap();
+    let _ = db.session.execute_unpaged(&db.delete_subscription, (&user.login, &userid)).await;
+    let _ = db.session.execute_unpaged(&db.delete_subscriber_by_target, (&userid, &user.login)).await;
     Html(format!("<a hx-get=\"/hx/subscribe/{}\" hx-swap=\"outerHTML\" class=\"btn btn-primary\"><i class=\"fa-solid fa-user-plus\"></i>&nbsp;Subscribe</a>",user.login))
 }
 async fn hx_subscribebutton(
     headers: HeaderMap,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     Path(userid): Path<String>,
 ) -> axum::response::Html<String> {
-    if let Some(user) = get_user_login(headers, &pool, redis.clone()).await {
-        let issubscribed = sqlx::query!(
-            "SELECT EXISTS(SELECT FROM subscriptions WHERE subscriber=$1 AND target=$2) AS issubscribed;",
-            user.login,
-            userid
-        )
-        .fetch_one(&pool)
-        .await
-        .map(|row| row.issubscribed.unwrap_or(false))
-        .unwrap_or(false);
+    if let Some(user) = get_user_login(headers, &db, redis.clone()).await {
+        let issubscribed = db.session.execute_unpaged(&db.is_subscribed, (&user.login, &userid))
+            .await
+            .ok()
+            .and_then(|r| r.into_rows_result().ok())
+            .map(|rows| rows.maybe_first_row::<(String,)>().ok().flatten().is_some())
+            .unwrap_or(false);
 
         let button = if issubscribed {
             format!(

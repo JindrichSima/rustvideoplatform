@@ -27,30 +27,26 @@ async fn convert_subtitle_to_vtt(content: Vec<u8>, input_format: &str) -> Option
 }
 
 async fn studio_subtitles_get(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::Value::Array(vec![]));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Json(serde_json::Value::Array(vec![]));
-            }
-        }
-        Err(_) => {
-            return Json(serde_json::Value::Array(vec![]));
-        }
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        _ => return Json(serde_json::Value::Array(vec![])),
     }
 
     let list_path = format!("source/{}/captions/list.txt", mediumid);
@@ -76,13 +72,13 @@ async fn studio_subtitles_get(
 }
 
 async fn studio_subtitles_add(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     mut multipart: Multipart,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -92,25 +88,19 @@ async fn studio_subtitles_add(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from("{\"error\":\"not authorized\"}"))
-                    .unwrap();
-            }
-        }
-        Err(_) => {
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        _ => {
             return Response::builder()
-                .status(StatusCode::NOT_FOUND)
+                .status(StatusCode::FORBIDDEN)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(Body::from("{\"error\":\"media not found\"}"))
+                .body(Body::from("{\"error\":\"not authorized\"}"))
                 .unwrap();
         }
     }
@@ -246,23 +236,25 @@ async fn studio_subtitles_add(
 }
 
 async fn studio_subtitle_font_get(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::json!({ "exists": false }));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) if record.owner == user_info.login => {}
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
         _ => return Json(serde_json::json!({ "exists": false })),
     }
 
@@ -272,13 +264,13 @@ async fn studio_subtitle_font_get(
 }
 
 async fn studio_subtitle_font_upload(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     mut multipart: Multipart,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -288,25 +280,19 @@ async fn studio_subtitle_font_upload(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from("{\"error\":\"not authorized\"}"))
-                    .unwrap();
-            }
-        }
-        Err(_) => {
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        _ => {
             return Response::builder()
-                .status(StatusCode::NOT_FOUND)
+                .status(StatusCode::FORBIDDEN)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(Body::from("{\"error\":\"media not found\"}"))
+                .body(Body::from("{\"error\":\"not authorized\"}"))
                 .unwrap();
         }
     }
@@ -414,12 +400,12 @@ async fn studio_subtitle_font_upload(
 }
 
 async fn studio_subtitle_font_delete(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -429,25 +415,19 @@ async fn studio_subtitle_font_delete(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from("{\"error\":\"not authorized\"}"))
-                    .unwrap();
-            }
-        }
-        Err(_) => {
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        _ => {
             return Response::builder()
-                .status(StatusCode::NOT_FOUND)
+                .status(StatusCode::FORBIDDEN)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(Body::from("{\"error\":\"media not found\"}"))
+                .body(Body::from("{\"error\":\"not authorized\"}"))
                 .unwrap();
         }
     }
@@ -462,34 +442,38 @@ async fn studio_subtitle_font_delete(
 }
 
 async fn studio_subtitles_translate_status(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Json<serde_json::Value> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Json(serde_json::json!({ "in_progress": false }));
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) if record.owner == user_info.login => {}
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
         _ => return Json(serde_json::json!({ "in_progress": false })),
     }
 
     let concept_id = format!("{}_translate", mediumid);
-    let result = sqlx::query!("SELECT processed FROM media_concepts WHERE id=$1;", concept_id)
-        .fetch_optional(&pool)
-        .await;
+    let concept_row = db.session.execute_unpaged(&db.get_concept, (&concept_id,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String, String, String, bool)>().ok().flatten());
 
-    let in_progress = match result {
-        Ok(Some(row)) => !row.processed,
-        _ => false,
+    let in_progress = match concept_row {
+        Some((_id, _name, _type, processed)) => !processed,
+        None => false,
     };
 
     Json(serde_json::json!({ "in_progress": in_progress }))
@@ -502,13 +486,13 @@ struct SubtitleTranslateForm {
 }
 
 async fn studio_subtitles_translate(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(form): Json<SubtitleTranslateForm>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -518,25 +502,19 @@ async fn studio_subtitles_translate(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from("{\"error\":\"not authorized\"}"))
-                    .unwrap();
-            }
-        }
-        Err(_) => {
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        _ => {
             return Response::builder()
-                .status(StatusCode::NOT_FOUND)
+                .status(StatusCode::FORBIDDEN)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(Body::from("{\"error\":\"media not found\"}"))
+                .body(Body::from("{\"error\":\"not authorized\"}"))
                 .unwrap();
         }
     }
@@ -592,27 +570,35 @@ async fn studio_subtitles_translate(
     }
 
     // Upsert concept: delete any existing translation job for this medium, then insert new one
-    let _ = sqlx::query("DELETE FROM media_concepts WHERE id=$1;")
-        .bind(&concept_id)
-        .execute(&pool)
-        .await;
+    let _ = db.session.execute_unpaged(&db.delete_concept, (&concept_id,)).await;
+    let _ = db.session.execute_unpaged(&db.delete_concept_by_owner, (&user_info.login, &concept_id)).await;
+    let _ = db.session.execute_unpaged(&db.delete_unprocessed_concept, (&concept_id,)).await;
 
     let concept_name = format!("Translate {} -> {}", source_label, target_language);
-    if let Err(_) = sqlx::query(
-        "INSERT INTO media_concepts (id, name, owner, type, processed) VALUES ($1, $2, $3, 'vtt_translate', false)"
-    )
-    .bind(&concept_id)
-    .bind(&concept_name)
-    .bind(&user_info.login)
-    .execute(&pool)
-    .await
-    {
+    let concept_type = "vtt_translate";
+
+    let insert_result = db.session.execute_unpaged(
+        &db.insert_concept,
+        (&concept_id, &concept_name, &user_info.login, concept_type),
+    ).await;
+
+    if insert_result.is_err() {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .header(axum::http::header::CONTENT_TYPE, "application/json")
             .body(Body::from("{\"error\":\"failed to queue translation job\"}"))
             .unwrap();
     }
+
+    let _ = db.session.execute_unpaged(
+        &db.insert_concept_by_owner,
+        (&user_info.login, &concept_id, &concept_name, concept_type),
+    ).await;
+
+    let _ = db.session.execute_unpaged(
+        &db.insert_unprocessed_concept,
+        (&concept_id, concept_type),
+    ).await;
 
     Response::builder()
         .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -626,13 +612,13 @@ struct SubtitleDeleteForm {
 }
 
 async fn studio_subtitles_delete(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
     Json(form): Json<SubtitleDeleteForm>,
 ) -> Response<Body> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -642,25 +628,19 @@ async fn studio_subtitles_delete(
     }
     let user_info = user_info.unwrap();
 
-    let media_owner = sqlx::query!("SELECT owner FROM media WHERE id=$1;", mediumid)
-        .fetch_one(&pool)
-        .await;
+    let owner_row = db.session.execute_unpaged(&db.get_media_owner, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten());
 
-    match media_owner {
-        Ok(record) => {
-            if record.owner != user_info.login {
-                return Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from("{\"error\":\"not authorized\"}"))
-                    .unwrap();
-            }
-        }
-        Err(_) => {
+    match owner_row {
+        Some((owner,)) if owner == user_info.login => {}
+        _ => {
             return Response::builder()
-                .status(StatusCode::NOT_FOUND)
+                .status(StatusCode::FORBIDDEN)
                 .header(axum::http::header::CONTENT_TYPE, "application/json")
-                .body(Body::from("{\"error\":\"media not found\"}"))
+                .body(Body::from("{\"error\":\"not authorized\"}"))
                 .unwrap();
         }
     }

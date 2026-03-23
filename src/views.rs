@@ -1,13 +1,22 @@
 async fn hx_new_view(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
+    Extension(mut redis): Extension<RedisConn>,
     Path(mediumid): Path<String>,
 ) -> axum::response::Html<String> {
-    let update_views = sqlx::query!(
-        "UPDATE media SET views = views + 1 WHERE id=$1 RETURNING views;",
-        mediumid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
-    Html(update_views.views.to_string())
+    // Increment counter in ScyllaDB
+    let _ = db.session.execute_unpaged(&db.increment_view_count, (&mediumid,)).await;
+
+    // Also update the main media table views (read counter, update main)
+    let views: i64 = db.session.execute_unpaged(&db.get_view_count, (&mediumid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(scylla::frame::response::result::CqlValue,)>().ok().flatten())
+        .map(|r| match r.0 {
+            scylla::frame::response::result::CqlValue::Counter(c) => c.0,
+            _ => 0,
+        })
+        .unwrap_or(0);
+
+    Html(views.to_string())
 }

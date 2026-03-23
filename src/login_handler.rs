@@ -28,25 +28,24 @@ struct User {
 
 async fn hx_login(
     Extension(config): Extension<Config>,
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(mut redis): Extension<RedisConn>,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
-    let password_hash_get = sqlx::query!(
-        "SELECT password_hash FROM users WHERE login=$1;",
-        form.login
-    )
-    .fetch_one(&pool)
-    .await;
+    let password_hash_result = db.session.execute_unpaged(&db.get_user_password, (&form.login,)).await;
 
-    if password_hash_get.is_err() {
-        let response_headers = HeaderMap::new();
-        let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
-
-        return (StatusCode::OK, response_headers, response_body);
-    }
-
-    let password_hash = password_hash_get.unwrap().password_hash;
+    let password_hash = match password_hash_result
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten())
+    {
+        Some(row) => row.0,
+        None => {
+            let response_headers = HeaderMap::new();
+            let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
+            return (StatusCode::OK, response_headers, response_body);
+        }
+    };
 
     if Argon2::default()
         .verify_password(
@@ -56,13 +55,13 @@ async fn hx_login(
         .is_ok()
     {
         // Check if TOTP is enabled for this user
-        let totp_enabled: bool = sqlx::query_scalar(
-            "SELECT totp_enabled FROM users WHERE login=$1",
-        )
-        .bind(&form.login)
-        .fetch_one(&pool)
-        .await
-        .unwrap_or(false);
+        let totp_enabled: bool = db.session.execute_unpaged(&db.get_user_totp_enabled, (&form.login,))
+            .await
+            .ok()
+            .and_then(|r| r.into_rows_result().ok())
+            .and_then(|rows| rows.maybe_first_row::<(Option<bool>,)>().ok().flatten())
+            .map(|r| r.0.unwrap_or(false))
+            .unwrap_or(false);
 
         if totp_enabled {
             // Create a short-lived pending session and ask for TOTP code

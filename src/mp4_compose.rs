@@ -80,22 +80,21 @@ fn xml_attr<'a>(element: &'a str, attr: &str) -> Option<&'a str> {
 }
 
 async fn stream_video_as_mp4(
-    pool: &PgPool,
+    db: &ScyllaDb,
     redis: RedisConn,
     headers: HeaderMap,
     medium_id: &str,
     lowest_quality: bool,
 ) -> Response<Body> {
-    let medium_row = sqlx::query(
-        "SELECT m.id, m.name, m.type, m.visibility, m.restricted_to_group, m.owner FROM media m WHERE m.id=$1;"
-    )
-    .bind(medium_id)
-    .fetch_optional(pool)
-    .await;
+    let medium_row = db.session.execute_unpaged(&db.get_media_basic, (medium_id,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String, String, String, String, Option<String>, String)>().ok().flatten());
 
-    let medium = match medium_row {
-        Ok(Some(row)) => row,
-        _ => {
+    let (id, name, owner, visibility, restricted_to_group, medium_type) = match medium_row {
+        Some(row) => row,
+        None => {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::empty())
@@ -103,8 +102,6 @@ async fn stream_video_as_mp4(
         }
     };
 
-    use sqlx::Row;
-    let medium_type: String = medium.get("type");
     if medium_type != "video" {
         return Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -112,13 +109,10 @@ async fn stream_video_as_mp4(
             .unwrap();
     }
 
-    let visibility: String = medium.get("visibility");
-    let restricted_to_group: Option<String> = medium.get("restricted_to_group");
-    let owner: String = medium.get("owner");
-    let user = get_user_login(headers, pool, redis.clone()).await;
+    let user = get_user_login(headers, &db, redis.clone()).await;
 
     if !can_access_restricted(
-        pool,
+        &db,
         &visibility,
         restricted_to_group.as_deref(),
         &owner,
@@ -217,8 +211,7 @@ async fn stream_video_as_mp4(
         let _ = child.wait().await;
     });
 
-    let medium_name: String = medium.get("name");
-    let safe_filename: String = medium_name
+    let safe_filename: String = name
         .chars()
         .map(|c| {
             if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' || c == '.' {
@@ -246,19 +239,19 @@ async fn stream_video_as_mp4(
 }
 
 async fn compose_mp4_sm(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    stream_video_as_mp4(&pool, redis, headers, &mediumid.to_ascii_lowercase(), true).await
+    stream_video_as_mp4(&db, redis, headers, &mediumid.to_ascii_lowercase(), true).await
 }
 
 async fn compose_mp4(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Response<Body> {
-    stream_video_as_mp4(&pool, redis, headers, &mediumid.to_ascii_lowercase(), false).await
+    stream_video_as_mp4(&db, redis, headers, &mediumid.to_ascii_lowercase(), false).await
 }

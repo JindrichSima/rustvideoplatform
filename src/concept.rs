@@ -7,12 +7,12 @@ struct MediumConcept {
 }
 
 async fn concepts(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(config): Extension<Config>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    if !is_logged(get_user_login(headers.clone(), &pool, redis.clone()).await).await {
+    if !is_logged(get_user_login(headers.clone(), &db, redis.clone()).await).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
         ));
@@ -35,20 +35,30 @@ struct HXConceptsTemplate {
     concepts: Vec<MediumConcept>,
 }
 async fn hx_concepts(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let userinfo = get_user_login(headers, &pool, redis.clone()).await.unwrap();
+    let userinfo = get_user_login(headers, &db, redis.clone()).await.unwrap();
 
-    let concepts = sqlx::query_as!(
-        MediumConcept,
-        "SELECT id,name,processed,type FROM media_concepts WHERE owner = $1;",
-        userinfo.login
-    )
-    .fetch_all(&pool)
-    .await
-    .expect("Database error");
+    let rows: Vec<(String, String, String, bool)> = db.session
+        .execute_unpaged(&db.get_concepts_by_owner, (&userinfo.login,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String, String, String, bool)>().unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    let concepts: Vec<MediumConcept> = rows
+        .into_iter()
+        .map(|(id, name, r#type, processed)| MediumConcept {
+            id,
+            name,
+            processed,
+            r#type,
+        })
+        .collect();
+
     let template = HXConceptsTemplate { concepts };
     Html(minifi_html(template.render().unwrap()))
 }
@@ -63,13 +73,13 @@ struct ConceptTemplate {
     owner_groups: Vec<UserGroup>,
 }
 async fn concept(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(config): Extension<Config>,
     Extension(redis): Extension<RedisConn>,
     Path(conceptid): Path<String>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html(minifi_html(
             "<script>window.location.replace(\"/login\");</script>".to_owned(),
@@ -77,28 +87,67 @@ async fn concept(
     }
     let user_info = user_info.unwrap();
 
-    let concept = sqlx::query_as!(MediumConcept,
-        "SELECT id,name,type,processed FROM media_concepts WHERE owner = $1 AND id = $2 AND processed = true;", user_info.login, conceptid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    // Query concept by id, then verify owner at application level
+    let concept_row = db.session
+        .execute_unpaged(&db.get_concept, (&conceptid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String, String, String, bool)>().ok().flatten());
+
+    let concept_row = match concept_row {
+        Some(row) => row,
+        None => {
+            return Html(minifi_html(
+                "<script>window.location.replace(\"/studio/concepts\");</script>".to_owned(),
+            ));
+        }
+    };
+
+    let (id, name, r#type, processed) = concept_row;
+
+    // Verify owner by checking the concepts_by_owner table for this user and concept
+    let owner_check: Vec<(String, String, String, bool)> = db.session
+        .execute_unpaged(&db.get_concepts_by_owner, (&user_info.login,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String, String, String, bool)>().unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    let is_owner = owner_check.iter().any(|(cid, _, _, _)| cid == &conceptid);
+    if !is_owner || !processed {
+        return Html(minifi_html(
+            "<script>window.location.replace(\"/studio/concepts\");</script>".to_owned(),
+        ));
+    }
+
+    let concept = MediumConcept {
+        id,
+        name,
+        processed,
+        r#type,
+    };
 
     // Fetch user's groups for the dropdown (system groups + user groups)
     let mut owner_groups = system_groups_for_owner(&user_info.login);
-    let user_groups: Vec<UserGroup> = sqlx::query("SELECT id, name, owner FROM user_groups WHERE owner = $1 ORDER BY created DESC;")
-        .bind(&user_info.login)
-        .map(|row: sqlx::postgres::PgRow| {
-            use sqlx::Row;
-            UserGroup {
-                id: row.get("id"),
-                name: row.get("name"),
-                owner: row.get("owner"),
-            }
-        })
-        .fetch_all(&pool)
+
+    let group_rows: Vec<(String, String, i64)> = db.session
+        .execute_unpaged(&db.get_groups_by_owner, (&user_info.login,))
         .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String, String, i64)>().unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
         .unwrap_or_default();
+
+    let user_groups: Vec<UserGroup> = group_rows
+        .into_iter()
+        .map(|(id, name, _created)| UserGroup {
+            id,
+            name,
+            owner: user_info.login.clone(),
+        })
+        .collect();
     owner_groups.extend(user_groups);
 
     let sidebar = generate_sidebar(&config, "studio".to_owned());
@@ -122,24 +171,55 @@ struct PublishForm {
     medium_restricted_group: Option<String>,
 }
 async fn publish(
-    Extension(pool): Extension<PgPool>,
+    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
     headers: HeaderMap,
     Path(conceptid): Path<String>,
     Form(form): Form<PublishForm>,
 ) -> axum::response::Html<String> {
-    let user_info = get_user_login(headers.clone(), &pool, redis.clone()).await;
+    let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
     if !is_logged(user_info.clone()).await {
         return Html("<script>window.location.replace(\"/login\");</script>".to_owned());
     }
     let user_info = user_info.unwrap();
 
-    let concept = sqlx::query_as!(MediumConcept,
-        "SELECT id,name,type,processed FROM media_concepts WHERE owner = $1 AND id = $2 AND processed = true;", user_info.login, conceptid
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Database error");
+    // Query concept by id, then verify owner at application level
+    let concept_row = db.session
+        .execute_unpaged(&db.get_concept, (&conceptid,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String, String, String, bool)>().ok().flatten());
+
+    let concept_row = match concept_row {
+        Some(row) => row,
+        None => {
+            return Html("<script>window.location.replace(\"/studio/concepts\");</script>".to_owned());
+        }
+    };
+
+    let (id, name, r#type, processed) = concept_row;
+
+    // Verify owner via concepts_by_owner
+    let owner_check: Vec<(String, String, String, bool)> = db.session
+        .execute_unpaged(&db.get_concepts_by_owner, (&user_info.login,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String, String, String, bool)>().unwrap().filter_map(|r| r.ok()).collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    let is_owner = owner_check.iter().any(|(cid, _, _, _)| cid == &conceptid);
+    if !is_owner || !processed {
+        return Html("<script>window.location.replace(\"/studio/concepts\");</script>".to_owned());
+    }
+
+    let concept = MediumConcept {
+        id,
+        name,
+        processed,
+        r#type,
+    };
 
     let concept_move = move_dir(
         format!("upload/{}_processing", conceptid).as_str(),
@@ -157,24 +237,31 @@ async fn publish(
         } else {
             None
         };
-        let description: serde_json::Value =
-            serde_json::from_str(&form.medium_description).unwrap_or(serde_json::Value::Null);
-        let _ = sqlx::query(
-            "INSERT INTO media (id,name,description,owner,public,visibility,restricted_to_group,type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);"
-        )
-        .bind(form.medium_id.to_ascii_lowercase())
-        .bind(&form.medium_name)
-        .bind(&description)
-        .bind(&user_info.login)
-        .bind(ispublic)
-        .bind(&visibility)
-        .bind(&restricted_to_group)
-        .bind(&concept.r#type)
-        .execute(&pool)
-        .await;
-        let _ = sqlx::query!("DELETE FROM media_concepts WHERE id=$1;", concept.id)
-            .execute(&pool)
-            .await;
+        let description = form.medium_description.clone();
+        let upload_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let medium_id_lower = form.medium_id.to_ascii_lowercase();
+
+        // Insert into media table
+        let _ = db.session.execute_unpaged(
+            &db.insert_media,
+            (&medium_id_lower, &form.medium_name, &description, &upload_ts, &user_info.login, &concept.r#type, &ispublic, &visibility, &restricted_to_group),
+        ).await;
+
+        // Insert into media_by_owner table
+        let views = 0i64;
+        let _ = db.session.execute_unpaged(
+            &db.insert_media_by_owner,
+            (&user_info.login, &upload_ts, &medium_id_lower, &form.medium_name, &description, &views, &concept.r#type, &ispublic, &visibility, &restricted_to_group),
+        ).await;
+
+        // Delete the concept from all tables
+        let _ = db.session.execute_unpaged(&db.delete_concept, (&concept.id,)).await;
+        let _ = db.session.execute_unpaged(&db.delete_concept_by_owner, (&user_info.login, &concept.id)).await;
+        let _ = db.session.execute_unpaged(&db.delete_unprocessed_concept, (&concept.id,)).await;
+
         return Html(format!(
             "<script>window.location.replace(\"/m/{}\");</script>",
             form.medium_id
