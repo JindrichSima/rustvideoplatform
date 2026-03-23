@@ -105,11 +105,11 @@ async fn get_user_login(
         .ok()?;
 
     let result = db.session.execute_unpaged(&db.get_user_by_login, (&login,)).await.ok()?;
-    let row = result.into_rows_result().ok()?.maybe_first_row::<(String, Option<String>)>().ok()??;
+    let row = result.into_rows_result().ok()?.maybe_first_row::<(Option<String>, Option<String>)>().ok()??;
 
     Some(User {
         login,
-        name: row.0,
+        name: row.0.unwrap_or_default(),
         profile_picture: row.1,
     })
 }

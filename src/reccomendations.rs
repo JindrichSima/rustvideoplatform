@@ -1,8 +1,6 @@
 async fn hx_recommended(
     Extension(config): Extension<Config>,
     Extension(db): Extension<ScyllaDb>,
-    Extension(redis): Extension<RedisConn>,
-    headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
     let mediumid = mediumid.to_ascii_lowercase();

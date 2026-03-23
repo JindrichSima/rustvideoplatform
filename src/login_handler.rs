@@ -106,7 +106,7 @@ async fn hx_login(
         }
         let session_cookie_set = format!("session={}; {}", session_cookie_value, session_restriction);
         if redis
-            .set(format!("session:{}", session_cookie_value), &form.login)
+            .set::<_, _, ()>(format!("session:{}", session_cookie_value), &form.login)
             .await
             .is_err()
         {

@@ -21,21 +21,17 @@ async fn trending(
 
 async fn hx_trending(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
-    headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, db, redis, headers, 0).await
+    hx_trending_inner(config, redis, 0).await
 }
 
 async fn hx_trending_page(
     Extension(config): Extension<Config>,
-    Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
-    headers: HeaderMap,
     Path(page): Path<i64>,
 ) -> axum::response::Html<Vec<u8>> {
-    hx_trending_inner(config, db, redis, headers, page).await
+    hx_trending_inner(config, redis, page).await
 }
 
 /// Try to load a page of trending media from the Redis cache.
@@ -99,9 +95,7 @@ async fn try_trending_from_cache(redis: &mut RedisConn, offset: i64) -> Option<V
 
 async fn hx_trending_inner(
     config: Config,
-    db: ScyllaDb,
     mut redis: RedisConn,
-    headers: HeaderMap,
     page: i64,
 ) -> axum::response::Html<Vec<u8>> {
     let offset = page * 30;

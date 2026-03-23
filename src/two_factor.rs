@@ -145,11 +145,8 @@ async fn hx_login_2fa_totp(
             .parse()
             .unwrap(),
     );
-    (
-        StatusCode::OK,
-        headers,
-        "<b class=\"text-success\">Login successful!</b><script>window.location.replace('/');</script>".to_owned(),
-    )
+    headers.insert("HX-Redirect", "/".parse().unwrap());
+    (StatusCode::OK, headers, String::new())
 }
 
 // ── TOTP settings ────────────────────────────────────────────────────────────

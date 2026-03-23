@@ -94,7 +94,7 @@ async fn hx_studio_inner(
     // App-level pagination: skip and take
     let remaining: Vec<_> = all_rows.into_iter().skip(skip).collect();
     let has_more = remaining.len() > 40;
-    let mut media: Vec<MediumStudio> = remaining.into_iter().take(40).map(|(id, name, description, views, media_type, _upload, _visibility, _restricted_to_group)| {
+    let media: Vec<MediumStudio> = remaining.into_iter().take(40).map(|(id, name, description, views, media_type, _upload, _visibility, _restricted_to_group)| {
         MediumStudio {
             id,
             name,
