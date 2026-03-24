@@ -462,7 +462,7 @@ fn get_kernel_version() -> String {
 
 async fn get_scylla_version(db: &ScyllaDb) -> String {
     db.session
-        .query_unpaged("SELECT release_version FROM system.local", ())
+        .query_unpaged("SHOW VERSION", ())
         .await
         .ok()
         .and_then(|r| r.into_rows_result().ok())
