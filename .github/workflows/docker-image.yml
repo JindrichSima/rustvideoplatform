@@ -27,6 +27,9 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: panmourovaty/rustvideoplatform:dev
+          build-args: |
+            GIT_COMMIT_HASH=${{ github.sha }}
+            GIT_BRANCH=${{ github.ref_name }}
 
   build-primary:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -59,6 +62,9 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=panmourovaty/rustvideoplatform,push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            GIT_COMMIT_HASH=${{ github.sha }}
+            GIT_BRANCH=${{ github.ref_name }}
 
       - name: Export digest
         run: |
@@ -109,6 +115,9 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=panmourovaty/rustvideoplatform,push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            GIT_COMMIT_HASH=${{ github.sha }}
+            GIT_BRANCH=${{ github.ref_name }}
 
       - name: Export digest
         run: |

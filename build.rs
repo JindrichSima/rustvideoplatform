@@ -18,38 +18,48 @@ fn command_exists(program: &str) -> bool {
 
 fn main() {
     // --- Git commit hash ---
-    let output = Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .output();
-
-    let git_hash = match output {
-        Ok(o) if o.status.success() => {
-            let hash = String::from_utf8(o.stdout)
-                .unwrap_or_default()
-                .trim()
-                .to_owned();
-            if hash.is_empty() { "unknown".to_owned() } else { hash }
-        }
-        _ => "unknown".to_owned(),
-    };
+    // Prefer value injected via Docker build-arg / environment variable (set during CI builds
+    // where git is not available inside the container).
+    let git_hash = std::env::var("GIT_COMMIT_HASH")
+        .ok()
+        .filter(|v| !v.is_empty() && v != "unknown")
+        .unwrap_or_else(|| {
+            let output = Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .output();
+            match output {
+                Ok(o) if o.status.success() => {
+                    let hash = String::from_utf8(o.stdout)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_owned();
+                    if hash.is_empty() { "unknown".to_owned() } else { hash }
+                }
+                _ => "unknown".to_owned(),
+            }
+        });
 
     println!("cargo:rustc-env=GIT_COMMIT_HASH={}", git_hash);
 
     // --- Git branch ---
-    let branch_output = Command::new("git")
-        .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .output();
-
-    let git_branch = match branch_output {
-        Ok(o) if o.status.success() => {
-            let branch = String::from_utf8(o.stdout)
-                .unwrap_or_default()
-                .trim()
-                .to_owned();
-            if branch.is_empty() { "unknown".to_owned() } else { branch }
-        }
-        _ => "unknown".to_owned(),
-    };
+    let git_branch = std::env::var("GIT_BRANCH")
+        .ok()
+        .filter(|v| !v.is_empty() && v != "unknown")
+        .unwrap_or_else(|| {
+            let branch_output = Command::new("git")
+                .args(["rev-parse", "--abbrev-ref", "HEAD"])
+                .output();
+            match branch_output {
+                Ok(o) if o.status.success() => {
+                    let branch = String::from_utf8(o.stdout)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_owned();
+                    if branch.is_empty() { "unknown".to_owned() } else { branch }
+                }
+                _ => "unknown".to_owned(),
+            }
+        });
 
     println!("cargo:rustc-env=GIT_BRANCH={}", git_branch);
     println!("cargo:rerun-if-changed=.git/HEAD");
