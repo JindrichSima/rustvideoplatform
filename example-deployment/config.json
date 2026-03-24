@@ -30,7 +30,7 @@
 
     "translation": {
         "languages": ["en", "cs"],
-        "llama_url": "http://translatellama:8083",
+        "llama_url": "http://llamacpp:8083",
         "source_language": "en",
         "timeout_secs": 500
     },
