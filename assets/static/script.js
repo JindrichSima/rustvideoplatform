@@ -69,6 +69,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Fade-in lazy-loaded HTMX content to reduce flicker
+    document.body.addEventListener('htmx:beforeSwap', (event) => {
+        const t = event.detail.target;
+        if (t && t.classList && (
+            t.classList.contains('hx-placeholder') ||
+            t.classList.contains('sidebar-hx-placeholder') ||
+            t.classList.contains('subscribe-placeholder') ||
+            t.classList.contains('usernav-placeholder')
+        )) {
+            t.style.opacity = '0';
+        }
+    });
+
+    document.body.addEventListener('htmx:afterSettle', (event) => {
+        const t = event.detail.target;
+        if (t && t.style && t.style.opacity === '0') {
+            requestAnimationFrame(() => { t.style.opacity = '1'; });
+        }
+    });
+
     fitMediumTitle();
 });
 

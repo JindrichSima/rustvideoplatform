@@ -15772,6 +15772,31 @@ body.sidebar-collapsed .sidebarbackground {
     min-width: 110px;
 }
 
+/* User nav placeholder in navbar */
+.usernav-placeholder {
+    min-height: 40px;
+}
+
+/* ── Lazy-load fade-in ── */
+
+/* Smooth fade-in when HTMX swaps content into lazy-load placeholders */
+.hx-placeholder,
+.sidebar-hx-placeholder,
+.subscribe-placeholder,
+.usernav-placeholder {
+    transition: opacity 0.2s ease-in;
+}
+
+/* Fade-in for outerHTML swaps (e.g. sidebar items replacing placeholder) */
+@keyframes hxOuterFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.hx-outer-fade-in {
+    animation: hxOuterFadeIn 0.2s ease;
+}
+
 /* Channel profile image container — prevent shift before image loads */
 .channel-picture-container {
     height: 20vh;
