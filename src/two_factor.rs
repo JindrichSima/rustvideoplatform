@@ -134,13 +134,7 @@ async fn hx_login_2fa_totp(
         .await
         .unwrap_or(());
 
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        "Set-Cookie",
-        build_session_cookie(&session_token, &config).parse().unwrap(),
-    );
-    headers.insert("HX-Redirect", "/".parse().unwrap());
-    (StatusCode::OK, headers, String::new())
+    (StatusCode::OK, HeaderMap::new(), build_login_success_response(&session_token, &config))
 }
 
 // ── TOTP settings ────────────────────────────────────────────────────────────
@@ -772,10 +766,7 @@ async fn hx_webauthn_auth_finish(
         .await
         .unwrap();
 
-    let mut response = (StatusCode::OK, axum::Json(serde_json::json!({"success": true})))
-        .into_response();
-    response
-        .headers_mut()
-        .insert(axum::http::header::SET_COOKIE, build_session_cookie(&session_token, &config).parse().unwrap());
-    response
+    let cookie_js = build_session_cookie_js(&session_token, &config);
+    (StatusCode::OK, axum::Json(serde_json::json!({"success": true, "session_cookie": cookie_js})))
+        .into_response()
 }

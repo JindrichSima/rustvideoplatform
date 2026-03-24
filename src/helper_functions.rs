@@ -90,14 +90,22 @@ fn extract_common_headers(headers: &HeaderMap) -> CommonHeaders {
     }
 }
 
-fn build_session_cookie(token: &str, config: &Config) -> String {
+fn build_session_cookie_js(token: &str, config: &Config) -> String {
     let domain_part = match &config.custom_session_domain {
         Some(d) => format!("; Domain={}", d),
         None => String::new(),
     };
     format!(
-        "session={}; Path=/; HttpOnly; SameSite=Lax{}",
+        "session={}; Path=/; SameSite=Lax{}",
         token, domain_part
+    )
+}
+
+fn build_login_success_response(token: &str, config: &Config) -> String {
+    let cookie = build_session_cookie_js(token, config);
+    format!(
+        "<script>document.cookie=\"{}\";window.location.replace('/');</script>",
+        cookie
     )
 }
 

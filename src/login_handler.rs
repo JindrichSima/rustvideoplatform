@@ -109,10 +109,7 @@ async fn hx_login(
             );
         }
 
-        let mut response_headers = HeaderMap::new();
-        response_headers.insert("Set-Cookie", build_session_cookie(&session_cookie_value, &config).parse().unwrap());
-        response_headers.insert("HX-Redirect", "/".parse().unwrap());
-        return (StatusCode::OK, response_headers, String::new());
+        return (StatusCode::OK, HeaderMap::new(), build_login_success_response(&session_cookie_value, &config));
     } else {
         let response_headers = HeaderMap::new();
         let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
