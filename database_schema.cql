@@ -221,6 +221,17 @@ CREATE TABLE IF NOT EXISTS user_groups_by_member (
 );
 
 -- ══════════════════════════════════════════════════════════════════════
+-- VIEW HISTORY (per-user watch history)
+-- ══════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS view_history (
+    user_login text,
+    viewed_at  bigint,
+    media_id   text,
+    PRIMARY KEY (user_login, viewed_at, media_id)
+) WITH CLUSTERING ORDER BY (viewed_at DESC, media_id ASC);
+
+-- ══════════════════════════════════════════════════════════════════════
 -- WEBAUTHN CREDENTIALS
 -- ══════════════════════════════════════════════════════════════════════
 

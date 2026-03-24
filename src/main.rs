@@ -256,6 +256,9 @@ async fn main() {
         .route("/subscriptions", get(subscriptions))
         .route("/hx/subscriptions", get(hx_subscriptions))
         .route("/hx/subscriptions/{page}", get(hx_subscriptions_page))
+        .route("/history", get(history))
+        .route("/hx/history", get(hx_history))
+        .route("/hx/history/{page}", get(hx_history_page))
         .route("/m/{mediumid}", get(medium))
         .route("/m/{mediumid}/previews.vtt", get(medium_previews_prepare))
         .route(
@@ -610,3 +613,4 @@ include!("groups.rs");
 include!("settings.rs");
 include!("two_factor.rs");
 include!("sitemap.rs");
+include!("history.rs");
