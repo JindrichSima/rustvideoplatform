@@ -1,50 +1,38 @@
 async fn hx_recommended(
     Extension(config): Extension<Config>,
     Extension(db): Extension<ScyllaDb>,
+    Extension(redis): Extension<RedisConn>,
+    Extension(meili): Extension<Arc<MeilisearchClient>>,
+    headers: HeaderMap,
     Path(mediumid): Path<String>,
 ) -> Result<Html<Vec<u8>>, axum::response::Response> {
     let mediumid = mediumid.to_ascii_lowercase();
+    let user = get_user_login(headers, &db, redis).await;
+    let visibility_filter = build_visibility_filter(&db, &user).await;
 
-    // Look up the owner of the current medium, then fetch their other public media.
-    let owner: Option<String> = db
-        .session
-        .execute_unpaged(&db.get_media_owner, (&mediumid,))
+    let embedder = config
+        .meilisearch_embedder
+        .as_deref()
+        .unwrap_or("default")
+        .to_owned();
+
+    let index = meili.index("media");
+    let mut query =
+        meilisearch_sdk::similar::SimilarQuery::new(&index, &mediumid, &embedder);
+    query.with_limit(20);
+    query.with_filter(&visibility_filter);
+
+    let media: Vec<Medium> = query
+        .execute::<MeiliMedia>()
         .await
-        .ok()
-        .and_then(|r| r.into_rows_result().ok())
-        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten())
-        .map(|r| r.0);
-
-    let media: Vec<Medium> = if let Some(ref owner) = owner {
-        db.session
-            .execute_unpaged(&db.get_media_by_owner, (owner, 21i32))
-            .await
-            .ok()
-            .and_then(|r| r.into_rows_result().ok())
-            .map(|rows| {
-                rows.rows::<(String, String, Option<String>, i64, String, i64, String, Option<String>)>()
-                    .unwrap()
-                    .filter_map(|r| r.ok())
-                    .filter(|(id, _, _, _, _, _, visibility, _)| {
-                        id != &mediumid && visibility == "public"
-                    })
-                    .take(20)
-                    .map(|(id, name, _, views, media_type, _, _, _)| Medium {
-                        id,
-                        name,
-                        owner: owner.clone(),
-                        views,
-                        r#type: media_type,
-                        sprite_filename: None,
-                        sprite_x: 0,
-                        sprite_y: 0,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    } else {
-        Vec::new()
-    };
+        .map(|results| {
+            results
+                .hits
+                .into_iter()
+                .map(|hit| hit.result.into())
+                .collect()
+        })
+        .unwrap_or_default();
 
     let template = HXMediumListTemplate {
         current_medium_id: mediumid,

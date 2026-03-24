@@ -31,7 +31,7 @@ services:
    depends_on:
      - scylladb
      - whisper
-     - translatellama
+     - llamacpp
  indexer:
    image: panmourovaty/rustvideoplatform-indexer
    volumes:
@@ -76,12 +76,12 @@ services:
      - /dev/dri:/dev/dri
    stdin_open: true
    tty: true
- translatellama:
+ llamacpp:
    image: ghcr.io/ggml-org/llama.cpp:server-vulkan
-   container_name: translatellama
+   container_name: llamacpp
    volumes:
      - ./models:/models
-   command: ["--host", "0.0.0.0", "--port", "8083", "-m", "/models/YOUR_TRANSLATION_MODEL", "--no-webui"]
+   command: ["--host", "0.0.0.0", "--port", "8083", "-m", "/models/YOUR_TRANSLATION_MODEL", "--alias", "translation", "-m", "/models/YOUR_QWEN3_EMBEDDING_MODEL", "--alias", "embedding", "--embedding", "--pooling", "cls", "--no-webui"]
    ports:
      - "8083:8083"
    devices:
