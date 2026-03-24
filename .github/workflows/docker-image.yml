@@ -30,6 +30,8 @@ jobs:
           build-args: |
             GIT_COMMIT_HASH=${{ github.sha }}
             GIT_BRANCH=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-primary:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
