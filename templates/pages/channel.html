@@ -11,7 +11,7 @@
     <meta property="og:type" content="profile" />
     <meta property="og:profile:username" content="{{ user.login }}" />
     <meta property="og:profile:first_name" content="{{ user.name }}" />
-    <meta property="og:url" content="https://{{ common_headers.host }}/u/{{ user.login }}" />
+    <meta property="og:url" content="{{ config.site_url }}/u/{{ user.login }}" />
     <meta property="og:locale" content="{{ config.locale }}" />
     <meta property="og:description" content="{{ config.description }}" />
     <meta property="og:image" content="{{ config.source_server_url }}/source/favicon.svg" />

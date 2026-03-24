@@ -62,6 +62,7 @@ struct Config {
     meilisearch_key: Option<String>,
     /// Embedder name to use for Meilisearch similar-document recommendations (default: "default")
     meilisearch_embedder: Option<String>,
+    site_url: String,
     source_server_url: String,
 
     /// WebAuthn Relying Party ID (e.g. "example.com"). Required to enable WebAuthn/passkey login.
@@ -105,16 +106,6 @@ fn request_hostname<B>(req: &Request<B>) -> String {
     request_authority(req)
         .map(|h| h.split(':').next().unwrap_or(&h).to_string())
         .unwrap_or_else(|| "localhost".to_string())
-}
-
-fn add_alt_svc_header(mut response: Response, enabled: bool) -> Response {
-    if enabled {
-        response.headers_mut().insert(
-            HeaderName::from_static("alt-svc"),
-            HeaderValue::from_static(r#"h3=":443"; ma=86400"#),
-        );
-    }
-    response
 }
 
 fn load_certs_from_pem(cert_pem: &[u8]) -> Vec<CertificateDer<'static>> {

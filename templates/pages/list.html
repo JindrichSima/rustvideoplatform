@@ -6,7 +6,7 @@
         <meta name="description" content="{{ list.name }} - a playlist on {{ config.instancename }}" />
         <meta property="og:title" content="{{ list.name }}" />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://{{ common_headers.host }}/l/{{ list.id }}" />
+        <meta property="og:url" content="{{ config.site_url }}/l/{{ list.id }}" />
         <meta property="og:locale" content="{{ config.locale }}" />
         <meta property="og:description" content="{{ config.description }}" />
         <meta property="og:image" content="{{ config.source_server_url }}/source/favicon.svg" />
