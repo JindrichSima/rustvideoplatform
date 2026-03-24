@@ -60,6 +60,8 @@ struct Config {
     custom_session_domain: Option<String>,
     meilisearch_url: String,
     meilisearch_key: Option<String>,
+    /// Embedder name to use for Meilisearch similar-document recommendations (default: "default")
+    meilisearch_embedder: Option<String>,
     source_server_url: String,
 
     /// WebAuthn Relying Party ID (e.g. "example.com"). Required to enable WebAuthn/passkey login.
