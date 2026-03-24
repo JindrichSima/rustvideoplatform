@@ -12,7 +12,9 @@ ENV GIT_BRANCH=$GIT_BRANCH
 # Pre-build dependencies (cached layer - only invalidated when Cargo.toml changes)
 COPY Cargo.toml /src/rustvideoplatform/
 RUN mkdir -p /src/rustvideoplatform/src && echo 'fn main() {}' > /src/rustvideoplatform/src/main.rs
-RUN case "$TARGETARCH" in \
+RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/root/.cargo/registry \
+    --mount=type=cache,id=rustvideoplatform-target-${TARGETARCH},target=/src/rustvideoplatform/target \
+    case "$TARGETARCH" in \
         amd64)   export RUSTFLAGS="-C target-cpu=x86-64-v3" ;; \
         ppc64le) export RUSTFLAGS="-C target-cpu=pwr8" ;; \
     esac && \
@@ -20,16 +22,19 @@ RUN case "$TARGETARCH" in \
 
 # Build actual project
 COPY ./ /src/rustvideoplatform
-RUN case "$TARGETARCH" in \
+RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/root/.cargo/registry \
+    --mount=type=cache,id=rustvideoplatform-target-${TARGETARCH},target=/src/rustvideoplatform/target \
+    case "$TARGETARCH" in \
         amd64)   export RUSTFLAGS="-C target-cpu=x86-64-v3" ;; \
         ppc64le) export RUSTFLAGS="-C target-cpu=pwr8" ;; \
     esac && \
-    cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --release
+    cd /src/rustvideoplatform && npm install --ignore-scripts && cargo build --release && \
+    cp target/release/rustvideoplatform /rustvideoplatform
 
 
 FROM alpine:edge
 RUN apk add --no-cache ffmpeg woff2
-COPY --from=builder /src/rustvideoplatform/target/release/rustvideoplatform /opt/rustvideoplatform
+COPY --from=builder /rustvideoplatform /opt/rustvideoplatform
 
 EXPOSE 8080
 STOPSIGNAL SIGTERM
