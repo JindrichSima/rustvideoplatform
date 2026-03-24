@@ -31,17 +31,6 @@ fn generate_secure_string() -> String {
         .collect()
 }
 
-fn parse_cookie_header(header: &str) -> AHashMap<String, String> {
-    let mut cookies = AHashMap::new();
-    for cookie in header.split(';').map(|s| s.trim()) {
-        let mut parts = cookie.splitn(2, '=');
-        if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-            cookies.insert(key.to_string(), value.to_string());
-        }
-    }
-    cookies
-}
-
 async fn prettyunixtime(unix_time: i64) -> String {
     let dt: DateTime<Local> = DateTime::from_timestamp(unix_time, 0).unwrap().into();
     format!(
@@ -90,23 +79,33 @@ fn extract_common_headers(headers: &HeaderMap) -> CommonHeaders {
     }
 }
 
-fn build_session_cookie_js(token: &str, config: &Config) -> String {
+fn build_session_cookie(token: &str, config: &Config) -> String {
     let domain_part = match &config.custom_session_domain {
         Some(d) => format!("; Domain={}", d),
         None => String::new(),
     };
     format!(
-        "session={}; Path=/; SameSite=Lax{}",
+        "session={}; Path=/; HttpOnly; SameSite=Lax{}",
         token, domain_part
     )
 }
 
-fn build_login_success_response(token: &str, config: &Config) -> String {
-    let cookie = build_session_cookie_js(token, config);
-    format!(
-        "<script>document.cookie=\"{}\";window.location.replace('/');</script>",
-        cookie
-    )
+/// Parse cookies from ALL Cookie header entries (HTTP/2 may split them
+/// into separate header fields instead of the single semicolon-delimited
+/// header used in HTTP/1.1).
+fn parse_all_cookies(headers: &HeaderMap) -> AHashMap<String, String> {
+    let mut cookies = AHashMap::new();
+    for value in headers.get_all("Cookie") {
+        if let Ok(s) = value.to_str() {
+            for cookie in s.split(';').map(|c| c.trim()) {
+                let mut parts = cookie.splitn(2, '=');
+                if let (Some(key), Some(val)) = (parts.next(), parts.next()) {
+                    cookies.insert(key.to_string(), val.to_string());
+                }
+            }
+        }
+    }
+    cookies
 }
 
 async fn get_user_login(
@@ -114,7 +113,7 @@ async fn get_user_login(
     db: &ScyllaDb,
     mut redis: RedisConn,
 ) -> Option<User> {
-    let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
+    let session_cookie = parse_all_cookies(&headers)
         .get("session")?
         .to_owned();
 

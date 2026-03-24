@@ -109,7 +109,10 @@ async fn hx_login(
             );
         }
 
-        return (StatusCode::OK, HeaderMap::new(), build_login_success_response(&session_cookie_value, &config));
+        let mut response_headers = HeaderMap::new();
+        response_headers.insert("Set-Cookie", build_session_cookie(&session_cookie_value, &config).parse().unwrap());
+        response_headers.insert("HX-Redirect", "/".parse().unwrap());
+        return (StatusCode::OK, response_headers, String::new());
     } else {
         let response_headers = HeaderMap::new();
         let response_body = "<b class=\"text-danger\">Wrong user name or password</b>".to_owned();
@@ -122,15 +125,11 @@ async fn hx_logout(
     headers: HeaderMap,
     Extension(mut redis): Extension<RedisConn>,
 ) -> axum::response::Html<String> {
-    if let Some(cookie_header) = headers.get("Cookie") {
-        if let Ok(cookie_str) = cookie_header.to_str() {
-            if let Some(session_cookie) = parse_cookie_header(cookie_str).get("session").cloned() {
-                let _: () = redis
-                    .del(format!("session:{}", session_cookie))
-                    .await
-                    .unwrap_or(());
-            }
-        }
+    if let Some(session_cookie) = parse_all_cookies(&headers).get("session").cloned() {
+        let _: () = redis
+            .del(format!("session:{}", session_cookie))
+            .await
+            .unwrap_or(());
     }
     Html("<h1>LOGOUT SUCESS</h1><script>window.location.replace(\"/\");</script>".to_owned())
 }

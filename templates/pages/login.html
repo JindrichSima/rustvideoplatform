@@ -108,9 +108,6 @@
             });
             const finishData = await finishResp.json();
             if (finishData.success) {
-                if (finishData.session_cookie) {
-                    document.cookie = finishData.session_cookie;
-                }
                 resultEl.innerHTML = '<b class="text-success">Authenticated! Redirecting&hellip;</b>';
                 window.location.replace('/');
             } else {
