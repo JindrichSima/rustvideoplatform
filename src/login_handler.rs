@@ -97,14 +97,6 @@ async fn hx_login(
         }
 
         let session_cookie_value = generate_secure_string();
-        let session_restriction: String;
-        if config.custom_session_domain.is_some() {
-            session_restriction =
-                format!("Path=/;Domain={}", config.custom_session_domain.clone().unwrap());
-        } else {
-            session_restriction = "Path=/".to_owned()
-        }
-        let session_cookie_set = format!("session={}; {}", session_cookie_value, session_restriction);
         if redis
             .set::<_, _, ()>(format!("session:{}", session_cookie_value), &form.login)
             .await
@@ -118,7 +110,7 @@ async fn hx_login(
         }
 
         let mut response_headers = HeaderMap::new();
-        response_headers.insert("Set-Cookie", session_cookie_set.parse().unwrap());
+        response_headers.insert("Set-Cookie", build_session_cookie(&session_cookie_value, &config).parse().unwrap());
         response_headers.insert("HX-Redirect", "/".parse().unwrap());
         return (StatusCode::OK, response_headers, String::new());
     } else {
@@ -133,15 +125,11 @@ async fn hx_logout(
     headers: HeaderMap,
     Extension(mut redis): Extension<RedisConn>,
 ) -> axum::response::Html<String> {
-    if let Some(cookie_header) = headers.get("Cookie") {
-        if let Ok(cookie_str) = cookie_header.to_str() {
-            if let Some(session_cookie) = parse_cookie_header(cookie_str).get("session").cloned() {
-                let _: () = redis
-                    .del(format!("session:{}", session_cookie))
-                    .await
-                    .unwrap_or(());
-            }
-        }
+    if let Some(session_cookie) = parse_all_cookies(&headers).get("session").cloned() {
+        let _: () = redis
+            .del(format!("session:{}", session_cookie))
+            .await
+            .unwrap_or(());
     }
     Html("<h1>LOGOUT SUCESS</h1><script>window.location.replace(\"/\");</script>".to_owned())
 }

@@ -31,17 +31,6 @@ fn generate_secure_string() -> String {
         .collect()
 }
 
-fn parse_cookie_header(header: &str) -> AHashMap<String, String> {
-    let mut cookies = AHashMap::new();
-    for cookie in header.split(';').map(|s| s.trim()) {
-        let mut parts = cookie.splitn(2, '=');
-        if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-            cookies.insert(key.to_string(), value.to_string());
-        }
-    }
-    cookies
-}
-
 async fn prettyunixtime(unix_time: i64) -> String {
     let dt: DateTime<Local> = DateTime::from_timestamp(unix_time, 0).unwrap().into();
     format!(
@@ -90,12 +79,41 @@ fn extract_common_headers(headers: &HeaderMap) -> CommonHeaders {
     }
 }
 
+fn build_session_cookie(token: &str, config: &Config) -> String {
+    let domain_part = match &config.custom_session_domain {
+        Some(d) => format!("; Domain={}", d),
+        None => String::new(),
+    };
+    format!(
+        "session={}; Path=/; HttpOnly; SameSite=Lax{}",
+        token, domain_part
+    )
+}
+
+/// Parse cookies from ALL Cookie header entries (HTTP/2 may split them
+/// into separate header fields instead of the single semicolon-delimited
+/// header used in HTTP/1.1).
+fn parse_all_cookies(headers: &HeaderMap) -> AHashMap<String, String> {
+    let mut cookies = AHashMap::new();
+    for value in headers.get_all("Cookie") {
+        if let Ok(s) = value.to_str() {
+            for cookie in s.split(';').map(|c| c.trim()) {
+                let mut parts = cookie.splitn(2, '=');
+                if let (Some(key), Some(val)) = (parts.next(), parts.next()) {
+                    cookies.insert(key.to_string(), val.to_string());
+                }
+            }
+        }
+    }
+    cookies
+}
+
 async fn get_user_login(
     headers: HeaderMap,
     db: &ScyllaDb,
     mut redis: RedisConn,
 ) -> Option<User> {
-    let session_cookie = parse_cookie_header(headers.get("Cookie")?.to_str().ok()?)
+    let session_cookie = parse_all_cookies(&headers)
         .get("session")?
         .to_owned();
 
@@ -104,8 +122,11 @@ async fn get_user_login(
         .await
         .ok()?;
 
-    let result = db.session.execute_unpaged(&db.get_user_by_login, (&login,)).await.ok()?;
-    let row = result.into_rows_result().ok()?.maybe_first_row::<(Option<String>, Option<String>)>().ok()??;
+    let row = db.session.execute_unpaged(&db.get_user_by_login, (&login,))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(Option<String>, Option<String>)>().ok().flatten())?;
 
     Some(User {
         login,
@@ -115,14 +136,7 @@ async fn get_user_login(
 }
 
 async fn is_logged(user: Option<User>) -> bool {
-    let isloggedin: bool;
-    if user.is_some() && user.unwrap().login != "".to_owned() {
-        isloggedin = true;
-    }
-    else {
-        isloggedin = false;
-    }
-    isloggedin
+    user.as_ref().is_some_and(|u| !u.login.is_empty())
 }
 
 fn format_file_size(size_bytes: usize) -> String {
