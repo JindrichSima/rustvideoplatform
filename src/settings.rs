@@ -461,6 +461,16 @@ fn get_kernel_version() -> String {
 }
 
 async fn get_scylla_version(db: &ScyllaDb) -> String {
+    if let Some(v) = db.session
+        .query_unpaged("SHOW VERSION", ())
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten())
+        .map(|(v,)| v)
+    {
+        return v;
+    }
     db.session
         .query_unpaged("SELECT release_version FROM system.local", ())
         .await

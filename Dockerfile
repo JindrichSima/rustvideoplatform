@@ -4,6 +4,10 @@ FROM alpine:edge AS builder
 RUN apk add --no-cache cargo musl-dev pkgconfig nodejs npm woff2 openssl-dev perl make build-base
 
 ARG TARGETARCH
+ARG GIT_COMMIT_HASH=unknown
+ARG GIT_BRANCH=unknown
+ENV GIT_COMMIT_HASH=$GIT_COMMIT_HASH
+ENV GIT_BRANCH=$GIT_BRANCH
 
 # Pre-build dependencies (cached layer - only invalidated when Cargo.toml changes)
 COPY Cargo.toml /src/rustvideoplatform/
