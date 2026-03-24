@@ -5,7 +5,7 @@
         <meta property="og:title" content="{{ medium_name }}" />
         <meta
             property="og:url"
-            content="https://{{ common_headers.host }}/m/{{ medium_id }}"
+            content="{{ config.site_url }}/m/{{ medium_id }}"
         />
         <meta property="og:locale" content="{{ config.locale }}" />
         <meta property="og:description" content="{{ config.description }}" />
@@ -15,33 +15,33 @@
         <meta property="og:type" content="video.movie" />
         <meta
             property="og:video"
-            content="https://{{ common_headers.host }}/m/{{ medium_id }}/video-sm.mp4"
+            content="{{ config.source_server_url }}/m/{{ medium_id }}/video-sm.mp4"
         />
         <meta
             property="og:video:secure_url"
-            content="https://{{ common_headers.host }}/m/{{ medium_id }}/video-sm.mp4"
+            content="{{ config.source_server_url }}/m/{{ medium_id }}/video-sm.mp4"
         />
         <meta property="og:video:type" content="video/mp4" />
         <meta property="og:video:width" content="1280" />
         <meta property="og:video:height" content="720" />
         <meta
             property="og:image"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/thumbnail.jpg"
+            content="{{ config.source_server_url }}/source/{{ medium_id }}/thumbnail.jpg"
         />
         {% else if medium_type == "audio" %}
         <meta property="og:type" content="music.song" />
         <meta
             property="og:audio"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/audio.ogg"
+            content="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg"
         />
         <meta
             property="og:audio:secure_url"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/audio.ogg"
+            content="{{ config.source_server_url }}/source/{{ medium_id }}/audio.ogg"
         />
         <meta property="og:audio:type" content="audio/ogg" />
         <meta
             property="og:image"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/thumbnail.jpg"
+            content="{{ config.source_server_url }}/source/{{ medium_id }}/thumbnail.jpg"
         />
         {% else if medium_type == "picture" %}
         <meta property="og:type" content="image" />
@@ -58,7 +58,7 @@
         <meta property="og:type" content="article" />
         <meta
             property="og:image"
-            content="https://{{ common_headers.host }}/source/{{ medium_id }}/thumbnail.jpg"
+            content="https://{{ config.source_server_url }}/source/{{ medium_id }}/thumbnail.jpg"
         />
         {% endif %}
 
