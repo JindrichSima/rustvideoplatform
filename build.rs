@@ -34,6 +34,24 @@ fn main() {
     };
 
     println!("cargo:rustc-env=GIT_COMMIT_HASH={}", git_hash);
+
+    // --- Git branch ---
+    let branch_output = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output();
+
+    let git_branch = match branch_output {
+        Ok(o) if o.status.success() => {
+            let branch = String::from_utf8(o.stdout)
+                .unwrap_or_default()
+                .trim()
+                .to_owned();
+            if branch.is_empty() { "unknown".to_owned() } else { branch }
+        }
+        _ => "unknown".to_owned(),
+    };
+
+    println!("cargo:rustc-env=GIT_BRANCH={}", git_branch);
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/");
 

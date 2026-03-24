@@ -460,18 +460,60 @@ fn get_kernel_version() -> String {
     }
 }
 
+async fn get_scylla_version(db: &ScyllaDb) -> String {
+    db.session
+        .query_unpaged("SELECT release_version FROM system.local", ())
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .and_then(|rows| rows.maybe_first_row::<(String,)>().ok().flatten())
+        .map(|(v,)| v)
+        .unwrap_or_else(|| "unknown".to_owned())
+}
+
+async fn get_meilisearch_version(meili: &MeilisearchClient) -> String {
+    meili.get_version()
+        .await
+        .map(|v| v.pkg_version)
+        .unwrap_or_else(|_| "unknown".to_owned())
+}
+
+async fn get_redis_version(mut redis: RedisConn) -> String {
+    let info: redis::RedisResult<String> = redis::cmd("INFO")
+        .arg("server")
+        .query_async(&mut redis)
+        .await;
+    match info {
+        Ok(info_str) => {
+            for line in info_str.lines() {
+                if line.starts_with("redis_version:") {
+                    return line["redis_version:".len()..].trim().to_owned();
+                }
+            }
+            "unknown".to_owned()
+        }
+        Err(_) => "unknown".to_owned(),
+    }
+}
+
 #[derive(Template)]
 #[template(path = "pages/hx-settings-diagnostics.html", escape = "none")]
 struct HXSettingsDiagnosticsTemplate {
     git_commit: String,
+    git_branch: String,
     version: String,
     os_distro: String,
     os_kernel: String,
     os_arch: String,
+    scylla_version: String,
+    meilisearch_version: String,
+    redis_version: String,
 }
+
 async fn hx_settings_diagnostics(
     Extension(db): Extension<ScyllaDb>,
     Extension(redis): Extension<RedisConn>,
+    Extension(meili): Extension<Arc<MeilisearchClient>>,
     headers: HeaderMap,
 ) -> axum::response::Html<Vec<u8>> {
     let user_info = get_user_login(headers.clone(), &db, redis.clone()).await;
@@ -480,17 +522,25 @@ async fn hx_settings_diagnostics(
     }
 
     let git_commit = env!("GIT_COMMIT_HASH").to_owned();
+    let git_branch = env!("GIT_BRANCH").to_owned();
     let version = env!("CARGO_PKG_VERSION").to_owned();
     let os_distro = get_os_distro();
     let os_kernel = get_kernel_version();
     let os_arch = std::env::consts::ARCH.to_owned();
+    let scylla_version = get_scylla_version(&db).await;
+    let meilisearch_version = get_meilisearch_version(&meili).await;
+    let redis_version = get_redis_version(redis).await;
 
     let template = HXSettingsDiagnosticsTemplate {
         git_commit,
+        git_branch,
         version,
         os_distro,
         os_kernel,
         os_arch,
+        scylla_version,
+        meilisearch_version,
+        redis_version,
     };
     Html(minifi_html(template.render().unwrap()))
 }
