@@ -17,7 +17,7 @@ async fn hx_recommended(
 
     let media: Vec<Medium> = if let Some(ref owner) = owner {
         db.session
-            .execute_unpaged(&db.get_media_by_owner, (owner, 21i64))
+            .execute_unpaged(&db.get_media_by_owner, (owner, 21i32))
             .await
             .ok()
             .and_then(|r| r.into_rows_result().ok())
