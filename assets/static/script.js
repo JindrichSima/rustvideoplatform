@@ -75,7 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (t && t.classList && (
             t.classList.contains('hx-placeholder') ||
             t.classList.contains('sidebar-hx-placeholder') ||
-            t.classList.contains('subscribe-placeholder')
+            t.classList.contains('subscribe-placeholder') ||
+            t.classList.contains('usernav-placeholder')
         )) {
             t.style.opacity = '0';
         }
