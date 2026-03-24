@@ -35,6 +35,12 @@
         "timeout_secs": 500
     },
 
+    "embedding": {
+        "url": "http://embedding:8084/v1/embeddings",
+        "model": "YOUR_QWEN3_EMBEDDING_MODEL",
+        "timeout_secs": 30
+    },
+
     "audio": {
         "codec": "libopus",
         "lossless_bitrate": "300k",

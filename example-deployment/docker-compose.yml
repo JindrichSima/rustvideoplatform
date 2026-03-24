@@ -88,3 +88,15 @@ services:
      - /dev/dri:/dev/dri
    stdin_open: true
    tty: true
+ embedding:
+   image: ghcr.io/ggml-org/llama.cpp:server-vulkan
+   container_name: embedding
+   volumes:
+     - ./models:/models
+   command: ["--host", "0.0.0.0", "--port", "8084", "-m", "/models/YOUR_QWEN3_EMBEDDING_MODEL", "--embedding", "--no-webui", "--pooling", "cls"]
+   ports:
+     - "8084:8084"
+   devices:
+     - /dev/dri:/dev/dri
+   stdin_open: true
+   tty: true
