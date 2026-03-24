@@ -12,7 +12,8 @@ async fn hx_recommended(
 
     let embedder = config
         .meilisearch_embedder
-        .as_deref()
+        .as_ref()
+        .map(|embedder| embedder.name.as_str())
         .unwrap_or("default")
         .to_owned();
 

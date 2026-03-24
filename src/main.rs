@@ -49,6 +49,11 @@ use axum::http::header::HeaderName;
 type RedisConn = redis::aio::ConnectionManager;
 
 #[derive(Deserialize, Clone)]
+struct MeilisearchEmbedderConfig {
+    name: String,
+}
+
+#[derive(Deserialize, Clone)]
 struct Config {
     scylla_nodes: Vec<String>,
     scylla_keyspace: Option<String>,
@@ -60,8 +65,8 @@ struct Config {
     custom_session_domain: Option<String>,
     meilisearch_url: String,
     meilisearch_key: Option<String>,
-    /// Embedder name to use for Meilisearch similar-document recommendations (default: "default")
-    meilisearch_embedder: Option<String>,
+    /// Embedder configuration (name used for similar-document recommendations)
+    meilisearch_embedder: Option<MeilisearchEmbedderConfig>,
     site_url: String,
     source_server_url: String,
 
