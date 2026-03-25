@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="{{ config.locale }}">
+    <head>
+        {% include "component-dependencies.html" %}
+
+        <title>History - {{ config.instancename }}</title>
+
+        <meta name="description" content="{{ config.description }}" />
+        <meta
+            property="og:title"
+            content="{{ config.instancename }} History"
+        />
+        <meta property="og:type" content="website" />
+        <meta
+            property="og:url"
+            content="{{ config.site_url }}/history"
+        />
+        <meta property="og:locale" content="{{ config.locale }}" />
+        <meta property="og:description" content="{{ config.description }}" />
+        <meta property="og:image" content="{{ config.source_server_url }}/source/favicon.svg" />
+        <meta property="og:site_name" content="{{ config.instancename }}" />
+    </head>
+
+    <body hx-ext="preload">
+        {% set page_title = "History" %}
+        {{ sidebar }} {% include "component-navbar.html" %}
+        <div class="row maincontentrow g-3 py-2 ps-2 w-100" role="main">
+            <div class="col-12 col-sm-12 col-md-12 col-lg-12">
+                <div
+                    class="card py-3 px-3 text-white"
+                    style="min-height: 100vh"
+                >
+                    <div
+                        hx-get="/hx/history"
+                        hx-trigger="load"
+                        class="row mb-3 hx-placeholder"
+                        preload="always"
+                    ></div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

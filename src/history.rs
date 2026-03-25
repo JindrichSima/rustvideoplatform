@@ -1,0 +1,135 @@
+#[derive(Template)]
+#[template(path = "pages/history.html", escape = "none")]
+struct HistoryTemplate {
+    sidebar: String,
+    config: Config,
+    common_headers: CommonHeaders,
+}
+
+async fn history(
+    Extension(config): Extension<Config>,
+    headers: HeaderMap,
+) -> axum::response::Html<Vec<u8>> {
+    let sidebar = generate_sidebar(&config, "history".to_owned());
+    let common_headers = extract_common_headers(&headers);
+    let template = HistoryTemplate {
+        sidebar,
+        config,
+        common_headers,
+    };
+    Html(minifi_html(template.render().unwrap()))
+}
+
+struct HistoryItem {
+    id: String,
+    name: String,
+    owner: String,
+    owner_name: String,
+    media_type: String,
+    viewed_at: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/hx-history-items.html", escape = "none")]
+struct HXHistoryItemsTemplate {
+    items: Vec<HistoryItem>,
+    config: Config,
+    page: i64,
+    has_more: bool,
+    next_url: String,
+}
+
+async fn hx_history(
+    Extension(config): Extension<Config>,
+    headers: HeaderMap,
+    Extension(db): Extension<ScyllaDb>,
+    Extension(redis): Extension<RedisConn>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_history_inner(config, headers, db, redis, 0).await
+}
+
+async fn hx_history_page(
+    Extension(config): Extension<Config>,
+    headers: HeaderMap,
+    Extension(db): Extension<ScyllaDb>,
+    Extension(redis): Extension<RedisConn>,
+    Path(page): Path<i64>,
+) -> axum::response::Html<Vec<u8>> {
+    hx_history_inner(config, headers, db, redis, page).await
+}
+
+async fn hx_history_inner(
+    config: Config,
+    headers: HeaderMap,
+    db: ScyllaDb,
+    redis: RedisConn,
+    page: i64,
+) -> axum::response::Html<Vec<u8>> {
+    let user = match get_user_login(headers, &db, redis.clone()).await {
+        Some(user) => user,
+        None => {
+            return Html(
+                "Please log in to see your history"
+                    .as_bytes()
+                    .to_vec(),
+            )
+        }
+    };
+
+    let per_page: i64 = 30;
+    // Fetch enough rows to cover offset + page + 1 (to detect has_more)
+    let fetch_limit = ((page + 1) * per_page + 1) as i32;
+    let offset = (page * per_page) as usize;
+
+    let history_rows: Vec<(String, i64)> = db.session.execute_unpaged(&db.get_view_history, (&user.login, &fetch_limit))
+        .await
+        .ok()
+        .and_then(|r| r.into_rows_result().ok())
+        .map(|rows| rows.rows::<(String, i64)>().unwrap().filter_map(|r| r.ok()).collect())
+        .unwrap_or_default();
+
+    // Skip to the right page offset
+    let page_rows: Vec<(String, i64)> = history_rows.into_iter().skip(offset).take(per_page as usize + 1).collect();
+    let has_more = page_rows.len() > per_page as usize;
+
+    // Fetch media details for each history entry
+    let mut items: Vec<HistoryItem> = Vec::new();
+    for (media_id, viewed_at) in page_rows.iter().take(per_page as usize) {
+        let media_row = db.session.execute_unpaged(&db.get_media_basic, (media_id,))
+            .await
+            .ok()
+            .and_then(|r| r.into_rows_result().ok())
+            .and_then(|rows| rows.maybe_first_row::<(String, String, String, String, Option<String>, String)>().ok().flatten());
+
+        if let Some((id, name, owner, _visibility, _restricted_to_group, media_type)) = media_row {
+            // Get owner display name
+            let owner_name = db.session.execute_unpaged(&db.get_user_by_login, (&owner,))
+                .await
+                .ok()
+                .and_then(|r| r.into_rows_result().ok())
+                .and_then(|rows| rows.maybe_first_row::<(Option<String>, Option<String>)>().ok().flatten())
+                .and_then(|r| r.0)
+                .unwrap_or_else(|| owner.clone());
+
+            items.push(HistoryItem {
+                id,
+                name,
+                owner: owner.clone(),
+                owner_name,
+                media_type,
+                viewed_at: prettyunixtime(*viewed_at).await,
+            });
+        }
+    }
+
+    let next_url = format!("/hx/history/{}", page + 1);
+
+    let template = HXHistoryItemsTemplate {
+        items,
+        config,
+        page,
+        has_more,
+        next_url,
+    };
+    Html(minifi_html(template.render().unwrap()))
+}

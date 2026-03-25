@@ -121,6 +121,10 @@ pub struct ScyllaDb {
     pub update_webauthn_passkey: PreparedStatement,
     pub get_webauthn_cred_by_id: PreparedStatement,
 
+    // --- View History ---
+    pub insert_view_history: PreparedStatement,
+    pub get_view_history: PreparedStatement,
+
     // --- Batch update helpers for groups ---
     pub get_media_by_group: PreparedStatement,
     pub get_lists_by_group: PreparedStatement,
@@ -248,6 +252,10 @@ impl ScyllaDb {
             delete_webauthn_cred_by_user: session.prepare("DELETE FROM webauthn_credentials_by_user WHERE user_login = ? AND created = ? AND id = ?").await?,
             update_webauthn_passkey: session.prepare("UPDATE webauthn_credentials SET passkey = ? WHERE id = ?").await?,
             get_webauthn_cred_by_id: session.prepare("SELECT id, user_login, credential_name, passkey, created FROM webauthn_credentials WHERE id = ?").await?,
+
+            // --- View History ---
+            insert_view_history: session.prepare("INSERT INTO view_history (user_login, viewed_at, media_id) VALUES (?, ?, ?)").await?,
+            get_view_history: session.prepare("SELECT media_id, viewed_at FROM view_history WHERE user_login = ? LIMIT ?").await?,
 
             // --- Batch update helpers for groups ---
             get_media_by_group: session.prepare("SELECT id, owner, upload FROM media WHERE restricted_to_group = ? ALLOW FILTERING").await?,
