@@ -1,55 +1,10 @@
-{% for item in items %}
-<div class="d-flex align-items-start gap-3 py-2 {% if !loop.first %}border-top border-secondary{% endif %} inf-scroll-reveal">
-    <a
-        href="/m/{{ item.id }}"
-        class="flex-shrink-0"
-        preload="mouseover"
-    >
-        <div class="thumbnail-container rounded" style="width:176px;height:99px;">
-            <img
-                src="{{ config.source_server_url }}/source/{{ item.id }}/thumbnail-sm.avif"
-                width="176"
-                height="99"
-                class="rounded"
-                alt="thumb-{{ item.id }}"
-                loading="lazy"
-            />
-            <div class="search-card-type-badge">
-                {% if item.media_type == "video" %}
-                <i class="fa-solid fa-video"></i>
-                {% else if item.media_type == "audio" %}
-                <i class="fa-solid fa-music"></i>
-                {% else if item.media_type == "picture" %}
-                <i class="fa-solid fa-image"></i>
-                {% else if item.media_type == "document_pdf" %}
-                <i class="fa-solid fa-file-pdf"></i>
-                {% else %}
-                <i class="fa-solid fa-file"></i>
-                {% endif %}
-            </div>
-        </div>
-    </a>
-    <div class="d-flex flex-column justify-content-center min-w-0">
-        <a href="/m/{{ item.id }}" class="text-white text-decoration-none" preload="mouseover">
-            <b class="d-block text-truncate">{{ item.name }}</b>
-        </a>
-        <a href="/u/{{ item.owner }}" class="text-secondary text-decoration-none small" preload="mouseover">
-            {{ item.owner_name }}
-        </a>
-        <span class="text-secondary small">
-            <i class="fa-solid fa-clock-rotate-left me-1"></i>{{ item.viewed_at }}
-        </span>
-    </div>
-</div>
-{% if loop.index == 15 && has_more %}
-<div style="position:absolute;height:0;width:0;overflow:hidden;visibility:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-hist-{{ page }}" hx-swap="outerHTML" hx-on::after-request="this.remove()"></div>
-{% endif %}
-{% endfor %}
+{% include "pages/hx-mediumlist.html" %}
 {% if has_more %}
+<div style="position:absolute;height:0;width:0;overflow:hidden;visibility:hidden;" hx-get="{{ next_url }}" hx-trigger="revealed" hx-target="#inf-scroll-hist-{{ page }}" hx-swap="outerHTML" hx-on::after-request="this.remove()"></div>
 <div id="inf-scroll-hist-{{ page }}" class="col-12 my-4 inf-scroll-placeholder"></div>
 {% else %}
 <div class="col-12 text-center my-4">
-    {% if items.is_empty() && page == 0 %}
+    {% if media.is_empty() && page == 0 %}
     <p class="text-secondary">No history yet. Start watching to see your history here.</p>
     {% else %}
     <p class="text-secondary"><i class="fa-solid fa-circle-check me-2"></i>You have reached the end.</p>
