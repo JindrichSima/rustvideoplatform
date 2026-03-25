@@ -20,19 +20,11 @@ async fn history(
     Html(minifi_html(template.render().unwrap()))
 }
 
-struct HistoryItem {
-    id: String,
-    name: String,
-    owner: String,
-    owner_name: String,
-    media_type: String,
-    viewed_at: String,
-}
-
 #[derive(Template)]
 #[template(path = "pages/hx-history-items.html", escape = "none")]
 struct HXHistoryItemsTemplate {
-    items: Vec<HistoryItem>,
+    media: Vec<Medium>,
+    current_medium_id: String,
     config: Config,
     page: i64,
     has_more: bool,
@@ -93,8 +85,8 @@ async fn hx_history_inner(
     let has_more = page_rows.len() > per_page as usize;
 
     // Fetch media details for each history entry
-    let mut items: Vec<HistoryItem> = Vec::new();
-    for (media_id, viewed_at) in page_rows.iter().take(per_page as usize) {
+    let mut media: Vec<Medium> = Vec::new();
+    for (media_id, _viewed_at) in page_rows.iter().take(per_page as usize) {
         let media_row = db.session.execute_unpaged(&db.get_media_basic, (media_id,))
             .await
             .ok()
@@ -102,22 +94,24 @@ async fn hx_history_inner(
             .and_then(|rows| rows.maybe_first_row::<(String, String, String, String, Option<String>, String)>().ok().flatten());
 
         if let Some((id, name, owner, _visibility, _restricted_to_group, media_type)) = media_row {
-            // Get owner display name
-            let owner_name = db.session.execute_unpaged(&db.get_user_by_login, (&owner,))
-                .await
-                .ok()
-                .and_then(|r| r.into_rows_result().ok())
-                .and_then(|rows| rows.maybe_first_row::<(Option<String>, Option<String>)>().ok().flatten())
-                .and_then(|r| r.0)
-                .unwrap_or_else(|| owner.clone());
+            // Get view count
+            let views: i64 = db.session.execute_unpaged(&db.get_view_count, (&id,))
+                .await.ok().and_then(|r| r.into_rows_result().ok())
+                .and_then(|rows| rows.maybe_first_row::<(scylla::value::CqlValue,)>().ok().flatten())
+                .map(|r| match r.0 {
+                    scylla::value::CqlValue::Counter(c) => c.0,
+                    _ => 0,
+                }).unwrap_or(0);
 
-            items.push(HistoryItem {
+            media.push(Medium {
                 id,
                 name,
-                owner: owner.clone(),
-                owner_name,
-                media_type,
-                viewed_at: prettyunixtime(*viewed_at).await,
+                owner,
+                views,
+                r#type: media_type,
+                sprite_filename: None,
+                sprite_x: 0,
+                sprite_y: 0,
             });
         }
     }
@@ -125,7 +119,8 @@ async fn hx_history_inner(
     let next_url = format!("/hx/history/{}", page + 1);
 
     let template = HXHistoryItemsTemplate {
-        items,
+        media,
+        current_medium_id: String::new(),
         config,
         page,
         has_more,
